@@ -2,9 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { Wallet } from 'ethers';
 import { UserOperationService } from './user-operation.service';
 import { TransactionService } from './transaction.service';
-import { Http2Service } from '../../../http2/http2.service';
 import { getPrivateKeyMap } from '../../../configs/bundler-config';
 import { BUNDLING_MODE, IS_DEVELOPMENT } from '../../../common/common-types';
+import { Alert } from '../../../common/alert';
 
 export enum TRANSACTION_EXTRA_STATUS {
     NONE,
@@ -24,7 +24,6 @@ export class AAService {
     public constructor(
         public readonly userOperationService: UserOperationService,
         public readonly transactionService: TransactionService,
-        public readonly http2Service: Http2Service,
     ) {}
 
     public getRandomSigners(chainId: number): Wallet[] {
@@ -36,14 +35,14 @@ export class AAService {
     public setBlockedSigner(chainId: number, signerAddress: string) {
         this.blockedSigners.add(`${chainId}-${signerAddress}`);
 
-        this.http2Service.sendLarkMessage(`${signerAddress} is blocked on chain ${chainId}`, `Block Signer On Chain ${chainId}`);
+        Alert.sendMessage(`${signerAddress} is blocked on chain ${chainId}`, `Block Signer On Chain ${chainId}`);
     }
 
     public UnblockedSigner(chainId: number, signerAddress: string) {
         const key = `${chainId}-${signerAddress}`;
         if (this.blockedSigners.has(key)) {
             this.blockedSigners.delete(key);
-            this.http2Service.sendLarkMessage(`${signerAddress} is unblocked on chain ${chainId}`, `Unblock Signer On Chain ${chainId}`);
+            Alert.sendMessage(`${signerAddress} is unblocked on chain ${chainId}`, `Unblock Signer On Chain ${chainId}`);
         }
     }
 

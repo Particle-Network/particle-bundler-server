@@ -7,7 +7,6 @@ import { UserOperation, UserOperationSchema } from '../src/modules/rpc/schemas/u
 import { mongodbConfigAsync } from '../src/configs/mongodb.config';
 import { configConfig } from '../src/configs/config.config';
 import { ConfigModule } from '@nestjs/config';
-import { Http2Module } from '../src/http2/http2.module';
 import { RedisModule } from '@liaoliaots/nestjs-redis';
 import { redisConfigAsync } from '../src/configs/redis.config';
 import { Contract, Wallet, JsonRpcProvider, resolveProperties, MaxUint256, toBeHex, parseEther } from 'ethers';
@@ -31,7 +30,6 @@ describe('RpcController', () => {
                 MongooseModule.forRootAsync(mongodbConfigAsync),
                 RpcModule,
                 MongooseModule.forFeature([{ name: UserOperation.name, schema: UserOperationSchema }]),
-                Http2Module,
                 RedisModule.forRootAsync(redisConfigAsync),
             ],
         }).compile();

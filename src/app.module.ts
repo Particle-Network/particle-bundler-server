@@ -6,7 +6,6 @@ import { ConfigModule } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { mongodbConfigAsync } from './configs/mongodb.config';
 import { TaskModule } from './modules/task/task.module';
-import { Http2Module } from './http2/http2.module';
 import { redisConfigAsync } from './configs/redis.config';
 import { RedisModule } from '@liaoliaots/nestjs-redis';
 
@@ -18,7 +17,6 @@ import { RedisModule } from '@liaoliaots/nestjs-redis';
         CommonModule,
         RpcModule,
         TaskModule,
-        Http2Module,
     ],
 })
 export class AppModule {}

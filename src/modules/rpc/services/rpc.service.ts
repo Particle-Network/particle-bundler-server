@@ -9,7 +9,6 @@ import * as DEBUG from './../debug';
 import { AAService } from './aa.service';
 import { JsonRpcProvider, Network } from 'ethers';
 import { RedisService } from '@liaoliaots/nestjs-redis';
-import { Http2Service } from '../../../http2/http2.service';
 import { AA_METHODS } from '../../../configs/bundler-config';
 import { IS_DEVELOPMENT, PARTICLE_PUBLIC_RPC_URL } from '../../../common/common-types';
 
@@ -19,7 +18,6 @@ export class RpcService {
 
     public constructor(
         public readonly aaService: AAService,
-        public readonly http2Service: Http2Service,
         public readonly redisService: RedisService,
     ) {}
 

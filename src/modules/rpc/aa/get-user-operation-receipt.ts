@@ -7,6 +7,7 @@ import entryPointAbi from './entry-point-abi';
 import { TRANSACTION_STATUS } from '../schemas/transaction.schema';
 import { BigNumber } from '../../../common/bignumber';
 import { deepHexlify } from './utils';
+import { Alert } from '../../../common/alert';
 
 export async function getUserOperationReceipt(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
     Helper.assertTrue(body.params.length === 1, -32602);
@@ -99,7 +100,7 @@ export async function manuallyGetUserOperationReceipt(chainId: number, rpcServic
         });
     } catch (error) {
         console.error(error);
-        rpcService.http2Service.sendLarkMessage(`Failed to get user operation receipt: ${Helper.converErrorToString(error)}`);
+        Alert.sendMessage(`Failed to get user operation receipt: ${Helper.converErrorToString(error)}`);
 
         return null;
     }

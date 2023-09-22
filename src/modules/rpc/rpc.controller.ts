@@ -6,11 +6,11 @@ import { isArray, isPlainObject } from 'lodash';
 import { Helper } from '../../common/helper';
 import { RPC_CONFIG } from '../../configs/bundler-config';
 import { AppException } from '../../common/app-exception';
-import { Http2Service } from '../../http2/http2.service';
+import { Alert } from '../../common/alert';
 
 @Controller()
 export class RpcController {
-    public constructor(private readonly rpcService: RpcService, private readonly http2Service: Http2Service) {}
+    public constructor(private readonly rpcService: RpcService) {}
 
     @Post('')
     public async rpc(@Query() query: any, @Req() req: any, @Res() res: FastifyReply): Promise<any> {
@@ -54,7 +54,7 @@ export class RpcController {
             console.error(error);
 
             if (!(error instanceof AppException) || error.errorCode === -32000) {
-                this.http2Service.sendLarkMessage(`Bundler RPC Error: ${Helper.converErrorToString(error)}`);
+                Alert.sendMessage(`Bundler RPC Error: ${Helper.converErrorToString(error)}`);
             }
 
             return JsonRPCResponse.createErrorResponse(body, error);

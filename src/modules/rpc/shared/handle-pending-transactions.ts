@@ -12,8 +12,8 @@ import { Logger } from '@nestjs/common';
 import { createTxGasData } from './handle-local-transactions';
 import { BigNumber } from '../../../common/bignumber';
 import { getPrivateKeyByAddress } from '../../../configs/bundler-config';
-import { Http2Service } from '../../../http2/http2.service';
 import { deepHexlify } from '../aa/utils';
+import { Alert } from '../../../common/alert';
 
 export async function tryIncrTransactionGasPrice(
     transaction: TransactionDocument,
@@ -94,7 +94,7 @@ export async function tryIncrTransactionGasPrice(
         console.error('Replace Transaction error', error);
 
         error.transaction = transaction.toJSON();
-        aaService.http2Service.sendLarkMessage(`ReplaceTransaction Error: ${Helper.converErrorToString(error)}`);
+        Alert.sendMessage(`ReplaceTransaction Error: ${Helper.converErrorToString(error)}`);
 
         Lock.release(keyLock);
         return;
@@ -133,7 +133,7 @@ export async function handlePendingTransaction(
     }
 
     const chainId = transaction.chainId;
-    const results = await checkAndHandleFailedReceipt(receipt, provider, transaction.userOperationHashes, aaService.http2Service);
+    const results = await checkAndHandleFailedReceipt(receipt, provider, transaction.userOperationHashes);
     for (const { receipt, userOpHashes } of results) {
         Logger.log('Transaction done', receipt.transactionHash, userOpHashes);
 
@@ -203,7 +203,7 @@ export async function handlePendingTransaction(
             });
         } catch (error) {
             console.error('SetUserOperationsAsDone error', error);
-            aaService.http2Service.sendLarkMessage(`SetUserOperationsAsDone Error: ${Helper.converErrorToString(error)}`);
+            Alert.sendMessage(`SetUserOperationsAsDone Error: ${Helper.converErrorToString(error)}`);
         }
     }
 
@@ -212,12 +212,7 @@ export async function handlePendingTransaction(
 }
 
 // check is the userop is bundled by other tx(mev)
-export async function checkAndHandleFailedReceipt(
-    receipt: any,
-    provider: JsonRpcProvider,
-    targetUserOpHashes: string[],
-    http2Service: Http2Service,
-) {
+export async function checkAndHandleFailedReceipt(receipt: any, provider: JsonRpcProvider, targetUserOpHashes: string[]) {
     if (BigNumber.from(receipt.status).eq(1)) {
         return [{ receipt, userOpHashes: targetUserOpHashes }];
     }
@@ -271,7 +266,7 @@ export async function checkAndHandleFailedReceipt(
         return results;
     } catch (error) {
         console.error('checkAndHandleFailedReceipt error', error);
-        http2Service.sendLarkMessage(`checkAndHandleFailedReceipt Error: ${Helper.converErrorToString(error)}`);
+        Alert.sendMessage(`checkAndHandleFailedReceipt Error: ${Helper.converErrorToString(error)}`);
 
         return [{ receipt, userOpHashes: targetUserOpHashes }];
     }

@@ -11,6 +11,7 @@ import { handlePendingTransaction } from './handle-pending-transactions';
 import { BigNumber } from '../../../common/bignumber';
 import { RpcService } from '../services/rpc.service';
 import { EVM_CHAIN_ID_NOT_SUPPORT_1559 } from '../../../configs/bundler-config';
+import { Alert } from '../../../common/alert';
 
 export async function createBundleTransaction(
     chainId: number,
@@ -56,7 +57,7 @@ export async function createBundleTransaction(
         trySendAndUpdateTransactionStatus(localTransaction, provider, aaService);
     } catch (error) {
         console.error('Failed to create bundle transaction', error);
-        aaService.http2Service.sendLarkMessage(`Failed to create bundle transaction: ${Helper.converErrorToString(error)}`);
+        Alert.sendMessage(`Failed to create bundle transaction: ${Helper.converErrorToString(error)}`);
     }
 }
 
@@ -114,7 +115,7 @@ export async function trySendAndUpdateTransactionStatus(transaction: Transaction
         }
 
         console.error('SendTransaction error', error);
-        aaService.http2Service.sendLarkMessage(`Send Transaction Error: ${Helper.converErrorToString(error)}`);
+        Alert.sendMessage(`Send Transaction Error: ${Helper.converErrorToString(error)}`);
 
         Lock.release(keyLock);
         return;

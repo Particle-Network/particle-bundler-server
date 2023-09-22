@@ -11,6 +11,7 @@ import Lock from '../../../common/global-lock';
 import { MINIMUM_GAS_FEE } from '../../../configs/bundler-config';
 import { BigNumber } from '../../../common/bignumber';
 import { BUNDLER_CONFIG } from '../../../configs/bundler-config';
+import { Alert } from '../../../common/alert';
 
 export async function handleLocalUserOperations(
     chainId: number,
@@ -31,7 +32,7 @@ export async function handleLocalUserOperations(
         await sealUserOps(chainId, provider, signer, userOperations, mongodbConnection, rpcService, aaService);
     } catch (error) {
         console.error(error);
-        aaService.http2Service.sendLarkMessage(`Handle Local Ops Error: ${Helper.converErrorToString(error)}`);
+        Alert.sendMessage(`Handle Local Ops Error: ${Helper.converErrorToString(error)}`);
     }
 
     console.log('handleLocalUserOperations Finish release', chainId, signer.address);
@@ -102,7 +103,7 @@ async function sealUserOps(
         ]);
     } catch (error) {
         console.error('fetch provider error', error);
-        rpcService.http2Service.sendLarkMessage(`Fetch Provider Error: ${Helper.converErrorToString(error)}`);
+        Alert.sendMessage(`Fetch Provider Error: ${Helper.converErrorToString(error)}`);
 
         setTimeout(() => {
             // retry after 1s

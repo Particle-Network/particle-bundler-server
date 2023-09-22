@@ -15,7 +15,6 @@ import {
     keyLockSigner,
 } from '../../common/common-types';
 import { TRANSACTION_STATUS, TransactionDocument } from '../rpc/schemas/transaction.schema';
-import { Http2Service } from '../../http2/http2.service';
 import { Helper } from '../../common/helper';
 import { UserOperationService } from '../rpc/services/user-operation.service';
 import { InjectRedis } from '@liaoliaots/nestjs-redis';
@@ -36,6 +35,7 @@ import {
 import { Contract, Wallet, parseEther } from 'ethers';
 import verifyingPaymasterAbi from '../rpc/aa/verifying-paymaster-abi';
 import { BigNumber } from '../../common/bignumber';
+import { Alert } from '../../common/alert';
 
 const FETCH_TRANSACTION_SIZE = 500;
 
@@ -53,7 +53,6 @@ export class TaskService {
         private readonly aaService: AAService,
         private readonly transactionService: TransactionService,
         private readonly userOperationService: UserOperationService,
-        private readonly http2Service: Http2Service,
         @InjectRedis(REDIS_TASK_CONNECTION_NAME) private readonly redis: Redis,
         @InjectConnection() private readonly connection: Connection,
     ) {
@@ -187,7 +186,7 @@ export class TaskService {
             await Promise.all(promises);
         } catch (error) {
             console.error(error);
-            this.http2Service.sendLarkMessage(`Handle Local Transactions Error: ${Helper.converErrorToString(error)}`);
+            Alert.sendMessage(`Handle Local Transactions Error: ${Helper.converErrorToString(error)}`);
         }
 
         Lock.release(keyLock);
@@ -247,7 +246,7 @@ export class TaskService {
         } catch (error) {
             console.error('getReceiptAndHandlePendingTransactions error', error);
 
-            this.http2Service.sendLarkMessage(`getReceiptAndHandlePendingTransactions Error: ${Helper.converErrorToString(error)}`);
+            Alert.sendMessage(`getReceiptAndHandlePendingTransactions Error: ${Helper.converErrorToString(error)}`);
         }
     }
 
@@ -303,7 +302,7 @@ export class TaskService {
 
                         this.aaService.UnblockedSigner(Number(chainId), address);
 
-                        this.http2Service.sendLarkMessage(
+                        Alert.sendMessage(
                             `Fill Signer For ${currentAddress} On ChainId ${currentChainId}, Current Balance: ${balanceAfter}`,
                             `Fill Signer Success`,
                         );
@@ -311,7 +310,7 @@ export class TaskService {
                 }
             }
         } catch (error) {
-            this.http2Service.sendLarkMessage(
+            Alert.sendMessage(
                 `Fill Signer Failed For ${currentAddress} On ChainId ${currentChainId}\n${Helper.converErrorToString(error)}`,
                 `Fill Signer Error`,
             );
@@ -360,14 +359,14 @@ export class TaskService {
                     console.log('Deposit tx', chainId, r.hash);
                     const balanceAfter: bigint = await contractVerifyPaymaster.getDeposit();
 
-                    this.http2Service.sendLarkMessage(
+                    Alert.sendMessage(
                         `Fill Paymaster For ${currentPaymasterAddress} On ChainId ${currentChainId}, Current Balance: ${balanceAfter}`,
                         `Fill Paymaster Success`,
                     );
                 }
             }
         } catch (error) {
-            this.http2Service.sendLarkMessage(
+            Alert.sendMessage(
                 `Fill Paymaster Failed For ${currentPaymasterAddress} On ChainId ${currentChainId}\n${Helper.converErrorToString(error)}`,
                 `Fill Paymaster Error`,
             );

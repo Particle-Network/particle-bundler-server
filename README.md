@@ -34,8 +34,6 @@ Particle Bundler RPC completes compatible with [ERC4337 standards](https://eips.
 ## 🔧 Quick Start
 
 ### 💿 Clone the project
-git clone the project and install the dependencies
-
 ```bash
 git https://github.com/Particle-Network/particle-bundler-server.git
 cd particle-bundler-server
