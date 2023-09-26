@@ -57,7 +57,7 @@ npm run test
 ```
 
 ### 🧷 Custom the bundler config
-Set your configuration in **bundler-config.json**.
+Set your configuration in **/src/configs/bundler-config.ts**.
 ```
 # The signers in bundler server which sign the bundle and send
 BUNDLER_PRIVATE_KEYS
