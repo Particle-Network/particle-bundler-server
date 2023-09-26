@@ -43,10 +43,6 @@ yarn
 ### 🧷 Setup the environment
 Set your configuration in **.env.dev**. We require the **mongodb** and **redis**. 
 
-Because we need to use transactions in the mongodb, so the mongodb should be a cluster. 
-
-An easy way to create a mongodb cluster is to go to [the official website](https://www.mongodb.com/products/platform/cloud) and apply a free cluster.
-
 ### 🏄🏻‍♂️ Start the project
 ```bash
 npm run start:dev
@@ -70,7 +66,7 @@ RPC_CONFIG
 
 ## 🛀🏽 API doc
 
-Learn more on [https://eips.ethereum.org/EIPS/eip-4337](https://eips.ethereum.org/EIPS/eip-4337)
+Learn more on [https://docs.particle.network/developers/node-service/evm-chains-api/bundler-rpc](https://docs.particle.network/developers/node-service/evm-chains-api/bundler-rpc)
 
 ## 💼 Feedback
 

@@ -13,7 +13,7 @@ import {
 } from '../../../common/app-exception';
 import { calcUserOpTotalGasLimit, isUserOpValid } from './utils';
 import { BigNumber } from '../../../common/bignumber';
-import { BUNDLER_CONFIG, SUPPORTED_ENTRYPOINTS } from '../../../configs/bundler-config';
+import { BUNDLER_CONFIG, SUPPORTED_ENTRYPOINTS } from '../../../configs/bundler-common';
 import { arrayify } from '@ethersproject/bytes';
 
 export async function sendUserOperation(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {

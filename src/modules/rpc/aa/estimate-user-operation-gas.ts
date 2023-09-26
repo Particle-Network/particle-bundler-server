@@ -7,7 +7,7 @@ import entryPointAbi from './entry-point-abi';
 import { deepHexlify, isUserOpValid } from './utils';
 import { isEmpty } from 'lodash';
 import { BigNumber } from '../../../common/bignumber';
-import { EVM_CHAIN_ID_NOT_SUPPORT_1559, SUPPORTED_ENTRYPOINTS } from '../../../configs/bundler-config';
+import { EVM_CHAIN_ID_NOT_SUPPORT_1559, SUPPORTED_ENTRYPOINTS } from '../../../configs/bundler-common';
 import {
     AppException,
     AppExceptionMessages,

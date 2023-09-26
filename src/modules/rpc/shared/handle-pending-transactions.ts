@@ -11,7 +11,7 @@ import { AppException } from '../../../common/app-exception';
 import { Logger } from '@nestjs/common';
 import { createTxGasData } from './handle-local-transactions';
 import { BigNumber } from '../../../common/bignumber';
-import { getPrivateKeyByAddress } from '../../../configs/bundler-config';
+import { getPrivateKeyByAddress } from '../../../configs/bundler-common';
 import { deepHexlify } from '../aa/utils';
 import { Alert } from '../../../common/alert';
 

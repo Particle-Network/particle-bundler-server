@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Wallet } from 'ethers';
 import { UserOperationService } from './user-operation.service';
 import { TransactionService } from './transaction.service';
-import { getPrivateKeyMap } from '../../../configs/bundler-config';
+import { getPrivateKeyMap } from '../../../configs/bundler-common';
 import { BUNDLING_MODE, IS_DEVELOPMENT } from '../../../common/common-types';
 import { Alert } from '../../../common/alert';
 

@@ -10,7 +10,7 @@ import Lock from '../../../common/global-lock';
 import { handlePendingTransaction } from './handle-pending-transactions';
 import { BigNumber } from '../../../common/bignumber';
 import { RpcService } from '../services/rpc.service';
-import { EVM_CHAIN_ID_NOT_SUPPORT_1559 } from '../../../configs/bundler-config';
+import { EVM_CHAIN_ID_NOT_SUPPORT_1559 } from '../../../configs/bundler-common';
 import { Alert } from '../../../common/alert';
 
 export async function createBundleTransaction(

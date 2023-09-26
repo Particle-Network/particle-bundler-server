@@ -8,9 +8,9 @@ import { calcUserOpTotalGasLimit } from '../aa/utils';
 import { createBundleTransaction } from './handle-local-transactions';
 import { Connection } from 'mongoose';
 import Lock from '../../../common/global-lock';
-import { MINIMUM_GAS_FEE } from '../../../configs/bundler-config';
+import { MINIMUM_GAS_FEE } from '../../../configs/bundler-common';
 import { BigNumber } from '../../../common/bignumber';
-import { BUNDLER_CONFIG } from '../../../configs/bundler-config';
+import { BUNDLER_CONFIG } from '../../../configs/bundler-common';
 import { Alert } from '../../../common/alert';
 
 export async function handleLocalUserOperations(

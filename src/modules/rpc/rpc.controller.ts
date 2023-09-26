@@ -4,7 +4,7 @@ import { JsonRPCRequestDto, JsonRPCResponse } from './dtos/json-rpc-request.dto'
 import { FastifyReply } from 'fastify';
 import { isArray, isPlainObject } from 'lodash';
 import { Helper } from '../../common/helper';
-import { RPC_CONFIG } from '../../configs/bundler-config';
+import { RPC_CONFIG } from '../../configs/bundler-common';
 import { AppException } from '../../common/app-exception';
 import { Alert } from '../../common/alert';
 
@@ -24,7 +24,19 @@ export class RpcController {
 
         try {
             body = JSON.parse(req.rawBody);
-            const chainId = Number(query.chainId);
+            let chainId: number;
+            if (!!query.chainId) {
+                chainId = Number(query.chainId);
+            } else {
+                if (isArray(body)) {
+                    Helper.assertTrue(typeof body?.[0]?.chainId === 'number', 10002);
+                    chainId = body[0].chainId;
+                } else {
+                    Helper.assertTrue(typeof body?.chainId === 'number', 10002);
+                    chainId = body.chainId;
+                }
+            }
+
             Helper.assertTrue(!!RPC_CONFIG[chainId], -32001, `Unsupported chainId: ${query.chainId}`);
 
             result = await this.handleRpc(chainId, body);

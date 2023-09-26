@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { $enum } from 'ts-enum-util';
 import Axios from 'axios';
-import { EVM_CHAIN_ID, RPC_CONFIG } from '../../../configs/bundler-config';
+import { EVM_CHAIN_ID, RPC_CONFIG } from '../../../configs/bundler-common';
 import { JsonRPCRequestDto, JsonRPCResponse } from './../dtos/json-rpc-request.dto';
 import { AppException } from '../../../common/app-exception';
 import * as AA from './../aa';
@@ -9,7 +9,7 @@ import * as DEBUG from './../debug';
 import { AAService } from './aa.service';
 import { JsonRpcProvider, Network } from 'ethers';
 import { RedisService } from '@liaoliaots/nestjs-redis';
-import { AA_METHODS } from '../../../configs/bundler-config';
+import { AA_METHODS } from '../../../configs/bundler-common';
 import { IS_DEVELOPMENT, PARTICLE_PUBLIC_RPC_URL } from '../../../common/common-types';
 
 @Injectable()

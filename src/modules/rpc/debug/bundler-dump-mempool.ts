@@ -1,7 +1,7 @@
 import { getAddress, isAddress } from 'ethers';
 import { MESSAGE_32602_INVALID_PARAMS_LENGTH, MESSAGE_32602_INVALID_ENTRY_POINT_ADDRESS } from '../../../common/app-exception';
 import { Helper } from '../../../common/helper';
-import { SUPPORTED_ENTRYPOINTS } from '../../../configs/bundler-config';
+import { SUPPORTED_ENTRYPOINTS } from '../../../configs/bundler-common';
 import { JsonRPCRequestDto } from '../dtos/json-rpc-request.dto';
 import { RpcService } from '../services/rpc.service';
 

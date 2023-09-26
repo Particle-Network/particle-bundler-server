@@ -1,5 +1,5 @@
 import { keyEventSendUserOperation } from '../../../common/common-types';
-import { RPC_CONFIG } from '../../../configs/bundler-config';
+import { RPC_CONFIG } from '../../../configs/bundler-common';
 import { JsonRPCRequestDto } from '../dtos/json-rpc-request.dto';
 import { RpcService } from '../services/rpc.service';
 

@@ -1,4 +1,4 @@
-import { AA_METHODS } from '../../src/configs/bundler-config';
+import { AA_METHODS } from '../../src/configs/bundler-common';
 import { RpcController } from '../../src/modules/rpc/rpc.controller';
 import { deepHexlify } from '../../src/modules/rpc/aa/utils';
 import Axios from 'axios';

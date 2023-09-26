@@ -1,71 +1,26 @@
-import * as fs from 'fs';
-import { getAddress } from 'ethers';
-import { IS_DEVELOPMENT, IS_PRODUCTION } from '../common/common-types';
-
-// read json file and get the object
-const bundlerConfigName = IS_PRODUCTION ? 'bundler-config-production.json' : 'bundler-config.json';
-const bundlerConfig = JSON.parse(Buffer.from(fs.readFileSync(`${__dirname}/../../${bundlerConfigName}`)).toString());
-
-export const BUNDLER_CONFIG: any = bundlerConfig['BUNDLER_CONFIG'];
-export const SUPPORTED_ENTRYPOINTS: string[] = bundlerConfig['SUPPORTED_ENTRYPOINTS'];
-export const EVM_CHAIN_ID_NOT_SUPPORT_1559 = bundlerConfig['EVM_CHAIN_ID_NOT_SUPPORT_1559'];
-export const BUNDLER_PRIVATE_KEYS = bundlerConfig['BUNDLER_PRIVATE_KEYS'];
-export const VERIFYING_PAYMASTER_SIGNER = bundlerConfig['VERIFYING_PAYMASTER_SIGNER'];
-export const PAYMENT_SIGNER = bundlerConfig['PAYMENT_SIGNER'];
-
-export const RPC_CONFIG = bundlerConfig['RPC_CONFIG'];
-if (!IS_DEVELOPMENT) {
-    delete RPC_CONFIG['1337'];
-}
-
-export const MINIMUM_GAS_FEE = bundlerConfig['MINIMUM_GAS_FEE'];
-export const CHAIN_SIGNER_MIN_BALANCE = bundlerConfig['CHAIN_SIGNER_MIN_BALANCE'];
-export const CHAIN_VERIFYING_PAYMASTER_MIN_DEPOSIT = bundlerConfig['CHAIN_VERIFYING_PAYMASTER_MIN_DEPOSIT'];
-
-export enum AA_METHODS {
-    SEND_USER_OPERATION = 'eth_sendUserOperation',
-    GET_USER_OPERATION_BY_HASH = 'eth_getUserOperationByHash',
-    ESTIMATE_USER_OPERATION_GAS = 'eth_estimateUserOperationGas',
-    GET_USER_OPERATION_RECEIPT = 'eth_getUserOperationReceipt',
-    SUPPORTED_ENTRYPOINTS = 'eth_supportedEntryPoints',
-    SPONSOR_USER_OPERATION = 'pm_sponsorUserOperation',
-    USE_TOKEN_PAY_USER_OPERATION = 'pm_useTokenPayUserOperation',
-    DEBUG_BUNDLER_CLEAR_STATE = 'debug_bundler_clearState',
-    DEBUG_BUNDLER_DUMP_MEMPOOL = 'debug_bundler_dumpMempool',
-    DEBUG_BUNDLER_SEND_BUNDLE_NOW = 'debug_bundler_sendBundleNow',
-    DEBUG_BUNDLER_SET_BUNDLING_MODE = 'debug_bundler_setBundlingMode',
-}
-
-export enum EVM_CHAIN_ID {
-    GOERLI_TESTNET = 5,
-    SEPOLIA_TESTNET = 11155111,
-    POLYGON_MAINNET = 137,
-    POLYGON_TESTNET = 80001,
-    BNB_MAINNET = 56,
-    BNB_TESTNET = 97,
-    OPBNB_MAINNET = 204,
-    OPBNB_TESTNET = 5611,
-    SCROLL_SEPOLIA = 534351,
-    COMBO_TESTNET = 91715,
-    LINEA_TESTNET = 59140,
-    OPTIMISM_TESTNET = 420,
-    // Local node
-    GETH = 1337,
-}
-
-export function getPrivateKeyMap(chainId: number): any {
-    const environment = process.env.ENVIRONMENT;
-
-    const result = BUNDLER_PRIVATE_KEYS[environment];
-    if (result[String(chainId)]) {
-        return result[String(chainId)];
-    }
-
-    return result['default'];
-}
-
-export function getPrivateKeyByAddress(address: string): string {
-    const environment = process.env.ENVIRONMENT;
-
-    return BUNDLER_PRIVATE_KEYS[environment][getAddress(address)];
-}
+export const bundlerConfig = {
+    BUNDLER_CONFIG: {
+        maxBundleGas: 7000000,
+    },
+    SUPPORTED_ENTRYPOINTS: [
+        '0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789',
+        '0xF07A1Fe14feedd2c7693cdEAFD2ea72BD6Eccf68',
+        '0xD15b1210187f313AB692013a2544cb8B394E2291',
+        '0xBaefA976ea079135d8a85f447F4320e196719cd1',
+    ],
+    EVM_CHAIN_ID_NOT_SUPPORT_1559: [56, 97, 534351, 91715, 59140, 420, 1337],
+    BUNDLER_PRIVATE_KEYS: {
+        dev: {
+            default: {
+                '0x5f837bD883CdefcB0497d0ba05fE41733439bd0F': '546dcff51f75dda8d6ac237daa381b85ae369ef65cefa4459f2ab6c1ff66f705',
+            },
+        },
+    },
+    RPC_CONFIG: {
+        '11155111': {
+            chainId: 11155111,
+            rpcUrl: 'https://rpc.particle.network/evm-chain/public?chainId=11155111',
+        },
+    },
+    MINIMUM_GAS_FEE: { '97': { gasPrice: '0x012a05f200' } },
+};

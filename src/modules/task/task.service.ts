@@ -31,7 +31,7 @@ import {
     PAYMENT_SIGNER,
     RPC_CONFIG,
     getPrivateKeyMap,
-} from '../../configs/bundler-config';
+} from '../../configs/bundler-common';
 import { Contract, Wallet, parseEther } from 'ethers';
 import verifyingPaymasterAbi from '../rpc/aa/verifying-paymaster-abi';
 import { BigNumber } from '../../common/bignumber';
