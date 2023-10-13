@@ -38,7 +38,7 @@ async function bootstrap() {
     if (!IS_DEVELOPMENT) {
         process.on('uncaughtException', async (error) => {
             await Alert.sendMessage(Helper.converErrorToString(error), 'Uncaught Exception');
-    
+
             process.exit(1); // exit application
         });
 

@@ -35,7 +35,7 @@ export class AAService {
 
     public getSigners(): Wallet[] {
         let pks = this.configService.get('BUNDLER_SIGNERS').split(',');
-        return pks = pks.filter((pk: string) => !!pk).map((privateKey: string) => new Wallet(privateKey));
+        return (pks = pks.filter((pk: string) => !!pk).map((privateKey: string) => new Wallet(privateKey)));
     }
 
     public setBlockedSigner(chainId: number, signerAddress: string) {

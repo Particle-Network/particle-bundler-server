@@ -44,7 +44,9 @@ export class SimpleSmartAccount implements IContractAccount {
         }
 
         const initGas = await this.estimateCreationGas(initCode);
-        const verificationGasLimit = BigNumber.from(await this.getVerificationGasLimit()).add(initGas).toHexString();
+        const verificationGasLimit = BigNumber.from(await this.getVerificationGasLimit())
+            .add(initGas)
+            .toHexString();
 
         const network = await this.provider.getNetwork();
         const feeData = await getFeeDataFromParticle(Number(network.chainId));

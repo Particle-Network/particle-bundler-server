@@ -16,10 +16,7 @@ import { IS_DEVELOPMENT } from '../../../common/common-types';
 export class RpcService {
     private readonly jsonRpcProviders: Map<number, JsonRpcProvider> = new Map();
 
-    public constructor(
-        public readonly aaService: AAService,
-        public readonly redisService: RedisService,
-    ) {}
+    public constructor(public readonly aaService: AAService, public readonly redisService: RedisService) {}
 
     public getJsonRpcProvider(chainId: number): JsonRpcProvider {
         if (!this.jsonRpcProviders.has(chainId)) {

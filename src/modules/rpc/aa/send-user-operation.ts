@@ -65,7 +65,9 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
             rpcService.aaService.userOperationService.getSuccessUserOperationNonce(chainId, getAddress(userOp.sender)),
         ]);
 
-        localMaxNonce = BigNumber.from(localMaxNonce ?? '-1').add(1).toHexString();
+        localMaxNonce = BigNumber.from(localMaxNonce ?? '-1')
+            .add(1)
+            .toHexString();
         const targetNonce = BigNumber.from(localMaxNonce).gt(remoteNonce) ? localMaxNonce : remoteNonce;
 
         Helper.assertTrue(
@@ -75,12 +77,7 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
         );
     }
 
-    await rpcService.aaService.userOperationService.createOrUpdateUserOperation(
-        chainId,
-        userOp,
-        userOpHash,
-        entryPointInput,
-    );
+    await rpcService.aaService.userOperationService.createOrUpdateUserOperation(chainId, userOp, userOpHash, entryPointInput);
 
     if (rpcService.aaService.getBundlingMode() === BUNDLING_MODE.AUTO) {
         rpcService.redisService.getClient().publish(keyEventSendUserOperation, JSON.stringify({ chainId }));

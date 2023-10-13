@@ -1,7 +1,7 @@
 export const RPC_CONFIG = [
     {
         chainId: 11155111,
-        rpcUrl: 'https://rpc-debug.particle.network/evm-chain/public?chainId=11155111',
+        rpcUrl: 'https://eth-sepolia.public.blastapi.io',
     },
 ];
 
