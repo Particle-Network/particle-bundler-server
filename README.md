@@ -43,8 +43,6 @@ yarn
 ### 🧷 Setup the environment
 Set your configuration in **.env.dev**. We require the **mongodb** and **redis**. 
 
-The production environment requires the cluster version of MongoDB for transactions
-
 ### 🏄🏻‍♂️ Start the project
 ```bash
 npm run start:dev
