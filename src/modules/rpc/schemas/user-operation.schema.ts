@@ -41,6 +41,7 @@ export class UserOperation {
     @Prop({ required: false, type: Schema.Types.Number })
     public blockNumber: number;
 
+    @Prop({ required: false, type: Schema.Types.Date })
     public createdAt: Date;
 }
 

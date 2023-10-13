@@ -1,6 +1,6 @@
 import { AppException } from './app-exception';
 import { Connection } from 'mongoose';
-import { IS_DEVELOPMENT, IS_PARTICLE } from './common-types';
+import { USE_MONOGODB_TRANSACTION } from './common-types';
 
 export class Helper {
     public static assertTrue(condition: any, failedExceptionCode: number, overrideMessage: any = '') {
@@ -10,7 +10,7 @@ export class Helper {
     }
 
     public static async startMongoTransaction(connection: Connection, callback: (session: any) => Promise<void>) {
-        if (!IS_PARTICLE && IS_DEVELOPMENT) {
+        if (!USE_MONOGODB_TRANSACTION) {
             await callback(null);
             return;
         }

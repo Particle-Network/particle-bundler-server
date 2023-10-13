@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AAService } from '../rpc/services/aa.service';
 import { InjectConnection } from '@nestjs/mongoose';
@@ -8,7 +8,7 @@ import { TransactionService } from '../rpc/services/transaction.service';
 import {
     BUNDLING_MODE,
     IS_DEVELOPMENT,
-    IS_PARTICLE,
+    PENDING_TRANSACTION_SIGNER_HANDLE_LIMIT,
     REDIS_TASK_CONNECTION_NAME,
     keyEventSendUserOperation,
     keyLockChainId,
@@ -24,18 +24,19 @@ import { handleLocalUserOperations } from '../rpc/shared/handle-local-user-opera
 import { Cron } from '@nestjs/schedule';
 import Lock from '../../common/global-lock';
 import { handleLocalTransaction } from '../rpc/shared/handle-local-transactions';
-import {
-    CHAIN_SIGNER_MIN_BALANCE,
-    CHAIN_VERIFYING_PAYMASTER_MIN_DEPOSIT,
-    EVM_CHAIN_ID_NOT_SUPPORT_1559,
-    PAYMENT_SIGNER,
-    RPC_CONFIG,
-    getPrivateKeyMap,
-} from '../../configs/bundler-common';
+import { RPC_CONFIG } from '../../configs/bundler-common';
 import { Contract, Wallet, parseEther } from 'ethers';
 import verifyingPaymasterAbi from '../rpc/aa/verifying-paymaster-abi';
 import { BigNumber } from '../../common/bignumber';
 import { Alert } from '../../common/alert';
+import { isObject } from 'lodash';
+import {
+    CHAIN_BALANCE_RANGE,
+    CHAIN_SIGNER_MIN_BALANCE,
+    CHAIN_VERIFYING_PAYMASTER_MIN_DEPOSIT,
+    EVM_CHAIN_ID_NOT_SUPPORT_1559,
+} from '../../configs/bundler-config';
+import { getFeeDataFromParticle } from '../rpc/aa/utils';
 
 const FETCH_TRANSACTION_SIZE = 500;
 
@@ -96,7 +97,7 @@ export class TaskService {
     public async sealUserOps() {
         for (const chainId in RPC_CONFIG) {
             if (this.sealUserOpsFlag.get(Number(chainId))) {
-                console.log('sealUserOps', chainId);
+                Logger.log('sealUserOps', chainId);
                 this.sealUserOpsByDuration(Number(chainId));
             }
         }
@@ -107,15 +108,15 @@ export class TaskService {
 
         const targetSigner: Wallet = await this.waitForASigner(chainId);
         if (!targetSigner) {
-            console.error('No signer available', chainId);
+            Logger.warn(`No signer available on ${chainId}`);
             return;
         }
 
         await Lock.acquire(keyLockChainId(chainId));
 
-        console.log('sealUserOpsByDuration acquire', chainId, targetSigner.address);
+        Logger.log('sealUserOpsByDuration acquire', chainId, targetSigner.address);
         if (!this.sealUserOpsFlag.get(chainId)) {
-            console.log('sealUserOpsByDuration release', '!this.sealUserOpsFlag.get(chainId)', chainId, targetSigner.address);
+            Logger.log('sealUserOpsByDuration release', chainId, targetSigner.address);
 
             Lock.release(keyLockSigner(chainId, targetSigner.address));
             Lock.release(keyLockChainId(chainId));
@@ -135,7 +136,7 @@ export class TaskService {
 
     private async getAndHandleLocalUserOperationsByDuration(chainId: number, targetSigner: Wallet, startAt: number, endAt: number) {
         const userOperations = await this.userOperationService.getLocalUserOperationsByDuration(chainId, startAt, endAt);
-        console.log(`sealUserOpsByDuration`, startAt, endAt, chainId, userOperations.length);
+        Logger.log(`[sealUserOpsByDuration] chainId=${chainId}, startAt=${startAt}, endAt=${endAt}, userOpLength: ${userOperations.length}`);
 
         if (userOperations.length <= 0) {
             Lock.release(keyLockSigner(chainId, targetSigner.address));
@@ -150,15 +151,18 @@ export class TaskService {
         const randomSigners = this.aaService.getRandomSigners(chainId);
         for (let index = 0; index < randomSigners.length; index++) {
             const signer = randomSigners[index];
-            if (index !== randomSigners.length - 1) {
-                if (!Lock.isAcquired(keyLockSigner(chainId, signer.address))) {
-                    await Lock.acquire(keyLockSigner(chainId, signer.address));
-                    targetSigner = signer;
-                    break;
-                }
-            } else {
+            if (!Lock.isAcquired(keyLockSigner(chainId, signer.address))) {
                 await Lock.acquire(keyLockSigner(chainId, signer.address));
                 targetSigner = signer;
+                break;
+            }
+        }
+
+        if (targetSigner) {
+            const targetSignerPendingTxCount = await this.transactionService.getPendingTransactionCountBySigner(chainId, targetSigner.address);
+            if (targetSignerPendingTxCount >= PENDING_TRANSACTION_SIGNER_HANDLE_LIMIT) {
+                targetSigner = null;
+                Lock.release(keyLockSigner(chainId, targetSigner.address));
             }
         }
 
@@ -185,7 +189,7 @@ export class TaskService {
 
             await Promise.all(promises);
         } catch (error) {
-            console.error(error);
+            Logger.error(error);
             Alert.sendMessage(`Handle Local Transactions Error: ${Helper.converErrorToString(error)}`);
         }
 
@@ -215,9 +219,9 @@ export class TaskService {
             const receiptPromises = pendingTransaction.txHashes.map((txHash) => this.rpcService.getTransactionReceipt(provider, txHash));
             const receipts = await Promise.all(receiptPromises);
 
-            console.log('getReceiptAndHandlePendingTransactions', receipts.length);
+            Logger.log('getReceiptAndHandlePendingTransactions', receipts.length);
             if (receipts.some((r) => !!r)) {
-                console.log(
+                Logger.log(
                     'receipts',
                     receipts.map((r: any, index: number) => {
                         return {
@@ -244,7 +248,7 @@ export class TaskService {
 
             await tryIncrTransactionGasPrice(pendingTransaction, this.connection, provider, this.aaService);
         } catch (error) {
-            console.error('getReceiptAndHandlePendingTransactions error', error);
+            Logger.error('getReceiptAndHandlePendingTransactions error', error);
 
             Alert.sendMessage(`getReceiptAndHandlePendingTransactions Error: ${Helper.converErrorToString(error)}`);
         }
@@ -260,7 +264,7 @@ export class TaskService {
 
     @Cron('0 * * * * *')
     public async checkAndFillSignerBalance() {
-        if (!IS_PARTICLE || !this.canRunCron() || this.inCheckingSignerBalance) {
+        if (!this.canRunCron() || this.inCheckingSignerBalance || !isObject(CHAIN_SIGNER_MIN_BALANCE) || !process.env.PAYMENT_SIGNER) {
             return;
         }
 
@@ -269,36 +273,38 @@ export class TaskService {
         let currentChainId: any;
         let currentAddress: any;
 
-        try {
-            for (const chainId in CHAIN_SIGNER_MIN_BALANCE) {
+        for (const chainId in CHAIN_SIGNER_MIN_BALANCE) {
+            try {
                 currentChainId = chainId;
                 const provider = this.rpcService.getJsonRpcProvider(Number(chainId));
 
                 const minEtherBalance = CHAIN_SIGNER_MIN_BALANCE[chainId];
-                const signers = Object.keys(getPrivateKeyMap(Number(chainId)));
-                for (const address of signers) {
+                const signers = this.aaService.getSigners();
+                for (const signer of signers) {
+                    const address = signer.address;
                     currentAddress = address;
 
                     const balance = await provider.getBalance(address);
                     const balanceEther = BigNumber.from(balance).div(1e9).toNumber() / 1e9;
-                    console.log('Check signer balance', chainId, address, balanceEther);
+                    Logger.log(`[Check signer balance] chainId=${chainId}, address=${address}, balance=${balanceEther}`);
 
                     if (balanceEther < minEtherBalance) {
                         const etherToSend = (minEtherBalance - balanceEther).toFixed(10);
-                        console.log('Send ether to signer', chainId, address, etherToSend);
-                        const signerToPay = new Wallet(PAYMENT_SIGNER, provider);
+                        Logger.log(`[Send ether to signer] chainId=${chainId}, address=${address}, etherToSend=${etherToSend}`);
+                        const signerToPay = new Wallet(process.env.PAYMENT_SIGNER, provider);
+                        console.log('signerToPay', signerToPay.address);
 
                         const tx = await signerToPay.sendTransaction({
                             type: EVM_CHAIN_ID_NOT_SUPPORT_1559.includes(Number(chainId)) ? 0 : 2,
                             to: address,
-                            value: parseEther(etherToSend.toString()) + parseEther('0.1'),
+                            value: parseEther(etherToSend.toString()) + parseEther(String(CHAIN_BALANCE_RANGE[chainId.toString()] ?? '0.1')),
                         });
 
-                        console.log('Sent tx', chainId, tx.hash);
+                        Logger.log('Sent tx', chainId, tx.hash);
                         await tx.wait();
                         const balanceAfter = await provider.getBalance(address);
                         const balanceEtherAfter = BigNumber.from(balanceAfter).div(1e9).toNumber() / 1e9;
-                        console.log('After send', chainId, address, balanceEtherAfter);
+                        Logger.log('After send', chainId, address, balanceEtherAfter);
 
                         this.aaService.UnblockedSigner(Number(chainId), address);
 
@@ -308,12 +314,12 @@ export class TaskService {
                         );
                     }
                 }
+            } catch (error) {
+                Alert.sendMessage(
+                    `Fill Signer Failed For ${currentAddress} On ChainId ${currentChainId}\n${Helper.converErrorToString(error)}`,
+                    `Fill Signer Error`,
+                );
             }
-        } catch (error) {
-            Alert.sendMessage(
-                `Fill Signer Failed For ${currentAddress} On ChainId ${currentChainId}\n${Helper.converErrorToString(error)}`,
-                `Fill Signer Error`,
-            );
         }
 
         this.inCheckingSignerBalance = false;
@@ -321,7 +327,12 @@ export class TaskService {
 
     @Cron('0 * * * * *')
     public async checkAndFillPaymasterBalance() {
-        if (!IS_PARTICLE || !this.canRunCron() || this.inCheckingPaymasterBalance) {
+        if (
+            !this.canRunCron() ||
+            this.inCheckingPaymasterBalance ||
+            !isObject(CHAIN_VERIFYING_PAYMASTER_MIN_DEPOSIT) ||
+            !process.env.PAYMENT_SIGNER
+        ) {
             return;
         }
 
@@ -330,33 +341,48 @@ export class TaskService {
         let currentChainId: any;
         let currentPaymasterAddress: any;
 
-        try {
-            for (const chainId in CHAIN_VERIFYING_PAYMASTER_MIN_DEPOSIT) {
+        for (const chainId in CHAIN_VERIFYING_PAYMASTER_MIN_DEPOSIT) {
+            try {
                 currentChainId = chainId;
                 currentPaymasterAddress = RPC_CONFIG[chainId].verifyingPaymaster;
                 const provider = this.rpcService.getJsonRpcProvider(Number(chainId));
-                const signerToPay = new Wallet(PAYMENT_SIGNER, provider);
+                const signerToPay = new Wallet(process.env.PAYMENT_SIGNER, provider);
                 const contractVerifyPaymaster = new Contract(currentPaymasterAddress, verifyingPaymasterAbi, signerToPay);
                 const balance: bigint = await contractVerifyPaymaster.getDeposit();
                 const minBalance = CHAIN_VERIFYING_PAYMASTER_MIN_DEPOSIT[chainId];
 
+                Logger.log(`[Check paymaster balance] chainId=${chainId}, balance=${balance}`);
+
                 const minBalanceWei = parseEther(minBalance.toString());
                 if (BigNumber.from(balance).lt(minBalanceWei)) {
-                    console.log(
-                        `Paymaster deposit is less than ${parseEther(minBalance.toString())}`,
-                        chainId,
-                        currentPaymasterAddress,
-                        balance.toString(),
+                    Logger.warn(
+                        `[Paymaster deposit is too low] chainId=${chainId}, target=${parseEther(
+                            minBalance.toString(),
+                        )}, paymasterAddress=${currentPaymasterAddress}, balance=${balance.toString()}`,
                     );
 
                     let etherToDeposit = BigNumber.from(minBalanceWei).sub(balance);
-                    console.log('Deposit ether to verify paymaster', chainId, currentPaymasterAddress, etherToDeposit.toString());
-                    const r = await contractVerifyPaymaster.deposit({
-                        type: EVM_CHAIN_ID_NOT_SUPPORT_1559.includes(Number(chainId)) ? 0 : 2,
-                        value: etherToDeposit.add(parseEther('0.1')).toHexString(),
+
+                    const feeData = await getFeeDataFromParticle(Number(chainId));
+                    if (EVM_CHAIN_ID_NOT_SUPPORT_1559.includes(Number(chainId))) {
+                        delete feeData.maxFeePerGas;
+                        delete feeData.maxPriorityFeePerGas;
+                    } else {
+                        delete feeData.gasPrice;
+                    }
+
+                    Logger.log(
+                        `[Deposit ether to verify paymaster] chainId=${chainId}, etherToDeposit=${etherToDeposit}, feeData=${JSON.stringify(
+                            feeData,
+                        )}`,
+                    );
+                    const tx = await contractVerifyPaymaster.deposit.populateTransaction();
+                    const r = await signerToPay.sendTransaction({
+                        ...tx,
+                        ...feeData,
                     });
 
-                    console.log('Deposit tx', chainId, r.hash);
+                    Logger.log(`[Paymaster Deposit Tx] chainId=${chainId}, txHash=${r.hash}`);
                     const balanceAfter: bigint = await contractVerifyPaymaster.getDeposit();
 
                     Alert.sendMessage(
@@ -364,12 +390,12 @@ export class TaskService {
                         `Fill Paymaster Success`,
                     );
                 }
+            } catch (error) {
+                Alert.sendMessage(
+                    `Fill Paymaster Failed For ${currentPaymasterAddress} On ChainId ${currentChainId}\n${Helper.converErrorToString(error)}`,
+                    `Fill Paymaster Error`,
+                );
             }
-        } catch (error) {
-            Alert.sendMessage(
-                `Fill Paymaster Failed For ${currentPaymasterAddress} On ChainId ${currentChainId}\n${Helper.converErrorToString(error)}`,
-                `Fill Paymaster Error`,
-            );
         }
 
         this.inCheckingPaymasterBalance = false;

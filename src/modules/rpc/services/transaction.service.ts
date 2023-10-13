@@ -27,6 +27,10 @@ export class TransactionService {
         return await this.transactionModel.findById(id);
     }
 
+    public async getPendingTransactionCountBySigner(chainId: number, signerAddress: string): Promise<number> {
+        return await this.transactionModel.countDocuments({ chainId, from: signerAddress, status: TRANSACTION_STATUS.PENDING });
+    }
+
     public async createTransaction(chainId: number, signedTx: any, userOperationHashes: string[], session: any): Promise<TransactionDocument> {
         let tx: TypedTransaction = tryParseSignedTx(signedTx);
         const txHash = `0x${Buffer.from(tx.hash()).toString('hex')}`;

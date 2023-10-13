@@ -1,10 +1,10 @@
 import { BigNumberish, Contract, JsonRpcProvider, Wallet, resolveProperties } from 'ethers';
-import { hexConcat } from './utils';
-import entryPointAbi from './entry-point-abi';
-import { BigNumber } from '../../../common/bignumber';
+import { getFeeDataFromParticle, hexConcat } from '../utils';
+import entryPointAbi from '../entry-point-abi';
+import { BigNumber } from '../../../../common/bignumber';
 import { calcPreVerificationGas } from '@account-abstraction/sdk';
 import { arrayify } from '@ethersproject/bytes';
-import { IContractAccount } from './interface-contract-account';
+import { IContractAccount } from '../interface-contract-account';
 
 export class BiconomySmartAccount implements IContractAccount {
     private accountAddress: string;
@@ -31,9 +31,14 @@ export class BiconomySmartAccount implements IContractAccount {
         return this.accountAddress;
     }
 
-    public async createUnsignedUserOp(info: TransactionDetailsForUserOp): Promise<any> {
+    public async createUnsignedUserOp(infos: TransactionDetailsForUserOp[], nonce?: any): Promise<any> {
+        if (infos.length > 1) {
+            throw new Error('BiconomySmartAccount does not support batch transactions');
+        }
+
+        const info = infos[0];
         const { callData, callGasLimit } = await this.encodeUserOpCallDataAndGasLimit(info);
-        const nonce = info.nonce ?? (await this.getNonce());
+        nonce = info.nonce ?? (await this.getNonce());
         let initCode = '0x';
         if (BigNumber.from(nonce).eq(0)) {
             initCode = await this.createInitCode();
@@ -42,16 +47,10 @@ export class BiconomySmartAccount implements IContractAccount {
         const initGas = await this.estimateCreationGas(initCode);
         const verificationGasLimit = BigNumber.from(await this.getVerificationGasLimit()).add(initGas);
 
-        let { maxFeePerGas, maxPriorityFeePerGas } = info;
-        if (maxFeePerGas == null || maxPriorityFeePerGas == null) {
-            const feeData = await this.provider.getFeeData();
-            if (maxFeePerGas == null) {
-                maxFeePerGas = feeData.maxFeePerGas ?? undefined;
-            }
-            if (maxPriorityFeePerGas == null) {
-                maxPriorityFeePerGas = feeData.maxPriorityFeePerGas ?? undefined;
-            }
-        }
+        const network = await this.provider.getNetwork();
+        const feeData = await getFeeDataFromParticle(Number(network.chainId));
+        const maxFeePerGas = feeData.maxFeePerGas ?? undefined;
+        const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas ?? undefined;
 
         const partialUserOp: any = {
             sender: this.getAccountAddress(),

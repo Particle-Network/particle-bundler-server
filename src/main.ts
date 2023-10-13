@@ -7,6 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import { TaskService } from './modules/task/task.service';
 import { Alert } from './common/alert';
 import { AlertLarkService } from './common/alert-lark';
+import { IS_DEVELOPMENT } from './common/common-types';
 
 async function bootstrap() {
     const fastifyAdapter = new FastifyAdapter({ ignoreTrailingSlash: true });
@@ -27,34 +28,38 @@ async function bootstrap() {
     const configService = app.get(ConfigService);
     const taskService = app.get(TaskService);
 
-    // Alert.setAlert(new AlertLarkService(process.env.LARK_NOTICE_URL));
-    Alert.sendMessage('Particle Bundler Server Started');
+    if (process.env.LARK_NOTICE_URL) {
+        Alert.setAlert(new AlertLarkService(process.env.LARK_NOTICE_URL));
+        Alert.sendMessage('Particle Bundler Server Started');
+    }
 
     const server = await app.listen(3000, '0.0.0.0');
 
-    process.on('uncaughtException', async (error) => {
-        await Alert.sendMessage(Helper.converErrorToString(error), 'Uncaught Exception');
-
-        process.exit(1); // exit application
-    });
-
-    process.on('SIGINT', (signal: any) => {
-        taskService.stop();
-
-        server.close(async (error: any) => {
-            const nodeInstanceId = configService.get('NODE_APP_INSTANCE');
-            const err = { error, signal, nodeInstanceId };
-            await Alert.sendMessage(Helper.converErrorToString(err), `Server Close`);
-
-            if (error) {
-                process.exit(1);
-            }
+    if (!IS_DEVELOPMENT) {
+        process.on('uncaughtException', async (error) => {
+            await Alert.sendMessage(Helper.converErrorToString(error), 'Uncaught Exception');
+    
+            process.exit(1); // exit application
         });
 
-        setTimeout(() => {
-            console.log('10s closed');
-            process.exit(0);
-        }, 10000);
-    });
+        process.on('SIGINT', (signal: any) => {
+            taskService.stop();
+
+            server.close(async (error: any) => {
+                const nodeInstanceId = configService.get('NODE_APP_INSTANCE');
+                const err = { error, signal, nodeInstanceId };
+                await Alert.sendMessage(Helper.converErrorToString(err), `Server Close`);
+
+                if (error) {
+                    process.exit(1);
+                }
+            });
+
+            setTimeout(() => {
+                console.log('10s closed');
+                process.exit(0);
+            }, 10000);
+        });
+    }
 }
 bootstrap();

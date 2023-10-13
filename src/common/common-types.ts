@@ -1,13 +1,15 @@
 export const IS_DEVELOPMENT = process.env.ENVIRONMENT === 'dev';
 export const IS_DEBUG = process.env.ENVIRONMENT === 'debug';
 export const IS_PRODUCTION = process.env.ENVIRONMENT === 'production';
-export const IS_PARTICLE = process.env.PARTICLE === '1';
+export const SUPPORT_GAELESS_PAYMASTER = process.env.SUPPORT_GAELESS_PAYMASTER === '1';
+export const USE_MONOGODB_TRANSACTION = process.env.USE_MONOGODB_TRANSACTION === '1';
 
 export const BUNDLE_LIMIT: number = 100;
 
 export const REDIS_TASK_CONNECTION_NAME = 'bundler_task';
 export const keyEventSendUserOperation = 'bundler:event:send_user_operation';
 export const PENDING_TRANSACTION_WAITING_TIME = 60;
+export const PENDING_TRANSACTION_SIGNER_HANDLE_LIMIT = 10;
 export const PARTICLE_PUBLIC_RPC_URL = 'https://rpc.particle.network/evm-chain/public';
 
 export enum BUNDLING_MODE {

@@ -19,6 +19,7 @@
     },
     "dependencies": {
         "@account-abstraction/sdk": "^0.6.0",
+        "@cyberlab/cyber-account": "^2.0.0",
         "@ethereumjs/tx": "^5.0.0",
         "@liaoliaots/nestjs-redis": "^9.0.5",
         "@nestjs/axios": "^3.0.0",
@@ -33,6 +34,7 @@
         "bn.js": "^5.2.1",
         "class-transformer": "^0.5.1",
         "class-validator": "^0.14.0",
+        "eth-create2": "^1.0.1",
         "ethers": "^6.7.1",
         "fastify": "4.20.0",
         "fastify-raw-body": "^4.2.1",

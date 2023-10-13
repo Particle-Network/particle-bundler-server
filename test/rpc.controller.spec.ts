@@ -9,14 +9,15 @@ import { configConfig } from '../src/configs/config.config';
 import { ConfigModule } from '@nestjs/config';
 import { RedisModule } from '@liaoliaots/nestjs-redis';
 import { redisConfigAsync } from '../src/configs/redis.config';
-import { Contract, Wallet, JsonRpcProvider, resolveProperties, MaxUint256, toBeHex, parseEther } from 'ethers';
-import { RPC_CONFIG, AA_METHODS, EVM_CHAIN_ID, EVM_CHAIN_ID_NOT_SUPPORT_1559 } from '../src/configs/bundler-common';
-import { SimpleAccount } from '../src/modules/rpc/aa/simple-account';
-import { deepHexlify } from '../src/modules/rpc/aa/utils';
-import { BiconomySmartAccount } from '../src/modules/rpc/aa/biconomy-smart-account';
+import { Wallet, JsonRpcProvider, resolveProperties, parseEther } from 'ethers';
+import { RPC_CONFIG, AA_METHODS, EVM_CHAIN_ID } from '../src/configs/bundler-common';
+import { deepHexlify, getFeeDataFromParticle } from '../src/modules/rpc/aa/utils';
 import { IContractAccount } from '../src/modules/rpc/aa/interface-contract-account';
 import { BigNumber } from '../src/common/bignumber';
 import { ENTRY_POINT, gaslessSponsor } from './lib/common';
+import { EVM_CHAIN_ID_NOT_SUPPORT_1559 } from '../src/configs/bundler-config';
+import { SimpleSmartAccount } from '../src/modules/rpc/aa/smart-accounts/simple-smart-account';
+import { BiconomySmartAccount } from '../src/modules/rpc/aa/smart-accounts/biconomy-smart-account';
 
 let rpcController: RpcController;
 let rpcService: RpcService;
@@ -65,7 +66,7 @@ async function createSimpleAccount(chainId: number): Promise<IContractAccount> {
     const owner: Wallet = new Wallet(Wallet.createRandom().privateKey, provider);
     const factoryAddress = '0x9406cc6185a346906296840746125a0e44976454';
 
-    return new SimpleAccount(owner, factoryAddress, ENTRY_POINT);
+    return new SimpleSmartAccount(owner, factoryAddress, ENTRY_POINT);
 }
 
 async function createBiconomySmartAccount(chainId: number): Promise<IContractAccount> {
@@ -79,7 +80,7 @@ async function createBiconomySmartAccount(chainId: number): Promise<IContractAcc
 }
 
 async function createFakeUserOp(chainId: number, simpleAccount: IContractAccount) {
-    const feeData = await rpcService.getFeeData(chainId);
+    const feeData = await getFeeDataFromParticle(chainId);
     let maxFeePerGas = feeData.maxFeePerGas;
     let maxPriorityFeePerGas = feeData.maxPriorityFeePerGas;
     let gasPrice = feeData.gasPrice;
@@ -88,32 +89,15 @@ async function createFakeUserOp(chainId: number, simpleAccount: IContractAccount
         maxPriorityFeePerGas = gasPrice;
     }
 
-    const unsignedUserOp = await simpleAccount.createUnsignedUserOp({
-        to: Wallet.createRandom().address,
-        value: BigNumber.from(parseEther('0')).toHexString(),
-        data: '0x',
-        maxFeePerGas,
-        maxPriorityFeePerGas,
-    });
-    return deepHexlify(await resolveProperties(unsignedUserOp));
-}
-
-async function createApproveUserOp(chainId: number, accountApi: IContractAccount, usdtAddress: string, paymasterAddress: string) {
-    const rpcUrl = RPC_CONFIG[Number(chainId)].rpcUrl;
-    const provider = new JsonRpcProvider(rpcUrl);
-
-    const usdtABI = ['function approve(address spender, uint256 amount) external returns (bool)'];
-    const usdtContract = new Contract(usdtAddress, usdtABI, provider);
-
-    const dest = await usdtContract.getAddress();
-    const data: any = (await usdtContract.approve.populateTransaction(paymasterAddress, toBeHex(MaxUint256))).data;
-    console.log('approve data', usdtAddress, paymasterAddress, data, await accountApi.encodeExecute(dest, 0, data));
-
-    const unsignedUserOp: any = await accountApi.createUnsignedUserOp({
-        to: dest,
-        data,
-    });
-
+    const unsignedUserOp = await simpleAccount.createUnsignedUserOp([
+        {
+            to: Wallet.createRandom().address,
+            value: BigNumber.from(parseEther('0')).toHexString(),
+            data: '0x',
+            maxFeePerGas,
+            maxPriorityFeePerGas,
+        },
+    ]);
     return deepHexlify(await resolveProperties(unsignedUserOp));
 }
 
@@ -159,7 +143,7 @@ async function sendUserOp(chainId: number, userOp: any) {
     console.log(r3);
     expect(r3.result.length).toBe(66);
 
-    for (let index = 0; index < 10; index++) {
+    for (let index = 0; index < 30; index++) {
         await new Promise((resolve) => setTimeout(resolve, 1000));
 
         const bodyReceipt = {
@@ -183,4 +167,3 @@ async function sendUserOp(chainId: number, userOp: any) {
     const r5 = await rpcController.handleRpc(chainId, bodyUserOp);
     console.log(r5);
 }
-

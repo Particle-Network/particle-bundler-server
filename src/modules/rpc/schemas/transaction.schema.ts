@@ -115,9 +115,14 @@ TransactionSchema.index(
     },
 );
 
-// TODO check index is used
 TransactionSchema.index({
     status: 1,
     from: 1,
     nonce: 1,
+});
+
+TransactionSchema.index({
+    chainId: 1,
+    from: 1,
+    status: 1,
 });

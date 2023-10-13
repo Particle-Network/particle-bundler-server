@@ -11,8 +11,7 @@ import { AppException } from '../../../common/app-exception';
 import { Logger } from '@nestjs/common';
 import { createTxGasData } from './handle-local-transactions';
 import { BigNumber } from '../../../common/bignumber';
-import { getPrivateKeyByAddress } from '../../../configs/bundler-common';
-import { deepHexlify } from '../aa/utils';
+import { deepHexlify, getFeeDataFromParticle } from '../aa/utils';
 import { Alert } from '../../../common/alert';
 
 export async function tryIncrTransactionGasPrice(
@@ -21,29 +20,29 @@ export async function tryIncrTransactionGasPrice(
     provider: JsonRpcProvider,
     aaService: AAService,
 ) {
-    console.log('tryIncrTransactionGasPrice', transaction.id);
+    Logger.log('tryIncrTransactionGasPrice', transaction.id);
     const keyLock = keyLockPendingTransaction(transaction.id);
     if (Lock.isAcquired(keyLock)) {
-        console.log('tryIncrTransactionGasPrice already acquired', transaction.id);
+        Logger.log('tryIncrTransactionGasPrice already acquired', transaction.id);
         return;
     }
 
     await Lock.acquire(keyLock);
     const remoteNonce = await provider.getTransactionCount(transaction.from, 'latest');
     if (remoteNonce != transaction.nonce) {
-        console.log('tryIncrTransactionGasPrice release', 'remoteNonce != transaction.nonce', remoteNonce, transaction.nonce);
+        Logger.log('tryIncrTransactionGasPrice release', 'remoteNonce != transaction.nonce', remoteNonce, transaction.nonce);
         Lock.release(keyLock);
         return;
     }
 
     transaction = await aaService.transactionService.getTransactionById(transaction.id);
     if (!transaction.isPendingTimeout()) {
-        console.log('tryIncrTransactionGasPrice release', 'transaction is not pending timeout', transaction.id);
+        Logger.log('tryIncrTransactionGasPrice release', 'transaction is not pending timeout', transaction.id);
         Lock.release(keyLock);
         return;
     }
 
-    console.log('Try Replace Transaction', transaction.txHash);
+    Logger.log('Try Replace Transaction', transaction.txHash);
 
     try {
         const coefficient = 1.1;
@@ -52,25 +51,36 @@ export async function tryIncrTransactionGasPrice(
         const tx = tryParseSignedTx(currentSignedTx);
         const txData: any = tx.toJSON();
 
+        const feeData = await getFeeDataFromParticle(transaction.chainId);
+
         if (tx instanceof FeeMarketEIP1559Transaction) {
+            if (BigNumber.from(feeData.maxFeePerGas).gt(tx.maxFeePerGas)) {
+                txData.maxFeePerGas = BigNumber.from(feeData.maxFeePerGas).toHexString();
+            }
+
             txData.maxFeePerGas = BigNumber.from(tx.maxFeePerGas)
                 .mul(coefficient * 10)
                 .div(10)
                 .toHexString();
 
-            console.log(`Replace Transaction, Old maxPriorityFeePerGas: ${tx.maxFeePerGas}, New maxPriorityFeePerGas: ${txData.maxFeePerGas}`);
+            Logger.log(`Replace Transaction, Old maxPriorityFeePerGas: ${tx.maxFeePerGas}, New maxPriorityFeePerGas: ${txData.maxFeePerGas}`);
         }
 
         if (tx instanceof LegacyTransaction) {
+            if (BigNumber.from(feeData.gasPrice).gt(tx.gasPrice)) {
+                txData.gasPrice = BigNumber.from(feeData.gasPrice).toHexString();
+            }
+
             txData.gasPrice = BigNumber.from(tx.gasPrice)
                 .mul(coefficient * 10)
                 .div(10)
                 .toHexString();
 
-            console.log(`Replace Transaction, Old gasPrice: ${tx.gasPrice}, New gasPrice: ${txData.gasPrice}`);
+            Logger.log(`Replace Transaction, Old gasPrice: ${tx.gasPrice}, New gasPrice: ${txData.gasPrice}`);
         }
 
-        const signer = new Wallet(getPrivateKeyByAddress(transaction.from));
+        const allSigners = aaService.getSigners();
+        const signer = allSigners.find((signer) => signer.address.toLowerCase() === transaction.from.toLowerCase());
         const signedTx = await signer.signTransaction({
             chainId: transaction.chainId,
             to: txData.to,
@@ -83,15 +93,15 @@ export async function tryIncrTransactionGasPrice(
         const rTxHash = await provider.broadcastTransaction(signedTx);
         const txHash = typeof rTxHash === 'string' ? rTxHash : rTxHash.hash;
 
-        console.log('New TxHash', txHash);
-        console.log('New SignedTxs', signedTx);
+        Logger.log('New TxHash', txHash);
+        Logger.log('New SignedTxs', signedTx);
 
         // should update user ops tx hash ???
         await Helper.startMongoTransaction(mongodbConnection, async (session: any) => {
             await aaService.transactionService.replaceTransactionTxHash(transaction, txHash, signedTx, txData, session);
         });
     } catch (error) {
-        console.error('Replace Transaction error', error);
+        Logger.error('Replace Transaction error', error, transaction);
 
         error.transaction = transaction.toJSON();
         Alert.sendMessage(`ReplaceTransaction Error: ${Helper.converErrorToString(error)}`);
@@ -100,7 +110,7 @@ export async function tryIncrTransactionGasPrice(
         return;
     }
 
-    console.log('tryIncrTransactionGasPrice release', transaction.id);
+    Logger.log('tryIncrTransactionGasPrice release', transaction.id);
     Lock.release(keyLock);
 }
 
@@ -117,17 +127,17 @@ export async function handlePendingTransaction(
 
     const keyLock = keyLockPendingTransaction(transaction.id);
     if (Lock.isAcquired(keyLock)) {
-        console.log('handlePendingTransaction already acquired', transaction.id);
+        Logger.log('handlePendingTransaction already acquired', transaction.id);
         return;
     }
 
-    console.log('handlePendingTransaction before acquire', transaction.id);
+    Logger.log('handlePendingTransaction before acquire', transaction.id);
     await Lock.acquire(keyLock);
-    console.log('handlePendingTransaction after acquire', transaction.id);
+    Logger.log('handlePendingTransaction after acquire', transaction.id);
 
     transaction = await aaService.transactionService.getTransactionById(transaction.id);
     if (transaction.isDone()) {
-        console.log('handlePendingTransaction release in advance');
+        Logger.log('handlePendingTransaction release in advance');
         Lock.release(keyLock);
         return;
     }
@@ -160,7 +170,7 @@ export async function handlePendingTransaction(
             }
         }
 
-        console.log('receipt', receipt);
+        Logger.log('receipt', receipt);
 
         const status = BigNumber.from(receipt.status).eq(1) ? TRANSACTION_STATUS.SUCCESS : TRANSACTION_STATUS.FAILED;
         const blockHash = receipt.blockHash;
@@ -202,12 +212,12 @@ export async function handlePendingTransaction(
                 );
             });
         } catch (error) {
-            console.error('SetUserOperationsAsDone error', error);
+            Logger.error('SetUserOperationsAsDone error', error);
             Alert.sendMessage(`SetUserOperationsAsDone Error: ${Helper.converErrorToString(error)}`);
         }
     }
 
-    console.log('handlePendingTransaction final release', keyLock);
+    Logger.log('handlePendingTransaction final release', keyLock);
     Lock.release(keyLock);
 }
 
@@ -265,7 +275,7 @@ export async function checkAndHandleFailedReceipt(receipt: any, provider: JsonRp
 
         return results;
     } catch (error) {
-        console.error('checkAndHandleFailedReceipt error', error);
+        Logger.error('checkAndHandleFailedReceipt error', error);
         Alert.sendMessage(`checkAndHandleFailedReceipt Error: ${Helper.converErrorToString(error)}`);
 
         return [{ receipt, userOpHashes: targetUserOpHashes }];

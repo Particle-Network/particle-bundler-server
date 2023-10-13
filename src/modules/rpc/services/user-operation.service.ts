@@ -7,6 +7,7 @@ import { BigNumber } from '../../../common/bignumber';
 import { getAddress } from 'ethers';
 import { TRANSACTION_STATUS, Transaction, TransactionDocument } from '../schemas/transaction.schema';
 import { AppException } from '../../../common/app-exception';
+import { Helper } from '../../../common/helper';
 
 @Injectable()
 export class UserOperationService {
@@ -30,51 +31,17 @@ export class UserOperationService {
 
         // Allow to replace failed user operation, because the nonce of the user operation is not increased
         if (userOpDoc) {
-            const oldMaxPriorityFeePerGas = BigNumber.from(userOpDoc.origin.maxPriorityFeePerGas);
-            const newMaxPriorityFeePerGas = BigNumber.from(userOp.maxPriorityFeePerGas);
-            const oldMaxFeePerGas = BigNumber.from(userOpDoc.origin.maxFeePerGas);
-            const newMaxFeePerGas = BigNumber.from(userOp.maxFeePerGas);
+            Helper.assertTrue(userOpDoc.status === USER_OPERATION_STATUS.DONE, -32607);
 
-            if (newMaxPriorityFeePerGas.lt(oldMaxPriorityFeePerGas.mul(11).div(10))) {
-                await this.userOperationModel.updateOne(
-                    { chainId, userOpSender, userOpNonce, status: { $in: [USER_OPERATION_STATUS.TO_BE_REPLACE] } },
-                    { status: USER_OPERATION_STATUS.LOCAL },
-                );
-
-                throw new AppException(
-                    -32602,
-                    `Replacement UserOperation must have higher maxPriorityFeePerGas (old=${oldMaxPriorityFeePerGas} new=${newMaxPriorityFeePerGas})`,
-                );
+            const transaction = await this.transactionModel.findOne({ chainId, txHash: userOpDoc.txHash });
+            if (!transaction || transaction.status !== TRANSACTION_STATUS.FAILED) {
+                throw new AppException(-32004);
             }
 
-            if (newMaxFeePerGas.lt(oldMaxFeePerGas.mul(11).div(10))) {
-                await this.userOperationModel.updateOne(
-                    { chainId, userOpSender, userOpNonce, status: { $in: [USER_OPERATION_STATUS.TO_BE_REPLACE] } },
-                    { status: USER_OPERATION_STATUS.LOCAL },
-                );
-
-                throw new AppException(
-                    -32602,
-                    `Replacement UserOperation must have higher maxFeePerGas (old=${oldMaxFeePerGas} new=${newMaxFeePerGas})`,
-                );
-            }
-
-            if ([USER_OPERATION_STATUS.TO_BE_REPLACE, USER_OPERATION_STATUS.DONE].includes(userOpDoc.status)) {
-                if (userOpDoc.status === USER_OPERATION_STATUS.DONE) {
-                    const transaction = await this.transactionModel.findOne({ chainId, txHash: userOpDoc.txHash });
-                    if (!transaction || transaction.status !== TRANSACTION_STATUS.FAILED) {
-                        throw new AppException(-32004);
-                    }
-                }
-
-                userOpDoc.userOpHash = userOpHash;
-                userOpDoc.entryPoint = entryPoint;
-                userOpDoc.origin = userOp;
-                userOpDoc.status = USER_OPERATION_STATUS.LOCAL;
-                return await userOpDoc.save();
-            }
-
-            throw new AppException(-32004);
+            return {
+                userOpDoc: await this.resetToLocal(userOpDoc, userOpHash, entryPoint, userOp),
+                replaced: true,
+            };
         }
 
         const userOperation = new this.userOperationModel({
@@ -86,7 +53,11 @@ export class UserOperationService {
             origin: userOp,
             status: USER_OPERATION_STATUS.LOCAL,
         });
-        return await userOperation.save();
+
+        return {
+            userOpDoc: await userOperation.save(),
+            replaced: false,
+        };
     }
 
     public async deleteAllLocalUserOperations(chainId: number) {
@@ -98,6 +69,22 @@ export class UserOperationService {
 
     public async getUserOperationByAddressNonce(chainId: number, userOpSender: string, userOpNonce: string): Promise<UserOperationDocument> {
         return await this.userOperationModel.findOne({ chainId, userOpSender, userOpNonce });
+    }
+
+    public async getSuccessUserOperationNonce(chainId: number, userOpSender: string): Promise<string> {
+        const userOpDoc = await this.userOperationModel
+            .findOne({ chainId, userOpSender, status: USER_OPERATION_STATUS.DONE })
+            .sort({ userOpNonce: -1 });
+        if (!userOpDoc) {
+            return null;
+        }
+
+        const userOpEvent = await this.userOperationEventModel.findOne({ chainId, userOperationHash: userOpDoc.userOpHash });
+        if (!userOpEvent) {
+            return null;
+        }
+
+        return userOpDoc.userOpNonce.toString();
     }
 
     public async getUserOperationByHash(chainId: number, userOpHash: string): Promise<UserOperationDocument> {
@@ -183,5 +170,14 @@ export class UserOperationService {
         });
 
         return await userOperation.save();
+    }
+
+    public async resetToLocal(userOperationDocument: UserOperationDocument, userOpHash: string, entryPoint: string, userOp: any) {
+        userOperationDocument.userOpHash = userOpHash;
+        userOperationDocument.entryPoint = entryPoint;
+        userOperationDocument.origin = userOp;
+        userOperationDocument.status = USER_OPERATION_STATUS.LOCAL;
+        userOperationDocument.createdAt = new Date();
+        return await userOperationDocument.save();
     }
 }

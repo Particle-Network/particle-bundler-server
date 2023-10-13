@@ -1,12 +1,12 @@
-import { BigNumberish, Contract, JsonRpcProvider, Wallet, resolveProperties } from 'ethers';
-import { hexConcat } from './utils';
-import entryPointAbi from './entry-point-abi';
-import { BigNumber } from '../../../common/bignumber';
+import { BigNumberish, Contract, Interface, JsonRpcProvider, Wallet, getAddress, resolveProperties } from 'ethers';
+import { getFeeDataFromParticle, hexConcat } from '../utils';
+import entryPointAbi from '../entry-point-abi';
+import { BigNumber } from '../../../../common/bignumber';
 import { calcPreVerificationGas } from '@account-abstraction/sdk';
 import { arrayify } from '@ethersproject/bytes';
-import { IContractAccount } from './interface-contract-account';
+import { IContractAccount } from '../interface-contract-account';
 
-export class SimpleAccount implements IContractAccount {
+export class SimpleSmartAccount implements IContractAccount {
     private accountAddress: string;
     private simpleAccountContract: Contract;
     private readonly provider: JsonRpcProvider;
@@ -26,40 +26,30 @@ export class SimpleAccount implements IContractAccount {
             return this.accountAddress;
         }
 
-        try {
-            await this.epContract.getSenderAddress.staticCall(await this.createInitCode());
-        } catch (e: any) {
-            if (!e?.revert?.args) {
-                throw e;
-            }
+        // TODO generate address in local (use eth_create2)
+        let iface = new Interface(factoryAbi);
+        const callData = iface.encodeFunctionData('getAddress', [this.owner.address, 0]);
+        const result = await this.provider.call({ to: await this.simpleAccountFactoryContract.getAddress(), data: callData });
 
-            this.accountAddress = e.revert.args.at(-1);
-        }
-
+        this.accountAddress = getAddress(`0x${result.slice(-40)}`);
         return this.accountAddress;
     }
 
-    public async createUnsignedUserOp(info: TransactionDetailsForUserOp): Promise<any> {
-        const { callData, callGasLimit } = await this.encodeUserOpCallDataAndGasLimit(info);
-        const nonce = info.nonce ?? (await this.getNonce());
+    public async createUnsignedUserOp(infos: TransactionDetailsForUserOp[], nonce?: any): Promise<any> {
+        const { callData, callGasLimit } = await this.encodeUserOpCallDataAndGasLimit(infos);
+        nonce = BigNumber.from(nonce ?? (await this.getNonce())).toHexString();
         let initCode = '0x';
         if (BigNumber.from(nonce).eq(0)) {
             initCode = await this.createInitCode();
         }
 
         const initGas = await this.estimateCreationGas(initCode);
-        const verificationGasLimit = BigNumber.from(await this.getVerificationGasLimit()).add(initGas);
+        const verificationGasLimit = BigNumber.from(await this.getVerificationGasLimit()).add(initGas).toHexString();
 
-        let { maxFeePerGas, maxPriorityFeePerGas } = info;
-        if (maxFeePerGas == null || maxPriorityFeePerGas == null) {
-            const feeData = await this.provider.getFeeData();
-            if (maxFeePerGas == null) {
-                maxFeePerGas = feeData.maxFeePerGas ?? undefined;
-            }
-            if (maxPriorityFeePerGas == null) {
-                maxPriorityFeePerGas = feeData.maxPriorityFeePerGas ?? undefined;
-            }
-        }
+        const network = await this.provider.getNetwork();
+        const feeData = await getFeeDataFromParticle(Number(network.chainId));
+        const maxFeePerGas = feeData.maxFeePerGas ?? undefined;
+        const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas ?? undefined;
 
         const partialUserOp: any = {
             sender: this.getAccountAddress(),
@@ -80,20 +70,33 @@ export class SimpleAccount implements IContractAccount {
         };
     }
 
-    public async encodeUserOpCallDataAndGasLimit(detailsForUserOp: TransactionDetailsForUserOp) {
-        const value = BigNumber.from(detailsForUserOp.value ?? 0);
-        const callData = await this.encodeExecute(detailsForUserOp.to, value.toHexString(), detailsForUserOp.data);
-
-        let callGasLimit = BigNumber.from(detailsForUserOp.gasLimit ?? 0);
-        if (callGasLimit.eq(0)) {
-            callGasLimit = BigNumber.from(
-                await this.provider.estimateGas({
-                    from: this.entryPointAddress,
-                    to: this.getAccountAddress(),
-                    data: callData,
-                }),
-            );
+    public async encodeUserOpCallDataAndGasLimit(detailsForUserOp: TransactionDetailsForUserOp[]) {
+        if (detailsForUserOp.length <= 0) {
+            throw new Error('userops is empty');
         }
+
+        let callData: string;
+        if (detailsForUserOp.length !== 1) {
+            const targets = [];
+            const datas = [];
+            for (const detailForUserOp of detailsForUserOp) {
+                targets.push(detailForUserOp.to);
+                datas.push(detailForUserOp.data);
+            }
+
+            callData = await this.encodeExecuteBatch(targets, datas);
+        } else {
+            const value = BigNumber.from(detailsForUserOp[0].value ?? 0);
+            callData = await this.encodeExecute(detailsForUserOp[0].to, value.toHexString(), detailsForUserOp[0].data);
+        }
+
+        const callGasLimit = BigNumber.from(
+            await this.provider.estimateGas({
+                from: this.entryPointAddress,
+                to: this.getAccountAddress(),
+                data: callData,
+            }),
+        );
 
         return {
             callData,
@@ -114,6 +117,11 @@ export class SimpleAccount implements IContractAccount {
     public async encodeExecute(target: string, value: BigNumberish, data: string): Promise<string> {
         const simpleAccount = await this.getSimpleAccountContract();
         return (await simpleAccount.execute.populateTransaction(target, value, data)).data;
+    }
+
+    public async encodeExecuteBatch(targets: string[], datas: string[]): Promise<string> {
+        const simpleAccount = await this.getSimpleAccountContract();
+        return (await simpleAccount.executeBatch.populateTransaction(targets, datas)).data;
     }
 
     public async createInitCode(index: number = 0): Promise<string> {
@@ -169,13 +177,9 @@ export class SimpleAccount implements IContractAccount {
 }
 
 interface TransactionDetailsForUserOp {
-    gasLimit?: any;
     value?: any;
     to: string;
     data: string;
-    maxPriorityFeePerGas?: any;
-    maxFeePerGas?: any;
-    nonce?: any;
 }
 
 export const abi = [

@@ -2,9 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { Wallet } from 'ethers';
 import { UserOperationService } from './user-operation.service';
 import { TransactionService } from './transaction.service';
-import { getPrivateKeyMap } from '../../../configs/bundler-common';
 import { BUNDLING_MODE, IS_DEVELOPMENT } from '../../../common/common-types';
 import { Alert } from '../../../common/alert';
+import { ConfigService } from '@nestjs/config';
 
 export enum TRANSACTION_EXTRA_STATUS {
     NONE,
@@ -24,12 +24,18 @@ export class AAService {
     public constructor(
         public readonly userOperationService: UserOperationService,
         public readonly transactionService: TransactionService,
+        public readonly configService: ConfigService,
     ) {}
 
     public getRandomSigners(chainId: number): Wallet[] {
-        const signers = Object.values(getPrivateKeyMap(chainId)).map((privateKey: string) => new Wallet(privateKey));
+        const signers = this.getSigners();
 
         return signers.sort(() => Math.random() - 0.5).filter((signer: Wallet) => !this.blockedSigners.has(`${chainId}-${signer.address}`));
+    }
+
+    public getSigners(): Wallet[] {
+        let pks = this.configService.get('BUNDLER_SIGNERS').split(',');
+        return pks = pks.filter((pk: string) => !!pk).map((privateKey: string) => new Wallet(privateKey));
     }
 
     public setBlockedSigner(chainId: number, signerAddress: string) {

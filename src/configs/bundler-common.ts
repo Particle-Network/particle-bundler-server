@@ -1,22 +1,16 @@
 import { getAddress } from 'ethers';
 import { IS_DEVELOPMENT } from '../common/common-types';
-import { bundlerConfig } from './bundler-config';
+import { bundlerConfig, RPC_CONFIG as RPC_CONFIG_ARRAY } from './bundler-config';
+import { cloneDeep } from 'lodash';
 
-export const BUNDLER_CONFIG: any = bundlerConfig['BUNDLER_CONFIG'];
-export const SUPPORTED_ENTRYPOINTS: string[] = bundlerConfig['SUPPORTED_ENTRYPOINTS'];
-export const EVM_CHAIN_ID_NOT_SUPPORT_1559 = bundlerConfig['EVM_CHAIN_ID_NOT_SUPPORT_1559'];
-export const BUNDLER_PRIVATE_KEYS = bundlerConfig['BUNDLER_PRIVATE_KEYS'];
-export const VERIFYING_PAYMASTER_SIGNER = bundlerConfig['VERIFYING_PAYMASTER_SIGNER'];
-export const PAYMENT_SIGNER = bundlerConfig['PAYMENT_SIGNER'];
+export const RPC_CONFIG: any = {};
+for (const item of RPC_CONFIG_ARRAY) {
+    RPC_CONFIG[String(item.chainId)] = item;
+}
 
-export const RPC_CONFIG = bundlerConfig['RPC_CONFIG'];
 if (!IS_DEVELOPMENT) {
     delete RPC_CONFIG['1337'];
 }
-
-export const MINIMUM_GAS_FEE = bundlerConfig['MINIMUM_GAS_FEE'];
-export const CHAIN_SIGNER_MIN_BALANCE = bundlerConfig['CHAIN_SIGNER_MIN_BALANCE'];
-export const CHAIN_VERIFYING_PAYMASTER_MIN_DEPOSIT = bundlerConfig['CHAIN_VERIFYING_PAYMASTER_MIN_DEPOSIT'];
 
 export enum AA_METHODS {
     SEND_USER_OPERATION = 'eth_sendUserOperation',
@@ -43,26 +37,30 @@ export enum EVM_CHAIN_ID {
     OPBNB_TESTNET = 5611,
     SCROLL_SEPOLIA = 534351,
     COMBO_TESTNET = 91715,
+    LINEA_MAINNET = 59144,
     LINEA_TESTNET = 59140,
+    OPTIMISM_MAINNET = 10,
     OPTIMISM_TESTNET = 420,
+    BASE_MAINNET = 8453,
+    BASE_TESTNET = 84531,
     MANTA_TESTNET = 3441005,
+    MANTA_MAINNET = 169,
+    MANTLE_TESTNET = 5001,
+    MANTLE_MAINNET = 5000,
+    ARBITRUM_ONE_MAINNET = 42161,
+    ARBITRUM_NOVA_TESTNET = 42170,
+    // ARBITRUM_NOVA_GOERLI = 421613,
+    POLYGON_ZKEVM_MAINNET = 1101,
+    AVALANCHE_MAINNET = 43114,
     // Local node
     GETH = 1337,
 }
 
-export function getPrivateKeyMap(chainId: number): any {
-    const environment = process.env.ENVIRONMENT;
-
-    const result = BUNDLER_PRIVATE_KEYS[environment];
-    if (result[String(chainId)]) {
-        return result[String(chainId)];
+export function getBundlerConfig(chainId: number) {
+    const config = cloneDeep(bundlerConfig.default);
+    if (bundlerConfig[chainId]) {
+        Object.assign(config, bundlerConfig[chainId]);
     }
 
-    return result['default'];
-}
-
-export function getPrivateKeyByAddress(address: string): string {
-    const environment = process.env.ENVIRONMENT;
-
-    return BUNDLER_PRIVATE_KEYS[environment][getAddress(address)];
+    return config;
 }

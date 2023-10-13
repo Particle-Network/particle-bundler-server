@@ -4,10 +4,9 @@ import { RpcService } from '../services/rpc.service';
 import { Helper } from '../../../common/helper';
 import { calcPreVerificationGas } from '@account-abstraction/sdk';
 import entryPointAbi from './entry-point-abi';
-import { deepHexlify, isUserOpValid } from './utils';
+import { deepHexlify, getFeeDataFromParticle, isUserOpValid } from './utils';
 import { isEmpty } from 'lodash';
 import { BigNumber } from '../../../common/bignumber';
-import { EVM_CHAIN_ID_NOT_SUPPORT_1559, SUPPORTED_ENTRYPOINTS } from '../../../configs/bundler-common';
 import {
     AppException,
     AppExceptionMessages,
@@ -15,13 +14,17 @@ import {
     MESSAGE_32602_INVALID_PARAMS_LENGTH,
     MESSAGE_32602_INVALID_USEROP_TYPE,
 } from '../../../common/app-exception';
+import { EVM_CHAIN_ID_NOT_SUPPORT_1559 } from '../../../configs/bundler-config';
+import { AA_METHODS, getBundlerConfig } from '../../../configs/bundler-common';
+import { SUPPORT_GAELESS_PAYMASTER } from '../../../common/common-types';
 
 export async function estimateUserOperationGas(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
     Helper.assertTrue(body.params.length === 2, -32602, MESSAGE_32602_INVALID_PARAMS_LENGTH);
     Helper.assertTrue(typeof body.params[0] === 'object', -32602, MESSAGE_32602_INVALID_USEROP_TYPE);
     Helper.assertTrue(typeof body.params[1] === 'string' && isAddress(body.params[1]), -32602, MESSAGE_32602_INVALID_ENTRY_POINT_ADDRESS);
     const entryPoint = getAddress(body.params[1]);
-    Helper.assertTrue(SUPPORTED_ENTRYPOINTS.includes(entryPoint), -32003);
+    const bundlerConfig = getBundlerConfig(chainId);
+    Helper.assertTrue(bundlerConfig.SUPPORTED_ENTRYPOINTS.includes(entryPoint), -32003);
 
     const userOp = body.params[0];
 
@@ -31,7 +34,7 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
 
     const provider = rpcService.getJsonRpcProvider(chainId);
     if (isEmpty(userOp.maxFeePerGas) || isEmpty(userOp.maxPriorityFeePerGas)) {
-        const feeData = await rpcService.getFeeData(chainId);
+        const feeData = await getFeeDataFromParticle(chainId);
         userOp.maxFeePerGas = BigNumber.from(feeData.maxFeePerGas ?? 0).toHexString();
         userOp.maxPriorityFeePerGas = BigNumber.from(feeData.maxPriorityFeePerGas ?? 0).toHexString();
 
@@ -39,6 +42,20 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
             userOp.maxFeePerGas = BigNumber.from(feeData.gasPrice).toHexString();
             userOp.maxPriorityFeePerGas = BigNumber.from(feeData.gasPrice).toHexString();
         }
+    }
+
+    if (SUPPORT_GAELESS_PAYMASTER && (isEmpty(userOp.paymasterAndData) || userOp.paymasterAndData === '0x')) {
+        userOp.paymasterAndData = '0x';
+
+        const rSponsor = await rpcService.handle(
+            chainId,
+            await JsonRPCRequestDto.fromPlainAndCheck({
+                method: AA_METHODS.SPONSOR_USER_OPERATION,
+                params: [userOp, entryPoint],
+            }),
+        );
+
+        userOp.paymasterAndData = rSponsor.result.paymasterAndData;
     }
 
     Helper.assertTrue(

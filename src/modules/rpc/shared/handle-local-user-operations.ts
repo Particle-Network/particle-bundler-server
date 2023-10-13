@@ -4,14 +4,14 @@ import { Helper } from '../../../common/helper';
 import { RpcService } from '../services/rpc.service';
 import { UserOperationDocument } from '../schemas/user-operation.schema';
 import { keyLockSigner } from '../../../common/common-types';
-import { calcUserOpTotalGasLimit } from '../aa/utils';
+import { calcUserOpTotalGasLimit, getFeeDataFromParticle } from '../aa/utils';
 import { createBundleTransaction } from './handle-local-transactions';
 import { Connection } from 'mongoose';
 import Lock from '../../../common/global-lock';
-import { MINIMUM_GAS_FEE } from '../../../configs/bundler-common';
 import { BigNumber } from '../../../common/bignumber';
-import { BUNDLER_CONFIG } from '../../../configs/bundler-common';
 import { Alert } from '../../../common/alert';
+import { MINIMUM_GAS_FEE } from '../../../configs/bundler-config';
+import { getBundlerConfig } from '../../../configs/bundler-common';
 
 export async function handleLocalUserOperations(
     chainId: number,
@@ -77,7 +77,8 @@ async function sealUserOps(
             // if bundle is full, push it to bundles array
             const calcedGasLimit = calcUserOpTotalGasLimit(userOperation.origin);
             const newTotalGasLimit = totalGasLimit.add(calcedGasLimit);
-            if (newTotalGasLimit.gt(BUNDLER_CONFIG.maxBundleGas)) {
+            const bundlerConfig = getBundlerConfig(chainId);
+            if (newTotalGasLimit.gt(bundlerConfig.MAX_BUNDLE_GAS)) {
                 bundles.push({ userOperations: bundle, gasLimit: totalGasLimit.toHexString() });
                 bundle = [];
                 totalGasLimit = BigNumber.from(0);
@@ -99,7 +100,7 @@ async function sealUserOps(
         [latestTransaction, pendingNonce, feeData] = await Promise.all([
             aaService.transactionService.getLatestTransaction(chainId, signer.address),
             provider.getTransactionCount(signer.address, 'pending'),
-            rpcService.getFeeData(chainId),
+            getFeeDataFromParticle(chainId),
         ]);
     } catch (error) {
         console.error('fetch provider error', error);

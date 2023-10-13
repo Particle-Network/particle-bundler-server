@@ -13,7 +13,7 @@
 Particle Bundler RPC completes compatible with [ERC4337 standards](https://eips.ethereum.org/EIPS/eip-4337). It is extremely stable and supports high concurrency requests.
 
 ## ⚡️ Live
-👉 We have deployed a server on production: https://bundler.particle.network
+👉 We have deployed a server on production: https://docs.particle.network/developers/node-service/evm-chains-api/bundler-rpc
 
 👉 Try the demo: https://scroll-testnet.particle.network/
 

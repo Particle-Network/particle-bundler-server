@@ -10,7 +10,7 @@ import { AAService } from './aa.service';
 import { JsonRpcProvider, Network } from 'ethers';
 import { RedisService } from '@liaoliaots/nestjs-redis';
 import { AA_METHODS } from '../../../configs/bundler-common';
-import { IS_DEVELOPMENT, PARTICLE_PUBLIC_RPC_URL } from '../../../common/common-types';
+import { IS_DEVELOPMENT } from '../../../common/common-types';
 
 @Injectable()
 export class RpcService {
@@ -68,29 +68,5 @@ export class RpcService {
 
     public async getTransactionReceipt(provider: JsonRpcProvider, txHash: string) {
         return await provider.send('eth_getTransactionReceipt', [txHash]);
-    }
-
-    public async getFeeData(chainId: number) {
-        const network = new Network('', chainId);
-        const provider = new JsonRpcProvider(`${PARTICLE_PUBLIC_RPC_URL}?chainId=${chainId}`, network, {
-            batchMaxCount: 1,
-            staticNetwork: network,
-        });
-
-        if ([EVM_CHAIN_ID.COMBO_TESTNET, EVM_CHAIN_ID.OPBNB_MAINNET].includes(chainId)) {
-            return {
-                maxPriorityFeePerGas: 1001,
-                maxFeePerGas: 1001,
-                gasPrice: 1001,
-            };
-        }
-
-        const particleFeeData = await provider.send('particle_suggestedGasFees', []);
-
-        return {
-            maxPriorityFeePerGas: Math.ceil(Number(particleFeeData?.high?.maxPriorityFeePerGas ?? 0) * 10 ** 9),
-            maxFeePerGas: Math.ceil(Number(particleFeeData?.high?.maxFeePerGas ?? 0) * 10 ** 9),
-            gasPrice: Math.ceil(Number(particleFeeData?.high?.maxFeePerGas ?? 0) * 10 ** 9),
-        };
     }
 }
