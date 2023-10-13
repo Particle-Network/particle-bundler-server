@@ -57,10 +57,14 @@ npm run test
 ### 🧷 Custom the bundler config
 Set your configuration in **/src/configs/bundler-config.ts**.
 
+* CHAIN_SIGNER_MIN_BALANCE: the minimum balance of the signer, if the signer's balance is less than this value, the payment signer will automatically transfer the token to the signer.
+* CHAIN_VERIFYING_PAYMASTER_MIN_DEPOSIT: the minimum deposit of the paymaster, if the paymaster's deposit is less than this value, the payment signer will automatically transfer the token to the paymaster.
+
 ### 📝 Scripts
 deploy AA & Simple Account for a new chain
 ```bash
-// set a signer in scripts/deploy-aa.ts first
+// set a signer in scripts/deploy-aa.ts
+
 npx ts-node scripts/deploy-aa.ts 11155111
 ```
 
