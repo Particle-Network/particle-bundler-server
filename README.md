@@ -58,13 +58,14 @@ npm run test
 
 ### 🧷 Custom the bundler config
 Set your configuration in **/src/configs/bundler-config.ts**.
-```
-# The signers in bundler server which sign the bundle and send
-BUNDLER_PRIVATE_KEYS
 
-# The chain you want to support
-RPC_CONFIG
+### 📝 Scripts
+deploy AA & Simple Account for a new chain
+```bash
+// set a signer in scripts/deploy-aa.ts first
+npx ts-node scripts/deploy-aa.ts 11155111
 ```
+
 
 ## 🛀🏽 API doc
 
