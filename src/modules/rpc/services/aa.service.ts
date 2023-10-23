@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Wallet } from 'ethers';
 import { UserOperationService } from './user-operation.service';
 import { TransactionService } from './transaction.service';
-import { BUNDLING_MODE, IS_DEVELOPMENT } from '../../../common/common-types';
+import { BLOCK_SIGNER_REASON, BUNDLING_MODE, IS_DEVELOPMENT } from '../../../common/common-types';
 import { Alert } from '../../../common/alert';
 import { ConfigService } from '@nestjs/config';
 
@@ -13,11 +13,10 @@ export enum TRANSACTION_EXTRA_STATUS {
 
 @Injectable()
 export class AAService {
-    private readonly blockedSigners: Set<string> = new Set();
+    private readonly blockedSigners: Map<string, any & { reason: BLOCK_SIGNER_REASON }> = new Map();
     private readonly transactionInSending: Set<string> = new Set();
     private readonly transactionInFinishing: Set<string> = new Set();
     private readonly lockedUserOpHash: Set<string> = new Set();
-    private readonly transactionExtraStatus: Map<string, number> = new Map();
 
     private bundlingMode: BUNDLING_MODE = IS_DEVELOPMENT && process.env.MANUAL_MODE ? BUNDLING_MODE.MANUAL : BUNDLING_MODE.AUTO;
 
@@ -38,8 +37,9 @@ export class AAService {
         return (pks = pks.filter((pk: string) => !!pk).map((privateKey: string) => new Wallet(privateKey)));
     }
 
-    public setBlockedSigner(chainId: number, signerAddress: string) {
-        this.blockedSigners.add(`${chainId}-${signerAddress}`);
+    public setBlockedSigner(chainId: number, signerAddress: string, reason: BLOCK_SIGNER_REASON, options: any = {}) {
+        options.reason = reason;
+        this.blockedSigners.set(`${chainId}-${signerAddress}`, options);
 
         Alert.sendMessage(`${signerAddress} is blocked on chain ${chainId}`, `Block Signer On Chain ${chainId}`);
     }
@@ -50,6 +50,20 @@ export class AAService {
             this.blockedSigners.delete(key);
             Alert.sendMessage(`${signerAddress} is unblocked on chain ${chainId}`, `Unblock Signer On Chain ${chainId}`);
         }
+    }
+
+    public getAllBlockedSigners() {
+        const blockedSigners: { chainId: number; signerAddress: string; info: any }[] = [];
+        for (const [key, info] of this.blockedSigners) {
+            const [chainId, signerAddress] = key.split('-');
+            blockedSigners.push({
+                chainId: Number(chainId),
+                signerAddress,
+                info,
+            });
+        }
+
+        return blockedSigners;
     }
 
     public isBlockedSigner(chainId: number, signerAddress: string) {
@@ -94,19 +108,6 @@ export class AAService {
         for (const userOpHash of userOpHashes) {
             this.lockedUserOpHash.add(userOpHash);
         }
-    }
-
-    public setTransactionExtraStatus(chainId: number, txHash: string, status: TRANSACTION_EXTRA_STATUS) {
-        this.transactionExtraStatus.set(`${chainId}-${txHash}`, status);
-    }
-
-    public getTransactionExtraStatus(chainId: number, txHash: string): TRANSACTION_EXTRA_STATUS {
-        const key = `${chainId}-${txHash}`;
-        if (!this.transactionExtraStatus.has(key)) {
-            return TRANSACTION_EXTRA_STATUS.NONE;
-        }
-
-        return this.transactionExtraStatus.get(key);
     }
 
     // only for development

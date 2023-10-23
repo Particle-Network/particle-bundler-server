@@ -22,11 +22,6 @@ export class UserOperationService {
         const userOpSender = getAddress(userOp.sender);
         const userOpNonce = BigNumber.from(userOp.nonce).toString();
 
-        await this.userOperationModel.updateOne(
-            { chainId, userOpSender, userOpNonce, status: { $in: [USER_OPERATION_STATUS.LOCAL] } },
-            { status: USER_OPERATION_STATUS.TO_BE_REPLACE },
-        );
-
         let userOpDoc = await this.getUserOperationByAddressNonce(chainId, userOpSender, userOpNonce);
 
         // Allow to replace failed user operation, because the nonce of the user operation is not increased

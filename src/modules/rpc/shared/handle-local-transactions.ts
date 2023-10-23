@@ -1,11 +1,11 @@
 import { Wallet, Contract, JsonRpcProvider } from 'ethers';
 import { Connection } from 'mongoose';
-import { keyLockSendingTransaction } from '../../../common/common-types';
+import { BLOCK_SIGNER_REASON, keyLockSendingTransaction } from '../../../common/common-types';
 import { Helper } from '../../../common/helper';
 import entryPointAbi from '../aa/entry-point-abi';
 import { TRANSACTION_STATUS, TransactionDocument } from '../schemas/transaction.schema';
 import { UserOperationDocument } from '../schemas/user-operation.schema';
-import { AAService, TRANSACTION_EXTRA_STATUS } from '../services/aa.service';
+import { AAService } from '../services/aa.service';
 import Lock from '../../../common/global-lock';
 import { handlePendingTransaction } from './handle-pending-transactions';
 import { BigNumber } from '../../../common/bignumber';
@@ -107,11 +107,13 @@ export async function trySendAndUpdateTransactionStatus(transaction: Transaction
     } catch (error) {
         // insufficient funds for intrinsic transaction cost
         if (error?.message?.toLowerCase()?.includes('insufficient funds')) {
-            aaService.setBlockedSigner(transaction.chainId, transaction.from);
+            aaService.setBlockedSigner(transaction.chainId, transaction.from, BLOCK_SIGNER_REASON.INSUFFICIENT_BALANCE, {
+                transactionId: transaction.id,
+            });
         }
 
         if (error?.message?.toLowerCase()?.includes('nonce too low')) {
-            aaService.setTransactionExtraStatus(transaction.chainId, transaction.txHash, TRANSACTION_EXTRA_STATUS.NONCE_TOO_LOW);
+            // nothing to do
         }
 
         console.error('SendTransaction error', error);

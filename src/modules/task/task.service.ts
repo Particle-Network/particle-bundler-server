@@ -6,6 +6,7 @@ import { Connection } from 'mongoose';
 import { RpcService } from '../rpc/services/rpc.service';
 import { TransactionService } from '../rpc/services/transaction.service';
 import {
+    BLOCK_SIGNER_REASON,
     BUNDLING_MODE,
     IS_DEVELOPMENT,
     PENDING_TRANSACTION_SIGNER_HANDLE_LIMIT,
@@ -34,7 +35,6 @@ import {
     CHAIN_BALANCE_RANGE,
     CHAIN_SIGNER_MIN_BALANCE,
     CHAIN_VERIFYING_PAYMASTER_MIN_DEPOSIT,
-    EVM_CHAIN_ID_NOT_SUPPORT_1559,
 } from '../../configs/bundler-config';
 import { getFeeDataFromParticle } from '../rpc/aa/utils';
 
@@ -65,6 +65,7 @@ export class TaskService {
     private sealUserOpsFlag: Map<number, boolean> = new Map();
     private inCheckingPaymasterBalance: boolean = false;
     private inCheckingSignerBalance: boolean = false;
+    private inCheckingAndReleaseBlockSigners: boolean = false;
 
     private initialize() {
         if (!this.canRunCron()) {
@@ -114,9 +115,9 @@ export class TaskService {
 
         await Lock.acquire(keyLockChainId(chainId));
 
-        Logger.log('sealUserOpsByDuration acquire', chainId, targetSigner.address);
+        Logger.log(`sealUserOpsByDuration acquire ${targetSigner.address} on chain ${chainId}`);
         if (!this.sealUserOpsFlag.get(chainId)) {
-            Logger.log('sealUserOpsByDuration release', chainId, targetSigner.address);
+            Logger.log(`sealUserOpsByDuration release ${targetSigner.address} on chain ${chainId}`);
 
             Lock.release(keyLockSigner(chainId, targetSigner.address));
             Lock.release(keyLockChainId(chainId));
@@ -292,15 +293,17 @@ export class TaskService {
                         const etherToSend = (minEtherBalance - balanceEther).toFixed(10);
                         Logger.log(`[Send ether to signer] chainId=${chainId}, address=${address}, etherToSend=${etherToSend}`);
                         const signerToPay = new Wallet(process.env.PAYMENT_SIGNER, provider);
-                        console.log('signerToPay', signerToPay.address);
+                        const feeData: any = await getFeeDataFromParticle(Number(chainId));
 
+                        // force use gas price
                         const tx = await signerToPay.sendTransaction({
-                            type: EVM_CHAIN_ID_NOT_SUPPORT_1559.includes(Number(chainId)) ? 0 : 2,
+                            type: 0,
                             to: address,
                             value: parseEther(etherToSend.toString()) + parseEther(String(CHAIN_BALANCE_RANGE[chainId.toString()] ?? '0.1')),
+                            gasPrice: feeData.gasPrice,
                         });
 
-                        Logger.log('Sent tx', chainId, tx.hash);
+                        Logger.log(`[Sent Tx] ${chainId}, ${tx.hash}`);
                         await tx.wait();
                         const balanceAfter = await provider.getBalance(address);
                         const balanceEtherAfter = BigNumber.from(balanceAfter).div(1e9).toNumber() / 1e9;
@@ -315,6 +318,8 @@ export class TaskService {
                     }
                 }
             } catch (error) {
+                Logger.error(error);
+
                 Alert.sendMessage(
                     `Fill Signer Failed For ${currentAddress} On ChainId ${currentChainId}\n${Helper.converErrorToString(error)}`,
                     `Fill Signer Error`,
@@ -325,7 +330,7 @@ export class TaskService {
         this.inCheckingSignerBalance = false;
     }
 
-    @Cron('0 * * * * *')
+    @Cron('30 * * * * *')
     public async checkAndFillPaymasterBalance() {
         if (
             !this.canRunCron() ||
@@ -363,23 +368,21 @@ export class TaskService {
 
                     let etherToDeposit = BigNumber.from(minBalanceWei).sub(balance);
 
-                    const feeData = await getFeeDataFromParticle(Number(chainId));
-                    if (EVM_CHAIN_ID_NOT_SUPPORT_1559.includes(Number(chainId))) {
-                        delete feeData.maxFeePerGas;
-                        delete feeData.maxPriorityFeePerGas;
-                    } else {
-                        delete feeData.gasPrice;
-                    }
-
+                    const feeData: any = await getFeeDataFromParticle(Number(chainId));
                     Logger.log(
                         `[Deposit ether to verify paymaster] chainId=${chainId}, etherToDeposit=${etherToDeposit}, feeData=${JSON.stringify(
                             feeData,
                         )}`,
                     );
-                    const tx = await contractVerifyPaymaster.deposit.populateTransaction();
+                    // force use gas price
+                    const tx = await contractVerifyPaymaster.deposit.populateTransaction({
+                        gasPrice: feeData.gasPrice,
+                    });
+
                     const r = await signerToPay.sendTransaction({
+                        type: 0,
                         ...tx,
-                        ...feeData,
+                        value: etherToDeposit.toBigInt() + parseEther(String(CHAIN_BALANCE_RANGE[chainId.toString()] ?? '0.1')),
                     });
 
                     Logger.log(`[Paymaster Deposit Tx] chainId=${chainId}, txHash=${r.hash}`);
@@ -391,6 +394,8 @@ export class TaskService {
                     );
                 }
             } catch (error) {
+                Logger.error(`Error on chain ${currentChainId}`, error);
+
                 Alert.sendMessage(
                     `Fill Paymaster Failed For ${currentPaymasterAddress} On ChainId ${currentChainId}\n${Helper.converErrorToString(error)}`,
                     `Fill Paymaster Error`,
@@ -399,6 +404,42 @@ export class TaskService {
         }
 
         this.inCheckingPaymasterBalance = false;
+    }
+
+    @Cron('* * * * * *')
+    public async checkAndReleaseBlockSigners() {
+        if (!this.canRunCron() || this.inCheckingAndReleaseBlockSigners) {
+            return;
+        }
+
+        this.inCheckingAndReleaseBlockSigners = true;
+        const blockedSigners = this.aaService.getAllBlockedSigners();
+        if (blockedSigners.length <= 0) {
+            this.inCheckingAndReleaseBlockSigners = false;
+            return;
+        }
+
+        for (const blockedSigner of blockedSigners) {
+            if (blockedSigner.info.reason === BLOCK_SIGNER_REASON.INSUFFICIENT_BALANCE) {
+                const provider = this.rpcService.getJsonRpcProvider(blockedSigner.chainId);
+                const balance = await provider.getBalance(blockedSigner.signerAddress);
+
+                if (!CHAIN_SIGNER_MIN_BALANCE[blockedSigner.chainId]) {
+                    continue;
+                }
+
+                const minEtherBalance = parseEther(String(CHAIN_SIGNER_MIN_BALANCE[blockedSigner.chainId]));
+                if (BigNumber.from(balance).gte(minEtherBalance)) {
+                    this.aaService.UnblockedSigner(blockedSigner.chainId, blockedSigner.signerAddress);
+                    Alert.sendMessage(`Balance is enough, unblock signer ${blockedSigner.signerAddress}`);
+
+                    const transaction = await this.transactionService.getTransactionById(blockedSigner.info.transactionId);
+                    await handleLocalTransaction(this.connection, transaction, provider, this.rpcService, this.aaService);
+                }
+            }
+        }
+
+        this.inCheckingAndReleaseBlockSigners = false;
     }
 
     public stop() {

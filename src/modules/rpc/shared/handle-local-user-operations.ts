@@ -12,6 +12,7 @@ import { BigNumber } from '../../../common/bignumber';
 import { Alert } from '../../../common/alert';
 import { MINIMUM_GAS_FEE } from '../../../configs/bundler-config';
 import { getBundlerConfig } from '../../../configs/bundler-common';
+import { Logger } from '@nestjs/common';
 
 export async function handleLocalUserOperations(
     chainId: number,
@@ -26,7 +27,7 @@ export async function handleLocalUserOperations(
             return;
         }
 
-        console.log(`${chainId}: ${userOperations.length} user operations`);
+        Logger.log(`Start Handling ${userOperations.length} user operations on chain ${chainId}`);
 
         const provider = rpcService.getJsonRpcProvider(chainId);
         await sealUserOps(chainId, provider, signer, userOperations, mongodbConnection, rpcService, aaService);

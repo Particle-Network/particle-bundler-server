@@ -3,13 +3,15 @@ import { BigNumber } from '../../../common/bignumber';
 import { BytesLike, JsonRpcProvider, Network, hexlify } from 'ethers';
 import { PARTICLE_PUBLIC_RPC_URL } from '../../../common/common-types';
 import { EVM_CHAIN_ID } from '../../../configs/bundler-common';
-import { MINIMUM_GAS_FEE } from '../../../configs/bundler-config';
+import { EVM_CHAIN_ID_NOT_SUPPORT_1559, MINIMUM_GAS_FEE } from '../../../configs/bundler-config';
 
 export function calcUserOpTotalGasLimit(userOp: any): BigNumber {
-    const gasLimitMul = isEmpty(userOp.paymasterAndData) || userOp.paymasterAndData === '0x' ? 1 : 3;
+    const mul = 3;
     return BigNumber.from(userOp.callGasLimit)
-        .add(BigNumber.from(userOp.verificationGasLimit).mul(gasLimitMul))
-        .add(BigNumber.from(userOp.preVerificationGas));
+        .add(BigNumber.from(userOp.verificationGasLimit))
+        .mul(mul) // (callGasLimit + verificationGasLimit) * mul
+        .add(BigNumber.from(userOp.preVerificationGas))
+        .add(BigNumber.from(5000));
 }
 
 export function isUserOpValid(userOp: any, requireSignature: boolean = true, requireGasParams: boolean = true): boolean {
@@ -95,6 +97,11 @@ export async function getFeeDataFromParticle(chainId: number) {
         maxFeePerGas: Math.ceil(Number(particleFeeData?.high?.maxFeePerGas ?? 0) * 10 ** 9),
         gasPrice: Math.ceil(Number(particleFeeData?.high?.maxFeePerGas ?? 0) * 10 ** 9),
     };
+
+    if (EVM_CHAIN_ID_NOT_SUPPORT_1559.includes(chainId)) {
+        result.maxPriorityFeePerGas = result.gasPrice;
+        result.maxFeePerGas = result.gasPrice;
+    }
 
     if (MINIMUM_GAS_FEE[chainId]) {
         if (MINIMUM_GAS_FEE[chainId]?.gasPrice) {

@@ -1,4 +1,3 @@
-import { getAddress } from 'ethers';
 import { IS_DEVELOPMENT } from '../common/common-types';
 import { bundlerConfig, RPC_CONFIG as RPC_CONFIG_ARRAY } from './bundler-config';
 import { cloneDeep } from 'lodash';
@@ -27,14 +26,16 @@ export enum AA_METHODS {
 }
 
 export enum EVM_CHAIN_ID {
-    GOERLI_TESTNET = 5,
-    SEPOLIA_TESTNET = 11155111,
+    ETHEREUM_MAINNET = 1,
+    ETHEREUM_GOERLI_TESTNET = 5,
+    ETHEREUM_SEPOLIA_TESTNET = 11155111,
     POLYGON_MAINNET = 137,
     POLYGON_TESTNET = 80001,
     BNB_MAINNET = 56,
     BNB_TESTNET = 97,
     OPBNB_MAINNET = 204,
     OPBNB_TESTNET = 5611,
+    SCROLL_MAINNET = 534352,
     SCROLL_SEPOLIA = 534351,
     COMBO_TESTNET = 91715,
     LINEA_MAINNET = 59144,
@@ -49,9 +50,11 @@ export enum EVM_CHAIN_ID {
     MANTLE_MAINNET = 5000,
     ARBITRUM_ONE_MAINNET = 42161,
     ARBITRUM_NOVA_TESTNET = 42170,
-    // ARBITRUM_NOVA_GOERLI = 421613,
-    POLYGON_ZKEVM_MAINNET = 1101,
+    ARBITRUM_GOERLI_TESTNET = 421613,
+    // POLYGON_ZKEVM_MAINNET = 1101,
     AVALANCHE_MAINNET = 43114,
+    AVALANCHE_TESTNET = 43113,
+    TAIKO_TESTNET = 167007,
     // Local node
     GETH = 1337,
 }

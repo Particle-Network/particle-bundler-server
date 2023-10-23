@@ -39,11 +39,15 @@ export class CyberConnectSmartAccount implements IContractAccount {
     }
 
     public async createUnsignedUserOp(infos: TransactionDetailsForUserOp[], nonce?: any): Promise<any> {
-        const { callData, callGasLimit } = await this.encodeUserOpCallDataAndGasLimit(infos);
-        nonce = nonce ?? (await this.getNonce());
+        let { callData, callGasLimit } = await this.encodeUserOpCallDataAndGasLimit(infos);
+        const isAccountDeploied = await this.isAccountDeploied();
+        nonce = nonce ?? (await this.getNonce(isAccountDeploied));
         let initCode = '0x';
-        if (BigNumber.from(nonce).eq(0)) {
+        if (BigNumber.from(nonce).eq(0) && !isAccountDeploied) {
             initCode = this.createInitCode();
+            if (BigNumber.from(callGasLimit).lt(30000)) {
+                callGasLimit = BigNumber.from(callGasLimit).add(30000).toHexString();
+            }
         }
 
         const initGas = await this.estimateCreationGas(initCode);
@@ -127,8 +131,7 @@ export class CyberConnectSmartAccount implements IContractAccount {
         return calcPreVerificationGas(p);
     }
 
-    public async getNonce(): Promise<number> {
-        const isAccountDeploied = await this.isAccountDeploied();
+    public async getNonce(isAccountDeploied: boolean): Promise<number> {
         if (!isAccountDeploied) {
             return 0;
         }

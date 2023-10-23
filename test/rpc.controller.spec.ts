@@ -40,7 +40,7 @@ describe('RpcController', () => {
 
     describe('basic', () => {
         it('Gasless Basic', async () => {
-            const chainId = EVM_CHAIN_ID.SEPOLIA_TESTNET;
+            const chainId = EVM_CHAIN_ID.ETHEREUM_SEPOLIA_TESTNET;
 
             const simpleAccount = await createSimpleAccount(chainId);
             let userOp = await createFakeUserOp(chainId, simpleAccount);
