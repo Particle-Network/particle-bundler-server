@@ -37,7 +37,7 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
         userOp.signature = DUMMY_SIGNATURE;
     }
 
-    // TODO use dummy signature
+    // TODO use dummy paymaster signature to replace rpc call
     if (SUPPORT_GAELESS_PAYMASTER && (!userOp.paymasterAndData || userOp.paymasterAndData === '0x')) {
         const r = await rpcService.handle(
             chainId,
