@@ -11,7 +11,7 @@ import { handlePendingTransaction } from './handle-pending-transactions';
 import { BigNumber } from '../../../common/bignumber';
 import { RpcService } from '../services/rpc.service';
 import { Alert } from '../../../common/alert';
-import { EVM_CHAIN_ID_NOT_SUPPORT_1559 } from '../../../configs/bundler-config';
+import { SUPPORT_EIP_1559 } from '../../../configs/bundler-common';
 
 export async function createBundleTransaction(
     chainId: number,
@@ -116,7 +116,7 @@ export async function trySendAndUpdateTransactionStatus(transaction: Transaction
             // nothing to do
         }
 
-        console.error('SendTransaction error', error);
+        console.error(`SendTransaction error: ${transaction.id}`, error);
         Alert.sendMessage(`Send Transaction Error: ${Helper.converErrorToString(error)}`);
 
         Lock.release(keyLock);
@@ -131,7 +131,7 @@ export async function trySendAndUpdateTransactionStatus(transaction: Transaction
 
 // TODO: set min fee to ensure the transaction is sent successfully
 export function createTxGasData(chainId: number, feeData: any) {
-    if (EVM_CHAIN_ID_NOT_SUPPORT_1559.includes(chainId)) {
+    if (!SUPPORT_EIP_1559.includes(chainId)) {
         return {
             type: 0,
             gasPrice: feeData.gasPrice ?? 0,

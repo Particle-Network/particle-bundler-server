@@ -3,14 +3,13 @@ import { AAService } from '../services/aa.service';
 import { Helper } from '../../../common/helper';
 import { RpcService } from '../services/rpc.service';
 import { UserOperationDocument } from '../schemas/user-operation.schema';
-import { keyLockSigner } from '../../../common/common-types';
+import { GAS_FEE_LEVEL, keyLockSigner } from '../../../common/common-types';
 import { calcUserOpTotalGasLimit, getFeeDataFromParticle } from '../aa/utils';
 import { createBundleTransaction } from './handle-local-transactions';
 import { Connection } from 'mongoose';
 import Lock from '../../../common/global-lock';
 import { BigNumber } from '../../../common/bignumber';
 import { Alert } from '../../../common/alert';
-import { MINIMUM_GAS_FEE } from '../../../configs/bundler-config';
 import { getBundlerConfig } from '../../../configs/bundler-common';
 import { Logger } from '@nestjs/common';
 
@@ -53,7 +52,7 @@ async function sealUserOps(
         return;
     }
 
-    console.log(`${chainId}: ${userOperations.length} user operations`);
+    Logger.log(`${chainId}: ${userOperations.length} user operations`);
 
     const bundlesMap = {};
     for (let index = 0; index < userOperations.length; index++) {
@@ -94,17 +93,17 @@ async function sealUserOps(
         }
     }
 
-    console.log(`sealUserOps Finish, ${chainId}`, bundles);
+    Logger.log(`sealUserOps Finish, ${chainId}`, bundles);
 
     let latestTransaction: any, pendingNonce: any, feeData: any;
     try {
         [latestTransaction, pendingNonce, feeData] = await Promise.all([
             aaService.transactionService.getLatestTransaction(chainId, signer.address),
             provider.getTransactionCount(signer.address, 'pending'),
-            getFeeDataFromParticle(chainId),
+            getFeeDataFromParticle(chainId, GAS_FEE_LEVEL.MEDIUM),
         ]);
     } catch (error) {
-        console.error('fetch provider error', error);
+        Logger.error('fetch provider error', error);
         Alert.sendMessage(`Fetch Provider Error: ${Helper.converErrorToString(error)}`);
 
         setTimeout(() => {
@@ -118,10 +117,6 @@ async function sealUserOps(
     let finalizedNonce = latestNonce > pendingNonce ? latestNonce : pendingNonce;
 
     let newFeeData: any = feeData;
-    if (BigNumber.from(feeData.gasPrice ?? 0).lt(MINIMUM_GAS_FEE?.[chainId]?.gasPrice ?? 0)) {
-        newFeeData.gasPrice = BigNumber.from(MINIMUM_GAS_FEE?.[chainId]?.gasPrice).toBigInt();
-    }
-
     console.log('latestNonce', latestTransaction?.nonce, latestNonce, finalizedNonce);
     console.log('newFeeData', newFeeData);
 

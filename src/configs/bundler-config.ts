@@ -17,8 +17,6 @@ export const bundlerConfig: any = {
     },
 };
 
-export const EVM_CHAIN_ID_NOT_SUPPORT_1559 = [];
-
 export const MINIMUM_GAS_FEE = {
     '11155111': { gasPrice: '0x5f5e100' },
 };

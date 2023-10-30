@@ -10,12 +10,11 @@ import { ConfigModule } from '@nestjs/config';
 import { RedisModule } from '@liaoliaots/nestjs-redis';
 import { redisConfigAsync } from '../src/configs/redis.config';
 import { Wallet, JsonRpcProvider, resolveProperties, parseEther } from 'ethers';
-import { RPC_CONFIG, AA_METHODS, EVM_CHAIN_ID } from '../src/configs/bundler-common';
+import { RPC_CONFIG, AA_METHODS, EVM_CHAIN_ID, SUPPORT_EIP_1559 } from '../src/configs/bundler-common';
 import { deepHexlify, getFeeDataFromParticle } from '../src/modules/rpc/aa/utils';
 import { IContractAccount } from '../src/modules/rpc/aa/interface-contract-account';
 import { BigNumber } from '../src/common/bignumber';
 import { ENTRY_POINT, gaslessSponsor } from './lib/common';
-import { EVM_CHAIN_ID_NOT_SUPPORT_1559 } from '../src/configs/bundler-config';
 import { SimpleSmartAccount } from '../src/modules/rpc/aa/smart-accounts/simple-smart-account';
 import { BiconomySmartAccount } from '../src/modules/rpc/aa/smart-accounts/biconomy-smart-account';
 
@@ -84,7 +83,7 @@ async function createFakeUserOp(chainId: number, simpleAccount: IContractAccount
     let maxFeePerGas = feeData.maxFeePerGas;
     let maxPriorityFeePerGas = feeData.maxPriorityFeePerGas;
     let gasPrice = feeData.gasPrice;
-    if (EVM_CHAIN_ID_NOT_SUPPORT_1559.includes(chainId)) {
+    if (!SUPPORT_EIP_1559.includes(chainId)) {
         maxFeePerGas = gasPrice;
         maxPriorityFeePerGas = gasPrice;
     }
@@ -123,12 +122,12 @@ async function estimateGas(chainId: number, userOp: any) {
 
     const rEstimate = await rpcController.handleRpc(chainId, bodyEstimate);
     console.log('rEstimate', rEstimate);
-    expect(rEstimate.result.maxFeePerGas).toBe(userOp.maxFeePerGas);
-    expect(rEstimate.result.maxPriorityFeePerGas).toBe(userOp.maxPriorityFeePerGas);
 
     userOp.preVerificationGas = rEstimate.result.preVerificationGas;
     userOp.verificationGasLimit = rEstimate.result.verificationGasLimit;
     userOp.callGasLimit = rEstimate.result.callGasLimit;
+    userOp.maxFeePerGas = rEstimate.result.maxFeePerGas;
+    userOp.maxPriorityFeePerGas = rEstimate.result.maxPriorityFeePerGas;
 
     return deepHexlify(userOp);
 }

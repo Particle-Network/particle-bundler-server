@@ -1,17 +1,24 @@
 import { isEmpty } from 'lodash';
 import { BigNumber } from '../../../common/bignumber';
 import { BytesLike, JsonRpcProvider, Network, hexlify } from 'ethers';
-import { PARTICLE_PUBLIC_RPC_URL } from '../../../common/common-types';
+import { GAS_FEE_LEVEL, PARTICLE_PUBLIC_RPC_URL } from '../../../common/common-types';
 import { EVM_CHAIN_ID } from '../../../configs/bundler-common';
-import { EVM_CHAIN_ID_NOT_SUPPORT_1559, MINIMUM_GAS_FEE } from '../../../configs/bundler-config';
+import { MINIMUM_GAS_FEE } from '../../../configs/bundler-config';
 
 export function calcUserOpTotalGasLimit(userOp: any): BigNumber {
     const mul = 3;
-    return BigNumber.from(userOp.callGasLimit)
+    const g1 = BigNumber.from(userOp.callGasLimit)
         .add(BigNumber.from(userOp.verificationGasLimit))
         .mul(mul) // (callGasLimit + verificationGasLimit) * mul
         .add(BigNumber.from(userOp.preVerificationGas))
         .add(BigNumber.from(5000));
+
+    const g2 = BigNumber.from(userOp.callGasLimit)
+        .add(BigNumber.from(userOp.verificationGasLimit))
+        .add(BigNumber.from(userOp.preVerificationGas))
+        .add(BigNumber.from(1000000));
+
+    return BigNumber.from(g1.lt(g2) ? g1 : g2); // return min(g1, g2)
 }
 
 export function isUserOpValid(userOp: any, requireSignature: boolean = true, requireGasParams: boolean = true): boolean {
@@ -33,8 +40,6 @@ export function isUserOpValid(userOp: any, requireSignature: boolean = true, req
         }
 
         if (!userOp[key].startsWith('0x')) {
-            console.log('key', key, userOp[key]);
-
             return false;
         }
     }
@@ -75,33 +80,34 @@ export function deepHexlify(obj: any): any {
     );
 }
 
-export async function getFeeDataFromParticle(chainId: number) {
+export async function getFeeDataFromParticle(chainId: number, level: string = GAS_FEE_LEVEL.MEDIUM) {
     const network = new Network('', chainId);
     const provider = new JsonRpcProvider(`${PARTICLE_PUBLIC_RPC_URL}?chainId=${chainId}`, network, {
         batchMaxCount: 1,
         staticNetwork: network,
     });
 
+    const particleFeeData = await provider.send('particle_suggestedGasFees', []);
+
     if ([EVM_CHAIN_ID.COMBO_TESTNET, EVM_CHAIN_ID.OPBNB_MAINNET].includes(chainId)) {
         return {
             maxPriorityFeePerGas: 1001,
             maxFeePerGas: 1001,
             gasPrice: 1001,
+            baseFee: Math.ceil(Number(particleFeeData?.baseFee ?? 0) * 10 ** 9),
         };
     }
 
-    const particleFeeData = await provider.send('particle_suggestedGasFees', []);
+    if (EVM_CHAIN_ID.TAIKO_TESTNET === chainId) {
+        particleFeeData.baseFee = 0.000000001; // 1 wei
+    }
 
     const result = {
-        maxPriorityFeePerGas: Math.ceil(Number(particleFeeData?.high?.maxPriorityFeePerGas ?? 0) * 10 ** 9),
-        maxFeePerGas: Math.ceil(Number(particleFeeData?.high?.maxFeePerGas ?? 0) * 10 ** 9),
-        gasPrice: Math.ceil(Number(particleFeeData?.high?.maxFeePerGas ?? 0) * 10 ** 9),
+        maxPriorityFeePerGas: Math.ceil(Number(particleFeeData?.[level]?.maxPriorityFeePerGas ?? 0) * 10 ** 9),
+        maxFeePerGas: Math.ceil(Number(particleFeeData?.[level]?.maxFeePerGas ?? 0) * 10 ** 9),
+        gasPrice: Math.ceil(Number(particleFeeData?.[level]?.maxFeePerGas ?? 0) * 10 ** 9),
+        baseFee: Math.ceil(Number(particleFeeData?.baseFee ?? 0) * 10 ** 9),
     };
-
-    if (EVM_CHAIN_ID_NOT_SUPPORT_1559.includes(chainId)) {
-        result.maxPriorityFeePerGas = result.gasPrice;
-        result.maxFeePerGas = result.gasPrice;
-    }
 
     if (MINIMUM_GAS_FEE[chainId]) {
         if (MINIMUM_GAS_FEE[chainId]?.gasPrice) {
@@ -112,14 +118,14 @@ export async function getFeeDataFromParticle(chainId: number) {
         if (MINIMUM_GAS_FEE[chainId]?.maxFeePerGas) {
             if (BigNumber.from(MINIMUM_GAS_FEE[chainId].maxFeePerGas).gt(result.maxFeePerGas)) {
                 result.maxFeePerGas = BigNumber.from(MINIMUM_GAS_FEE[chainId].maxFeePerGas).toNumber();
-            }
-        }
-        if (MINIMUM_GAS_FEE[chainId]?.maxPriorityFeePerGas) {
-            if (BigNumber.from(MINIMUM_GAS_FEE[chainId].maxPriorityFeePerGas).gt(result.maxPriorityFeePerGas)) {
-                result.maxPriorityFeePerGas = BigNumber.from(MINIMUM_GAS_FEE[chainId].maxPriorityFeePerGas).toNumber();
+                result.maxPriorityFeePerGas = result.maxFeePerGas;
             }
         }
     }
 
     return result;
+}
+
+export function calcUserOpGasPrice(feeData: any, baseFee: number = 0): number {
+    return Math.min(BigNumber.from(feeData.maxFeePerGas).toNumber(), BigNumber.from(feeData.maxPriorityFeePerGas).toNumber() + baseFee);
 }

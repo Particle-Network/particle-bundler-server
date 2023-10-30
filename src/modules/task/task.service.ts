@@ -318,7 +318,7 @@ export class TaskService {
                     }
                 }
             } catch (error) {
-                Logger.error(error);
+                console.error(`Error on chain ${currentChainId}`, error);
 
                 Alert.sendMessage(
                     `Fill Signer Failed For ${currentAddress} On ChainId ${currentChainId}\n${Helper.converErrorToString(error)}`,
@@ -394,7 +394,7 @@ export class TaskService {
                     );
                 }
             } catch (error) {
-                Logger.error(`Error on chain ${currentChainId}`, error);
+                console.error(`Error on chain ${currentChainId}`, error);
 
                 Alert.sendMessage(
                     `Fill Paymaster Failed For ${currentPaymasterAddress} On ChainId ${currentChainId}\n${Helper.converErrorToString(error)}`,

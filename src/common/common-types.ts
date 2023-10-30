@@ -22,6 +22,11 @@ export enum BUNDLING_MODE {
     AUTO,
 }
 
+export enum GAS_FEE_LEVEL {
+    MEDIUM = 'medium',
+    HIGH = 'high',
+}
+
 export function keyLockPendingTransaction(id: string) {
     return `bundler:lock:pending_transaction:${id}`;
 }
@@ -40,3 +45,5 @@ export function keyLockChainId(chainId: any) {
 
 // UserOperationEvent Topic
 export const EVENT_ENTRY_POINT_USER_OPERATION = '0x49628fd1471006c1482da88028e9ce4dbb080b815c9b0344d39e5a8e6ec1419f';
+
+export const DUMMY_SIGNATURE = '0x3054659b5e29460a8f3ac9afc3d5fcbe4b76f92aed454b944e9b29e55d80fde807716530b739540e95cfa4880d69f710a9d45910f2951a227675dc1fb0fdf2c71c';

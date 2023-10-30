@@ -3,8 +3,7 @@ import { JsonRPCRequestDto } from '../dtos/json-rpc-request.dto';
 import { RpcService } from '../services/rpc.service';
 import { Helper } from '../../../common/helper';
 import { calcPreVerificationGas } from '@account-abstraction/sdk';
-import { deepHexlify, getFeeDataFromParticle, isUserOpValid } from './utils';
-import { isEmpty } from 'lodash';
+import { calcUserOpGasPrice, deepHexlify, getFeeDataFromParticle, isUserOpValid } from './utils';
 import { BigNumber } from '../../../common/bignumber';
 import {
     AppException,
@@ -13,49 +12,59 @@ import {
     MESSAGE_32602_INVALID_PARAMS_LENGTH,
     MESSAGE_32602_INVALID_USEROP_TYPE,
 } from '../../../common/app-exception';
-import { EVM_CHAIN_ID_NOT_SUPPORT_1559 } from '../../../configs/bundler-config';
-import { getBundlerConfig } from '../../../configs/bundler-common';
+import { AA_METHODS, EVM_CHAIN_ID, L2_GAS_ORACLE, SUPPORT_EIP_1559, getBundlerConfig } from '../../../configs/bundler-common';
 import { Logger } from '@nestjs/common';
+import { DUMMY_SIGNATURE, GAS_FEE_LEVEL } from '../../../common/common-types';
+import { getL2ExtraFee, simulateHandleOpAndGetGasCost } from './send-user-operation';
 
 export async function estimateUserOperationGas(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
     Helper.assertTrue(body.params.length === 2, -32602, MESSAGE_32602_INVALID_PARAMS_LENGTH);
     Helper.assertTrue(typeof body.params[0] === 'object', -32602, MESSAGE_32602_INVALID_USEROP_TYPE);
     Helper.assertTrue(typeof body.params[1] === 'string' && isAddress(body.params[1]), -32602, MESSAGE_32602_INVALID_ENTRY_POINT_ADDRESS);
 
-    const userOp = body.params[0];
+    let userOp = body.params[0];
     const entryPoint = getAddress(body.params[1]);
     const bundlerConfig = getBundlerConfig(chainId);
     Helper.assertTrue(bundlerConfig.SUPPORTED_ENTRYPOINTS.includes(entryPoint), -32003);
 
-    const provider = rpcService.getJsonRpcProvider(chainId);
-    if (isEmpty(userOp.maxFeePerGas) || isEmpty(userOp.maxPriorityFeePerGas)) {
-        const feeData = await getFeeDataFromParticle(chainId);
-        userOp.maxFeePerGas = BigNumber.from(feeData.maxFeePerGas ?? 0).toHexString();
-        userOp.maxPriorityFeePerGas = BigNumber.from(feeData.maxPriorityFeePerGas ?? 0).toHexString();
-
-        if (EVM_CHAIN_ID_NOT_SUPPORT_1559.includes(chainId)) {
-            userOp.maxFeePerGas = BigNumber.from(feeData.gasPrice).toHexString();
-            userOp.maxPriorityFeePerGas = BigNumber.from(feeData.gasPrice).toHexString();
-        }
-    }
-
+    userOp.maxFeePerGas = '0x1';
+    userOp.maxPriorityFeePerGas = '0x1';
     userOp.preVerificationGas = BigNumber.from(1000000).toHexString();
     userOp.verificationGasLimit = BigNumber.from(1000000).toHexString();
     userOp.callGasLimit = BigNumber.from(10000000).toHexString();
 
-    if (!userOp.paymasterAndData || userOp.paymasterAndData === '0x') {
-        userOp.paymasterAndData = '0x';
+    if (!userOp.signature || userOp.signature === '0x') {
+        userOp.signature = DUMMY_SIGNATURE;
     }
 
-    if (!userOp.signature || userOp.signature === '0x') {
-        // dummy signature
-        userOp.signature =
-            '0x3054659b5e29460a8f3ac9afc3d5fcbe4b76f92aed454b944e9b29e55d80fde807716530b739540e95cfa4880d69f710a9d45910f2951a227675dc1fb0fdf2c71c';
+    // TODO use dummy signature
+    if (!userOp.paymasterAndData || userOp.paymasterAndData === '0x') {
+        const r = await rpcService.handle(
+            chainId,
+            await JsonRPCRequestDto.fromPlainAndCheck({
+                method: AA_METHODS.SPONSOR_USER_OPERATION,
+                params: [userOp, entryPoint],
+            }),
+        );
+
+        userOp.paymasterAndData = r.result.paymasterAndData;
     }
 
     Helper.assertTrue(isUserOpValid(userOp), -32602, AppExceptionMessages.messageExtend(-32602, `Invalid userOp`));
 
-    const { callGasLimit, initGas } = await estimateGasLimit(chainId, provider, entryPoint, userOp);
+    const provider = rpcService.getJsonRpcProvider(chainId);
+    const { callGasLimit, initGas } = await estimateGasLimit(provider, entryPoint, userOp);
+
+    userOp.verificationGasLimit = BigNumber.from(100000).add(initGas).toHexString();
+    userOp.callGasLimit = BigNumber.from(callGasLimit).toHexString();
+    userOp.preVerificationGas = BigNumber.from(calcPreVerificationGas(userOp)).add(5000).toHexString();
+
+    const { maxFeePerGas, maxPriorityFeePerGas, gasCost } = await calculateGasPrice(rpcService, chainId, userOp, entryPoint);
+    userOp.maxFeePerGas = maxFeePerGas;
+    userOp.maxPriorityFeePerGas = maxPriorityFeePerGas;
+    if (initGas > 0n) {
+        userOp.callGasLimit = BigNumber.from(gasCost).sub(initGas).toHexString();
+    }
 
     Helper.assertTrue(
         BigNumber.from(userOp.maxFeePerGas).gt(0),
@@ -64,16 +73,12 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
     );
 
     try {
-        const preVerificationGas = calcPreVerificationGas(userOp);
-        const verificationGas = BigNumber.from(100000).add(initGas).toHexString();
-
         return deepHexlify({
             maxFeePerGas: userOp.maxFeePerGas,
             maxPriorityFeePerGas: userOp.maxPriorityFeePerGas,
-            preVerificationGas,
-            verificationGas,
-            verificationGasLimit: verificationGas,
-            callGasLimit: BigNumber.from(callGasLimit).toHexString(),
+            preVerificationGas: userOp.preVerificationGas,
+            verificationGasLimit: userOp.verificationGasLimit,
+            callGasLimit: userOp.callGasLimit,
         });
     } catch (error) {
         Logger.error(error);
@@ -86,7 +91,7 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
     }
 }
 
-async function estimateGasLimit(chainId: number, provider: JsonRpcProvider, entryPoint: string, userOp: any) {
+async function estimateGasLimit(provider: JsonRpcProvider, entryPoint: string, userOp: any) {
     let callGasLimit = 500000n;
     let initGas = 0n;
 
@@ -113,4 +118,62 @@ async function estimateGasLimit(chainId: number, provider: JsonRpcProvider, entr
     }
 
     return { callGasLimit, initGas };
+}
+
+async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string) {
+    const gasCost = BigNumber.from(await simulateHandleOpAndGetGasCost(rpcService, chainId, userOp, entryPoint));
+
+    const userOpFeeData = await getFeeDataFromParticle(chainId, GAS_FEE_LEVEL.MEDIUM);
+    userOp.maxFeePerGas = SUPPORT_EIP_1559.includes(chainId)
+        ? BigNumber.from(userOpFeeData.maxFeePerGas).toHexString()
+        : BigNumber.from(userOpFeeData.gasPrice).toHexString();
+    userOp.maxPriorityFeePerGas = SUPPORT_EIP_1559.includes(chainId)
+        ? BigNumber.from(userOpFeeData.maxPriorityFeePerGas).toHexString()
+        : BigNumber.from(userOpFeeData.gasPrice).toHexString();
+    let userOpGasPrice = calcUserOpGasPrice(userOp, userOpFeeData.baseFee);
+
+    const signerFeeData = userOpFeeData;
+    const signerGasPrice = SUPPORT_EIP_1559.includes(chainId)
+        ? calcUserOpGasPrice(signerFeeData, signerFeeData.baseFee)
+        : signerFeeData.gasPrice;
+
+    let minGasPrice = BigNumber.from(signerGasPrice).mul(101).div(100);
+    if (Object.keys(L2_GAS_ORACLE).includes(String(chainId))) {
+        const extraFee = await getL2ExtraFee(rpcService, chainId, userOp, entryPoint);
+        const signerPaid = gasCost.add(5000).mul(signerGasPrice);
+        minGasPrice = BigNumber.from(extraFee).add(signerPaid).div(gasCost);
+    }
+
+    if ([EVM_CHAIN_ID.POLYGON_MAINNET, EVM_CHAIN_ID.POLYGON_TESTNET, EVM_CHAIN_ID.BASE_MAINNET, EVM_CHAIN_ID.BASE_TESTNET].includes(chainId)) {
+        if ([EVM_CHAIN_ID.BASE_MAINNET, EVM_CHAIN_ID.BASE_TESTNET].includes(chainId)) {
+            minGasPrice = minGasPrice.mul(115).div(100);
+        } else {
+            minGasPrice = minGasPrice.mul(105).div(100);
+        }
+    }
+
+    // TODO HACK temporary not strict check for opBNB and Combo
+    // at least 0.5 Gwei
+    if ([EVM_CHAIN_ID.OPBNB_MAINNET, EVM_CHAIN_ID.OPBNB_TESTNET, EVM_CHAIN_ID.COMBO_TESTNET].includes(chainId)) {
+        const minUserOpGasPrice = 5 * 10 ** 8;
+        if (userOpGasPrice < minUserOpGasPrice) {
+            const diff = BigNumber.from(minUserOpGasPrice).sub(userOpGasPrice);
+            userOp.maxFeePerGas = BigNumber.from(userOp.maxFeePerGas).add(diff).toHexString();
+            userOp.maxPriorityFeePerGas = BigNumber.from(userOp.maxPriorityFeePerGas).add(diff).toHexString();
+
+            userOpGasPrice = minUserOpGasPrice;
+        }
+    }
+
+    if (BigNumber.from(userOpGasPrice).lt(minGasPrice)) {
+        const diff = BigNumber.from(minGasPrice).sub(userOpGasPrice);
+        userOp.maxFeePerGas = BigNumber.from(userOp.maxFeePerGas).add(diff).toHexString();
+        userOp.maxPriorityFeePerGas = BigNumber.from(userOp.maxPriorityFeePerGas).add(diff).toHexString();
+    }
+
+    return {
+        maxFeePerGas: userOp.maxFeePerGas,
+        maxPriorityFeePerGas: userOp.maxPriorityFeePerGas,
+        gasCost,
+    };
 }
