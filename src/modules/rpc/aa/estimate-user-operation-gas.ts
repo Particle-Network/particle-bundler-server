@@ -14,7 +14,7 @@ import {
 } from '../../../common/app-exception';
 import { AA_METHODS, EVM_CHAIN_ID, L2_GAS_ORACLE, SUPPORT_EIP_1559, getBundlerConfig } from '../../../configs/bundler-common';
 import { Logger } from '@nestjs/common';
-import { DUMMY_SIGNATURE, GAS_FEE_LEVEL } from '../../../common/common-types';
+import { DUMMY_SIGNATURE, GAS_FEE_LEVEL, SUPPORT_GAELESS_PAYMASTER } from '../../../common/common-types';
 import { getL2ExtraFee, simulateHandleOpAndGetGasCost } from './send-user-operation';
 
 export async function estimateUserOperationGas(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
@@ -38,7 +38,7 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
     }
 
     // TODO use dummy signature
-    if (!userOp.paymasterAndData || userOp.paymasterAndData === '0x') {
+    if (SUPPORT_GAELESS_PAYMASTER && (!userOp.paymasterAndData || userOp.paymasterAndData === '0x')) {
         const r = await rpcService.handle(
             chainId,
             await JsonRPCRequestDto.fromPlainAndCheck({
