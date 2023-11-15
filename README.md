@@ -31,6 +31,9 @@ Particle Bundler RPC completes compatible with [ERC4337 standards](https://eips.
 - Correct Transaction even when affected by MEV
 - Deploy new chains with one line code
 
+## 📖 Related articles 
+[ERC-4337: Predicting the Gas Consumption of UserOperation](https://blog.particle.network/bundler-predicting-gas/)
+
 ## 🔧 Quick Start
 
 ### 💿 Clone the project
@@ -45,7 +48,7 @@ Set your configuration in **.env.dev**. We require the **mongodb** and **redis**
 
 ### 🏄🏻‍♂️ Start the project
 ```bash
-npm run start:dev
+npm run start
 ```
 
 ### 🖖 Start a gasless transaction

@@ -27,6 +27,8 @@ test4.ts
 test5.ts
 test6.ts
 /dockers/server/server-sync-debug
+.env.dev
+.env.debug
 .env.production
 out
 bundler-config-production.json
