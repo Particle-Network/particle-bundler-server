@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { $enum } from 'ts-enum-util';
 import Axios from 'axios';
-import { EVM_CHAIN_ID, RPC_CONFIG } from '../../../configs/bundler-common';
+import { PARTICLE_PAYMASTER_URL, RPC_CONFIG } from '../../../configs/bundler-common';
 import { JsonRPCRequestDto, JsonRPCResponse } from './../dtos/json-rpc-request.dto';
 import { AppException } from '../../../common/app-exception';
 import * as AA from './../aa';
@@ -15,6 +15,7 @@ import { IS_DEVELOPMENT } from '../../../common/common-types';
 @Injectable()
 export class RpcService {
     private readonly jsonRpcProviders: Map<number, JsonRpcProvider> = new Map();
+    private readonly cachedValidPaymasters: Map<number, string> = new Map();
 
     public constructor(public readonly aaService: AAService, public readonly redisService: RedisService) {}
 
@@ -65,5 +66,32 @@ export class RpcService {
 
     public async getTransactionReceipt(provider: JsonRpcProvider, txHash: string) {
         return await provider.send('eth_getTransactionReceipt', [txHash]);
+    }
+
+    public async getValidPaymasterAddress(chainId: number) {
+        if (this.cachedValidPaymasters.has(chainId)) {
+            return this.cachedValidPaymasters.get(chainId);
+        }
+
+        try {
+            const r = await Axios.post(
+                PARTICLE_PAYMASTER_URL,
+                {
+                    method: 'pm_paymaster',
+                    params: [],
+                },
+                { params: { chainId } },
+            );
+
+            if (r?.data?.result) {
+                this.cachedValidPaymasters.set(chainId, r.data.result);
+
+                return r.data.result;
+            }
+        } catch (error) {
+            // nothing
+        }
+
+        return null;
     }
 }

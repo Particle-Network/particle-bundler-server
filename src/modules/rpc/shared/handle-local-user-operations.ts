@@ -31,11 +31,11 @@ export async function handleLocalUserOperations(
         const provider = rpcService.getJsonRpcProvider(chainId);
         await sealUserOps(chainId, provider, signer, userOperations, mongodbConnection, rpcService, aaService);
     } catch (error) {
-        console.error(error);
-        Alert.sendMessage(`Handle Local Ops Error: ${Helper.converErrorToString(error)}`);
+        Logger.error(`Handle Local Ops Error On Chain ${chainId}`, error);
+        Alert.sendMessage(`Handle Local Ops Error On Chain ${chainId}: ${Helper.converErrorToString(error)}`);
     }
 
-    console.log('handleLocalUserOperations Finish release', chainId, signer.address);
+    Logger.log(`handleLocalUserOperations Finish release on chain ${chainId} with ${signer.address}`);
     Lock.release(keyLockSigner(chainId, signer.address));
 }
 
@@ -103,8 +103,8 @@ async function sealUserOps(
             getFeeDataFromParticle(chainId, GAS_FEE_LEVEL.MEDIUM),
         ]);
     } catch (error) {
-        Logger.error('fetch provider error', error);
-        Alert.sendMessage(`Fetch Provider Error: ${Helper.converErrorToString(error)}`);
+        Logger.error(`fetch provider error on chain ${chainId}`, error);
+        Alert.sendMessage(`Fetch Provider Error On Chain ${chainId}: ${Helper.converErrorToString(error)}`);
 
         setTimeout(() => {
             // retry after 1s

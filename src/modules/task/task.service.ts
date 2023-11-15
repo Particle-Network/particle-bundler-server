@@ -26,16 +26,11 @@ import { Cron } from '@nestjs/schedule';
 import Lock from '../../common/global-lock';
 import { handleLocalTransaction } from '../rpc/shared/handle-local-transactions';
 import { RPC_CONFIG } from '../../configs/bundler-common';
-import { Contract, Wallet, parseEther } from 'ethers';
-import verifyingPaymasterAbi from '../rpc/aa/verifying-paymaster-abi';
+import { Wallet, parseEther } from 'ethers';
 import { BigNumber } from '../../common/bignumber';
 import { Alert } from '../../common/alert';
 import { isObject } from 'lodash';
-import {
-    CHAIN_BALANCE_RANGE,
-    CHAIN_SIGNER_MIN_BALANCE,
-    CHAIN_VERIFYING_PAYMASTER_MIN_DEPOSIT,
-} from '../../configs/bundler-config';
+import { CHAIN_BALANCE_RANGE, CHAIN_SIGNER_MIN_BALANCE } from '../../configs/bundler-config';
 import { getFeeDataFromParticle } from '../rpc/aa/utils';
 
 const FETCH_TRANSACTION_SIZE = 500;
@@ -328,82 +323,6 @@ export class TaskService {
         }
 
         this.inCheckingSignerBalance = false;
-    }
-
-    @Cron('30 * * * * *')
-    public async checkAndFillPaymasterBalance() {
-        if (
-            !this.canRunCron() ||
-            this.inCheckingPaymasterBalance ||
-            !isObject(CHAIN_VERIFYING_PAYMASTER_MIN_DEPOSIT) ||
-            !process.env.PAYMENT_SIGNER
-        ) {
-            return;
-        }
-
-        this.inCheckingPaymasterBalance = true;
-
-        let currentChainId: any;
-        let currentPaymasterAddress: any;
-
-        for (const chainId in CHAIN_VERIFYING_PAYMASTER_MIN_DEPOSIT) {
-            try {
-                currentChainId = chainId;
-                currentPaymasterAddress = RPC_CONFIG[chainId].verifyingPaymaster;
-                const provider = this.rpcService.getJsonRpcProvider(Number(chainId));
-                const signerToPay = new Wallet(process.env.PAYMENT_SIGNER, provider);
-                const contractVerifyPaymaster = new Contract(currentPaymasterAddress, verifyingPaymasterAbi, signerToPay);
-                const balance: bigint = await contractVerifyPaymaster.getDeposit();
-                const minBalance = CHAIN_VERIFYING_PAYMASTER_MIN_DEPOSIT[chainId];
-
-                Logger.log(`[Check paymaster balance] chainId=${chainId}, balance=${balance}`);
-
-                const minBalanceWei = parseEther(minBalance.toString());
-                if (BigNumber.from(balance).lt(minBalanceWei)) {
-                    Logger.warn(
-                        `[Paymaster deposit is too low] chainId=${chainId}, target=${parseEther(
-                            minBalance.toString(),
-                        )}, paymasterAddress=${currentPaymasterAddress}, balance=${balance.toString()}`,
-                    );
-
-                    let etherToDeposit = BigNumber.from(minBalanceWei).sub(balance);
-
-                    const feeData: any = await getFeeDataFromParticle(Number(chainId));
-                    Logger.log(
-                        `[Deposit ether to verify paymaster] chainId=${chainId}, etherToDeposit=${etherToDeposit}, feeData=${JSON.stringify(
-                            feeData,
-                        )}`,
-                    );
-                    // force use gas price
-                    const tx = await contractVerifyPaymaster.deposit.populateTransaction({
-                        gasPrice: feeData.gasPrice,
-                    });
-
-                    const r = await signerToPay.sendTransaction({
-                        type: 0,
-                        ...tx,
-                        value: etherToDeposit.toBigInt() + parseEther(String(CHAIN_BALANCE_RANGE[chainId.toString()] ?? '0.1')),
-                    });
-
-                    Logger.log(`[Paymaster Deposit Tx] chainId=${chainId}, txHash=${r.hash}`);
-                    const balanceAfter: bigint = await contractVerifyPaymaster.getDeposit();
-
-                    Alert.sendMessage(
-                        `Fill Paymaster For ${currentPaymasterAddress} On ChainId ${currentChainId}, Current Balance: ${balanceAfter}`,
-                        `Fill Paymaster Success`,
-                    );
-                }
-            } catch (error) {
-                console.error(`Error on chain ${currentChainId}`, error);
-
-                Alert.sendMessage(
-                    `Fill Paymaster Failed For ${currentPaymasterAddress} On ChainId ${currentChainId}\n${Helper.converErrorToString(error)}`,
-                    `Fill Paymaster Error`,
-                );
-            }
-        }
-
-        this.inCheckingPaymasterBalance = false;
     }
 
     @Cron('* * * * * *')

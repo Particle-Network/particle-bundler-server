@@ -10,7 +10,7 @@ export class Helper {
     }
 
     public static async startMongoTransaction(connection: Connection, callback: (session: any) => Promise<void>) {
-        if (!USE_MONOGODB_TRANSACTION) {
+        if (!USE_MONOGODB_TRANSACTION()) {
             await callback(null);
             return;
         }

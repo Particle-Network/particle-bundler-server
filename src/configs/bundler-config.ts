@@ -26,6 +26,3 @@ export const CHAIN_BALANCE_RANGE = {
 export const CHAIN_SIGNER_MIN_BALANCE = {
     '11155111': 0.1,
 };
-export const CHAIN_VERIFYING_PAYMASTER_MIN_DEPOSIT = {
-    '11155111': 0.1,
-};

@@ -46,10 +46,12 @@ describe('RpcController', () => {
 
             console.log('unsignedUserOp', deepHexlify(userOp));
 
+            userOp = await estimateGas(chainId, userOp);
+            console.log('estimateGas', deepHexlify(userOp));
+
             userOp = await gaslessSponsor(chainId, userOp, rpcController);
             console.log('sponsoredOp', deepHexlify(userOp));
 
-            userOp = await estimateGas(chainId, userOp);
             userOp.signature = await getSignature(simpleAccount, userOp);
             console.log('signedOp', deepHexlify(userOp));
 

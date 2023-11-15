@@ -1,4 +1,3 @@
-import { AA_METHODS } from '../../src/configs/bundler-common';
 import { RpcController } from '../../src/modules/rpc/rpc.controller';
 import { deepHexlify } from '../../src/modules/rpc/aa/utils';
 import Axios from 'axios';
@@ -8,7 +7,7 @@ export const PARTICLE_PAYMASTER_URL = 'https://paymaster.particle.network';
 
 export async function gaslessSponsor(chainId: number, userOp: any, rpcController?: RpcController) {
     const bodySponsor = {
-        method: AA_METHODS.SPONSOR_USER_OPERATION,
+        method: 'pm_sponsorUserOperation',
         params: [userOp, ENTRY_POINT],
     };
 

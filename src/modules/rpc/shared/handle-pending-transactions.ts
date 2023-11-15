@@ -57,8 +57,15 @@ export async function tryIncrTransactionGasPrice(
             if (BigNumber.from(feeData.maxFeePerGas).gt(tx.maxFeePerGas)) {
                 txData.maxFeePerGas = BigNumber.from(feeData.maxFeePerGas).toHexString();
             }
+            if (BigNumber.from(feeData.maxPriorityFeePerGas).gt(tx.maxPriorityFeePerGas)) {
+                txData.maxPriorityFeePerGas = BigNumber.from(feeData.maxPriorityFeePerGas).toHexString();
+            }
 
             txData.maxFeePerGas = BigNumber.from(tx.maxFeePerGas)
+                .mul(coefficient * 10)
+                .div(10)
+                .toHexString();
+            txData.maxPriorityFeePerGas = BigNumber.from(tx.maxPriorityFeePerGas)
                 .mul(coefficient * 10)
                 .div(10)
                 .toHexString();
@@ -101,10 +108,12 @@ export async function tryIncrTransactionGasPrice(
             await aaService.transactionService.replaceTransactionTxHash(transaction, txHash, signedTx, txData, session);
         });
     } catch (error) {
-        Logger.error('Replace Transaction error', error, transaction);
+        Logger.error(`Replace Transaction error on chain ${transaction.chainId}`, error, transaction);
 
         error.transaction = transaction.toJSON();
-        Alert.sendMessage(`ReplaceTransaction Error: ${Helper.converErrorToString(error)}`);
+        Alert.sendMessage(
+            `ReplaceTransaction Error On Chain ${transaction.chainId} For ${transaction.from}: ${Helper.converErrorToString(error)}`,
+        );
 
         Lock.release(keyLock);
         return;
@@ -213,7 +222,9 @@ export async function handlePendingTransaction(
             });
         } catch (error) {
             Logger.error('SetUserOperationsAsDone error', error);
-            Alert.sendMessage(`SetUserOperationsAsDone Error: ${Helper.converErrorToString(error)}`);
+            Alert.sendMessage(
+                `SetUserOperationsAsDone Error On Chain ${transaction.chainId} For ${transaction.from}: ${Helper.converErrorToString(error)}`,
+            );
         }
     }
 
@@ -276,7 +287,7 @@ export async function checkAndHandleFailedReceipt(receipt: any, provider: JsonRp
         return results;
     } catch (error) {
         Logger.error('checkAndHandleFailedReceipt error', error);
-        Alert.sendMessage(`checkAndHandleFailedReceipt Error: ${Helper.converErrorToString(error)}`);
+        Alert.sendMessage(`CheckAndHandleFailedReceipt Error: ${Helper.converErrorToString(error)}`);
 
         return [{ receipt, userOpHashes: targetUserOpHashes }];
     }

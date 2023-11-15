@@ -2,7 +2,7 @@ import { Contract, getAddress, isAddress } from 'ethers';
 import { JsonRPCRequestDto } from '../dtos/json-rpc-request.dto';
 import { RpcService } from '../services/rpc.service';
 import { Helper } from '../../../common/helper';
-import { BUNDLING_MODE, GAS_FEE_LEVEL, keyEventSendUserOperation } from '../../../common/common-types';
+import { BUNDLING_MODE, GAS_FEE_LEVEL, IS_PRODUCTION, MULTI_CALL_3_ADDRESS, keyEventSendUserOperation } from '../../../common/common-types';
 import {
     AppException,
     AppExceptionMessages,
@@ -12,12 +12,18 @@ import {
 } from '../../../common/app-exception';
 import { calcUserOpGasPrice, calcUserOpTotalGasLimit, getFeeDataFromParticle, isUserOpValid } from './utils';
 import { BigNumber } from '../../../common/bignumber';
-import { EVM_CHAIN_ID, L2_GAS_ORACLE, SUPPORT_EIP_1559, getBundlerConfig } from '../../../configs/bundler-common';
-import entryPointAbi from './entry-point-abi';
+import {
+    EVM_CHAIN_ID,
+    L2_GAS_ORACLE,
+    SUPPORT_EIP_1559,
+    USE_PROXY_CONTRACT_TO_ESTIMATE_GAS,
+    getBundlerConfig,
+} from '../../../configs/bundler-common';
+import EntryPointAbi from './entry-point-abi';
 import { calcPreVerificationGas } from '@account-abstraction/sdk';
-import { Logger } from '@nestjs/common';
 import l1GasPriceOracleAbi from './l1-gas-price-oracle-abi';
-import { cloneDeep, isArray } from 'lodash';
+import { cloneDeep } from 'lodash';
+import MultiCall3Abi from './multi-call-3-abi';
 
 export async function sendUserOperation(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
     Helper.assertTrue(body.params.length === 2, -32602, MESSAGE_32602_INVALID_PARAMS_LENGTH);
@@ -55,12 +61,20 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
         'preVerificationGas is too low',
     );
 
-    const gasCost = await simulateHandleOpAndGetGasCost(rpcService, chainId, userOp, entryPointInput);
-    const extraFee = await getL2ExtraFee(rpcService, chainId, userOp, entryPointInput);
-    await checkUserOpGasPriceIsSatisfied(chainId, userOp, gasCost, extraFee);
+    const [userOpHash, rSimulation, extraFee] = await Promise.all([
+        getUserOpHash(rpcService, chainId, userOp, entryPointInput),
+        simulateHandleOpAndGetGasCost(rpcService, chainId, userOp, entryPointInput),
+        getL2ExtraFee(rpcService, chainId, userOp, entryPointInput),
+        checkUserOpNonce(rpcService, chainId, userOp, entryPointInput),
+    ]);
 
-    const userOpHash = await getUserOpHash(rpcService, chainId, userOp, entryPointInput);
-    await checkUserOpNonce(rpcService, chainId, userOp, entryPointInput);
+    await checkUserOpCanExecutedSucceed(rpcService, chainId, userOp, entryPointInput);
+
+    const gasCostInContract = BigNumber.from(rSimulation.gasCostInContract);
+    const gasCostWholeTransaction = BigNumber.from(rSimulation.gasCostWholeTransaction);
+    const gasCost = gasCostWholeTransaction.gt(gasCostInContract) ? gasCostWholeTransaction : gasCostInContract;
+
+    await checkUserOpGasPriceIsSatisfied(chainId, userOp, gasCost, extraFee);
 
     await rpcService.aaService.userOperationService.createOrUpdateUserOperation(chainId, userOp, userOpHash, entryPointInput);
 
@@ -77,33 +91,55 @@ export async function simulateHandleOpAndGetGasCost(rpcService: RpcService, chai
     userOp.maxPriorityFeePerGas = '0x1';
 
     const provider = rpcService.getJsonRpcProvider(chainId);
-    const contractEntryPoint = new Contract(entryPoint, entryPointAbi, provider);
+    const contractEntryPoint = new Contract(entryPoint, EntryPointAbi, provider);
 
     let errorResult = await contractEntryPoint.simulateHandleOp
         .staticCall(userOp, '0x0000000000000000000000000000000000000000', '0x')
         .catch((e) => e);
 
     if (!errorResult?.revert) {
-        // Comptibility with OKBC_NETWORK
-        if ([EVM_CHAIN_ID.OKBC_TESTNET].includes(chainId) && typeof errorResult?.info?.error?.message === 'string') {
-            const revert = JSON.parse(errorResult?.info?.error?.message);
-            const tx = errorResult.transaction;
-            errorResult = contractEntryPoint.interface.makeError(revert[1], tx);
-        }
         // Comptibility with GNOSIS_NETWORK
         if ([EVM_CHAIN_ID.GNOSIS_MAINNET, EVM_CHAIN_ID.GNOSIS_TESTNET].includes(chainId) && !!errorResult?.info?.error?.data) {
             const tx = errorResult.transaction;
             const data = errorResult.info.error.data.replace('Reverted ', '');
             errorResult = contractEntryPoint.interface.makeError(data, tx);
         }
+        // Comptibility with VICTION_NETWORK
+        if ([EVM_CHAIN_ID.VICTION_MAINNET, EVM_CHAIN_ID.VICTION_TESTNET].includes(chainId) && !!errorResult?.value) {
+            const tx = await contractEntryPoint.simulateHandleOp.populateTransaction(userOp, '0x0000000000000000000000000000000000000000', '0x');
+            errorResult = contractEntryPoint.interface.makeError(errorResult.value, tx);
+        }
     }
 
     Helper.assertTrue(!!errorResult?.revert, -32000, 'Can not simulate the user op');
     if (errorResult?.revert?.name === 'FailedOp') {
+        if (!IS_PRODUCTION) {
+            console.error(errorResult);
+        }
+
         throw new AppException(-32606, AppExceptionMessages.messageExtend(-32606, errorResult?.revert?.args.at(-1)));
     }
 
-    return BigNumber.from(errorResult?.revert?.args[1]).toHexString();
+    const gasCostInContract = BigNumber.from(errorResult?.revert?.args[1]).toHexString();
+    let gasCostWholeTransaction = '0x0';
+    if (USE_PROXY_CONTRACT_TO_ESTIMATE_GAS.includes(chainId)) {
+        const simulateHandleOpTx = await contractEntryPoint.simulateHandleOp.populateTransaction(
+            userOp,
+            '0x0000000000000000000000000000000000000000',
+            '0x',
+        );
+
+        const multiCallContract = new Contract(MULTI_CALL_3_ADDRESS, MultiCall3Abi, provider);
+        const toEstimatedTx = await multiCallContract.tryAggregate.populateTransaction(false, [
+            {
+                target: entryPoint,
+                callData: simulateHandleOpTx.data,
+            },
+        ]);
+        gasCostWholeTransaction = BigNumber.from(await provider.estimateGas(toEstimatedTx)).toHexString();
+    }
+
+    return { gasCostInContract, gasCostWholeTransaction };
 }
 
 export async function getL2ExtraFee(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string) {
@@ -112,7 +148,7 @@ export async function getL2ExtraFee(rpcService: RpcService, chainId: number, use
     }
 
     const provider = rpcService.getJsonRpcProvider(chainId);
-    const contractEntryPoint = new Contract(entryPoint, entryPointAbi, provider);
+    const contractEntryPoint = new Contract(entryPoint, EntryPointAbi, provider);
     const l1GasPriceOracleContract = new Contract(L2_GAS_ORACLE[String(chainId)], l1GasPriceOracleAbi, provider);
 
     const fakeSigner = rpcService.aaService.getSigners()[0];
@@ -127,7 +163,7 @@ export async function getL2ExtraFee(rpcService: RpcService, chainId: number, use
 
 async function getUserOpHash(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string) {
     const provider = rpcService.getJsonRpcProvider(chainId);
-    const contractEntryPoint = new Contract(entryPoint, entryPointAbi, provider);
+    const contractEntryPoint = new Contract(entryPoint, EntryPointAbi, provider);
 
     return await contractEntryPoint.getUserOpHash(userOp);
 }
@@ -159,13 +195,24 @@ async function checkUserOpGasPriceIsSatisfied(chainId: number, userOp: any, gasC
     // userOpPaid - signerPaid > extraFee (L1 Fee)
 
     const diff = BigNumber.from(gasCost).mul(userOpGasPrice).sub(signerPaid);
-    Helper.assertTrue(diff.gte(extraFee), -32602, `maxFeePerGas or maxPriorityFeePerGas is too low`);
+    Helper.assertTrue(
+        diff.gte(extraFee),
+        -32602,
+        `maxFeePerGas or maxPriorityFeePerGas is too low: ${JSON.stringify({
+            signerGasPrice,
+            signerPaid: BigNumber.from(signerPaid).add(extraFee).toString(),
+            userOpGasPrice,
+            userOpPaid: BigNumber.from(gasCost).mul(userOpGasPrice).toString(),
+            extraFee: BigNumber.from(extraFee).toString(),
+            baseFee: signerFeeData.baseFee,
+        })}`,
+    );
 }
 
 async function checkUserOpNonce(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string) {
     if (!BigNumber.from(userOp.nonce).eq(0)) {
         const provider = rpcService.getJsonRpcProvider(chainId);
-        const epContract = new Contract(entryPoint, entryPointAbi, provider);
+        const epContract = new Contract(entryPoint, EntryPointAbi, provider);
         let [remoteNonce, localMaxNonce] = await Promise.all([
             epContract.getNonce(userOp.sender, 0),
             rpcService.aaService.userOperationService.getSuccessUserOperationNonce(chainId, getAddress(userOp.sender)),
@@ -181,5 +228,35 @@ async function checkUserOpNonce(rpcService: RpcService, chainId: number, userOp:
             -32602,
             AppExceptionMessages.messageExtend(-32602, 'AA25 invalid account nonce'),
         );
+    }
+}
+
+async function checkUserOpCanExecutedSucceed(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string) {
+    const provider = rpcService.getJsonRpcProvider(chainId);
+    const contractEntryPoint = new Contract(entryPoint, EntryPointAbi, provider);
+
+    const promises = [];
+    if (BigNumber.from(userOp.nonce).gte(1)) {
+        // check account call is success
+        promises.push(
+            provider.estimateGas({
+                from: entryPoint,
+                to: userOp.sender,
+                data: userOp.callData,
+            }),
+        );
+    }
+
+    const signer = rpcService.aaService.getSigners()[0];
+    let tx = await contractEntryPoint.handleOps.populateTransaction([userOp], signer.address);
+
+    try {
+        await Promise.all(promises.concat(provider.estimateGas(tx)));
+    } catch (error) {
+        if (!IS_PRODUCTION) {
+            console.error(error);
+        }
+
+        throw new AppException(-32606);
     }
 }

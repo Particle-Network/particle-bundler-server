@@ -7,7 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import { TaskService } from './modules/task/task.service';
 import { Alert } from './common/alert';
 import { AlertLarkService } from './common/alert-lark';
-import { IS_DEVELOPMENT } from './common/common-types';
+import { IS_DEVELOPMENT, IS_PRODUCTION } from './common/common-types';
 
 async function bootstrap() {
     const fastifyAdapter = new FastifyAdapter({ ignoreTrailingSlash: true });
@@ -55,10 +55,13 @@ async function bootstrap() {
                 }
             });
 
-            setTimeout(() => {
-                console.log('10s closed');
-                process.exit(0);
-            }, 10000);
+            setTimeout(
+                () => {
+                    console.log('2s closed');
+                    process.exit(0);
+                },
+                IS_PRODUCTION ? 2000 : 0,
+            );
         });
     }
 }
