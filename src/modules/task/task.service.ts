@@ -58,7 +58,6 @@ export class TaskService {
     private canRun: boolean = true;
     private latestSealUserOpsAtByChainId: Map<number, number> = new Map();
     private sealUserOpsFlag: Map<number, boolean> = new Map();
-    private inCheckingPaymasterBalance: boolean = false;
     private inCheckingSignerBalance: boolean = false;
     private inCheckingAndReleaseBlockSigners: boolean = false;
 

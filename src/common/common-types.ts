@@ -1,4 +1,4 @@
-export const IS_DEVELOPMENT = process.env.ENVIRONMENT === 'dev';
+export const IS_DEVELOPMENT = process.env.ENVIRONMENT === 'dev' || !process.env.ENVIRONMENT;
 export const IS_DEBUG = process.env.ENVIRONMENT === 'debug';
 export const IS_PRODUCTION = process.env.ENVIRONMENT === 'production';
 export const USE_MONOGODB_TRANSACTION = () => process.env.USE_MONOGODB_TRANSACTION === '1';
