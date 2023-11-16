@@ -5,7 +5,7 @@ export const RPC_CONFIG = [
     },
 ];
 
-export const bundlerConfig: any = {
+export const BUNDLER_CONFIG: any = {
     default: {
         MAX_BUNDLE_GAS: 7000000,
         SUPPORTED_ENTRYPOINTS: [

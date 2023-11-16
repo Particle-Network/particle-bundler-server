@@ -2,8 +2,7 @@ import { isEmpty } from 'lodash';
 import { BigNumber } from '../../../common/bignumber';
 import { BytesLike, JsonRpcProvider, Network, hexlify } from 'ethers';
 import { GAS_FEE_LEVEL, PARTICLE_PUBLIC_RPC_URL } from '../../../common/common-types';
-import { EVM_CHAIN_ID } from '../../../configs/bundler-common';
-import { MINIMUM_GAS_FEE } from '../../../configs/bundler-config';
+import { EVM_CHAIN_ID, MINIMUM_GAS_FEE } from '../../../configs/bundler-common';
 
 export function calcUserOpTotalGasLimit(userOp: any): BigNumber {
     const mul = 3;

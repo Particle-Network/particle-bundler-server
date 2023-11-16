@@ -8,8 +8,11 @@ import { TaskService } from './modules/task/task.service';
 import { Alert } from './common/alert';
 import { AlertLarkService } from './common/alert-lark';
 import { IS_DEVELOPMENT, IS_PRODUCTION } from './common/common-types';
+import { initializeBundlerConfig } from './configs/bundler-common';
 
 async function bootstrap() {
+    await initializeBundlerConfig();
+    
     const fastifyAdapter = new FastifyAdapter({ ignoreTrailingSlash: true });
     fastifyAdapter.register(FastifyRawBody as any, {
         field: 'rawBody',

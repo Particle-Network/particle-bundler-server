@@ -25,12 +25,11 @@ import { handleLocalUserOperations } from '../rpc/shared/handle-local-user-opera
 import { Cron } from '@nestjs/schedule';
 import Lock from '../../common/global-lock';
 import { handleLocalTransaction } from '../rpc/shared/handle-local-transactions';
-import { RPC_CONFIG } from '../../configs/bundler-common';
+import { CHAIN_BALANCE_RANGE, CHAIN_SIGNER_MIN_BALANCE, RPC_CONFIG } from '../../configs/bundler-common';
 import { Wallet, parseEther } from 'ethers';
 import { BigNumber } from '../../common/bignumber';
 import { Alert } from '../../common/alert';
 import { isObject } from 'lodash';
-import { CHAIN_BALANCE_RANGE, CHAIN_SIGNER_MIN_BALANCE } from '../../configs/bundler-config';
 import { getFeeDataFromParticle } from '../rpc/aa/utils';
 
 const FETCH_TRANSACTION_SIZE = 500;

@@ -1,16 +1,45 @@
 import { IS_DEVELOPMENT } from '../common/common-types';
-import { bundlerConfig, RPC_CONFIG as RPC_CONFIG_ARRAY } from './bundler-config';
 import { cloneDeep } from 'lodash';
+import * as Fs from 'fs';
 
 export const PARTICLE_PAYMASTER_URL = 'https://paymaster.particle.network';
 
 export const RPC_CONFIG: any = {};
-for (const item of RPC_CONFIG_ARRAY) {
-    RPC_CONFIG[String(item.chainId)] = item;
+export let MINIMUM_GAS_FEE: any = {};
+export let BUNDLER_CONFIG: any = {};
+export let CHAIN_BALANCE_RANGE: any = {};
+export let CHAIN_SIGNER_MIN_BALANCE: any = {};
+
+export async function initializeBundlerConfig() {
+    let bc: any;
+    const exists = Fs.existsSync(`${__dirname}/bundler-config-particle.js`);
+    if (exists) {
+        bc = await import('./bundler-config-particle' as any);
+    } else {
+        bc = await import('./bundler-config');
+    }
+
+    MINIMUM_GAS_FEE = bc.MINIMUM_GAS_FEE;
+    BUNDLER_CONFIG = bc.BUNDLER_CONFIG;
+    CHAIN_BALANCE_RANGE = bc.CHAIN_BALANCE_RANGE;
+    CHAIN_SIGNER_MIN_BALANCE = bc.CHAIN_SIGNER_MIN_BALANCE;
+
+    for (const item of bc.RPC_CONFIG) {
+        RPC_CONFIG[String(item.chainId)] = item;
+    }
+
+    if (!IS_DEVELOPMENT) {
+        delete RPC_CONFIG['1337'];
+    }
 }
 
-if (!IS_DEVELOPMENT) {
-    delete RPC_CONFIG['1337'];
+export function getBundlerConfig(chainId: number) {
+    const config = cloneDeep(BUNDLER_CONFIG.default);
+    if (BUNDLER_CONFIG[chainId]) {
+        Object.assign(config, BUNDLER_CONFIG[chainId]);
+    }
+
+    return config;
 }
 
 export enum AA_METHODS {
@@ -73,17 +102,6 @@ export enum EVM_CHAIN_ID {
     LUMOZ_ZKEVM_TESTNET = 12008,
     READON_TESTNET = 12015,
     ZETA_TESTNET = 7001,
-    // Local node
-    GETH = 1337,
-}
-
-export function getBundlerConfig(chainId: number) {
-    const config = cloneDeep(bundlerConfig.default);
-    if (bundlerConfig[chainId]) {
-        Object.assign(config, bundlerConfig[chainId]);
-    }
-
-    return config;
 }
 
 export const SUPPORT_EIP_1559 = [

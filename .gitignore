@@ -31,5 +31,7 @@ test6.ts
 .env.debug
 .env.production
 out
-bundler-config-production.json
+bundler-config-particle.ts
+bundler-config-production.ts
 bundler-config.ts.bak
+build

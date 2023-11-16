@@ -9,7 +9,7 @@ export const REDIS_TASK_CONNECTION_NAME = 'bundler_task';
 export const keyEventSendUserOperation = 'bundler:event:send_user_operation';
 export const PENDING_TRANSACTION_WAITING_TIME = 60;
 export const PENDING_TRANSACTION_SIGNER_HANDLE_LIMIT = 10;
-export const PARTICLE_PUBLIC_RPC_URL = 'https://rpc.particle.network/evm-chain/public';
+export const PARTICLE_PUBLIC_RPC_URL = 'https://rpc-debug.particle.network/evm-chain/public';
 
 export enum BLOCK_SIGNER_REASON {
     UNKNOWN,
