@@ -8,9 +8,7 @@ export const RPC_CONFIG = [
 export const BUNDLER_CONFIG: any = {
     default: {
         MAX_BUNDLE_GAS: 7000000,
-        SUPPORTED_ENTRYPOINTS: [
-            '0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789',
-        ],
+        SUPPORTED_ENTRYPOINTS: ['0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789'],
     },
     '534351': {
         MAX_BUNDLE_GAS: 5000000,

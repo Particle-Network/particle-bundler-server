@@ -12,7 +12,7 @@ import { initializeBundlerConfig } from './configs/bundler-common';
 
 async function bootstrap() {
     await initializeBundlerConfig();
-    
+
     const fastifyAdapter = new FastifyAdapter({ ignoreTrailingSlash: true });
     fastifyAdapter.register(FastifyRawBody as any, {
         field: 'rawBody',
