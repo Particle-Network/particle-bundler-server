@@ -53,7 +53,12 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
     userOp.callGasLimit = BigNumber.from(callGasLimit).toHexString();
     userOp.preVerificationGas = BigNumber.from(calcPreVerificationGas(userOp)).add(5000).toHexString();
 
-    const { maxFeePerGas, maxPriorityFeePerGas, gasCostInContract, gasCostWholeTransaction } = await calculateGasPrice(rpcService, chainId, userOp, entryPoint);
+    const { maxFeePerGas, maxPriorityFeePerGas, gasCostInContract, gasCostWholeTransaction } = await calculateGasPrice(
+        rpcService,
+        chainId,
+        userOp,
+        entryPoint,
+    );
     userOp.maxFeePerGas = maxFeePerGas;
     userOp.maxPriorityFeePerGas = maxPriorityFeePerGas;
     if (initGas > 0n && BigNumber.from(gasCostInContract).gt(initGas)) {
@@ -156,6 +161,8 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
             EVM_CHAIN_ID.MANTA_TESTNET,
             EVM_CHAIN_ID.OPTIMISM_MAINNET,
             EVM_CHAIN_ID.OPTIMISM_TESTNET,
+            EVM_CHAIN_ID.MANTLE_MAINNET,
+            EVM_CHAIN_ID.MANTLE_TESTNET,
         ].includes(chainId)
     ) {
         let ratio = 1.05;
