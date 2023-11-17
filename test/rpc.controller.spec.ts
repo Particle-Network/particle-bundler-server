@@ -66,7 +66,7 @@ describe('RpcController', () => {
             const customChainId = process.argv.find((arg) => arg.includes('--chainId='));
             const chainId = Number(customChainId ? customChainId.split('=')[1] : EVM_CHAIN_ID.ETHEREUM_SEPOLIA_TESTNET);
             console.log('Test chainId', chainId);
-            
+
             // const body = {
             //     method: 'eth_sendUserOperation',
             //     params: [

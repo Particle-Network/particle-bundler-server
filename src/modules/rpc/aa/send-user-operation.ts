@@ -234,29 +234,15 @@ async function checkUserOpNonce(rpcService: RpcService, chainId: number, userOp:
 async function checkUserOpCanExecutedSucceed(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string) {
     const provider = rpcService.getJsonRpcProvider(chainId);
     const contractEntryPoint = new Contract(entryPoint, EntryPointAbi, provider);
-
-    const promises = [];
-    if (BigNumber.from(userOp.nonce).gte(1)) {
-        // check account call is success
-        promises.push(
-            provider.estimateGas({
-                from: entryPoint,
-                to: userOp.sender,
-                data: userOp.callData,
-            }),
-        );
-    }
-
     const signer = rpcService.aaService.getSigners()[0];
-    let tx = await contractEntryPoint.handleOps.populateTransaction([userOp], signer.address);
 
     try {
-        await Promise.all(promises.concat(provider.estimateGas(tx)));
+        await contractEntryPoint.handleOps.staticCall([userOp], signer.address);
     } catch (error) {
         if (!IS_PRODUCTION) {
             console.error(error);
         }
 
-        throw new AppException(-32606);
+        throw new AppException(-32606, AppExceptionMessages.messageExtend(-32606, error?.revert?.args.at(-1)), error?.transaction);
     }
 }
