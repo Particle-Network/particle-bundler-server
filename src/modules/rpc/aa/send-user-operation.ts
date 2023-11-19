@@ -236,8 +236,20 @@ async function checkUserOpCanExecutedSucceed(rpcService: RpcService, chainId: nu
     const contractEntryPoint = new Contract(entryPoint, EntryPointAbi, provider);
     const signer = rpcService.aaService.getSigners()[0];
 
+    const promises = [contractEntryPoint.handleOps.staticCall([userOp], signer.address)];
+    if (BigNumber.from(userOp.nonce).gte(1)) {
+        // check account call is success
+        promises.push(
+            provider.estimateGas({
+                from: entryPoint,
+                to: userOp.sender,
+                data: userOp.callData,
+            }),
+        );
+    }
+
     try {
-        await contractEntryPoint.handleOps.staticCall([userOp], signer.address);
+        await Promise.all(promises);
     } catch (error) {
         if (!IS_PRODUCTION) {
             console.error(error);
