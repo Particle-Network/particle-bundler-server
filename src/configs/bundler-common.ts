@@ -12,7 +12,7 @@ export let CHAIN_SIGNER_MIN_BALANCE: any = {};
 
 export async function initializeBundlerConfig() {
     let bc: any;
-    const exists = Fs.existsSync(`${__dirname}/bundler-config-particle.js`);
+    const exists = Fs.existsSync(`${__dirname}/bundler-config-particle.js`) || Fs.existsSync(`${__dirname}/bundler-config-particle.ts`);
     if (exists) {
         bc = await import('./bundler-config-particle' as any);
     } else {
