@@ -223,7 +223,7 @@ export async function handlePendingTransaction(
         } catch (error) {
             Logger.error('SetUserOperationsAsDone error', error);
             Alert.sendMessage(
-                `SetUserOperationsAsDone Error On Chain ${transaction.chainId} For ${transaction.from}: ${Helper.converErrorToString(error)}\n userOpHashes: ${JSON.stringify(userOpHashes)}`,
+                `SetUserOperationsAsDone Error On Chain ${transaction.chainId} For ${transaction.from}: ${Helper.converErrorToString(error)}\nUserOpHashes: ${JSON.stringify(userOpHashes)}\nTransactionId:${transaction.id}`,
             );
         }
     }
