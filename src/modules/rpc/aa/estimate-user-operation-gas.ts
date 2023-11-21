@@ -9,7 +9,6 @@ import {
     AppException,
     AppExceptionMessages,
     MESSAGE_32602_INVALID_ENTRY_POINT_ADDRESS,
-    MESSAGE_32602_INVALID_PARAMS_LENGTH,
     MESSAGE_32602_INVALID_USEROP_TYPE,
 } from '../../../common/app-exception';
 import { EVM_CHAIN_ID, L2_GAS_ORACLE, SUPPORT_EIP_1559, getBundlerConfig } from '../../../configs/bundler-common';
@@ -19,7 +18,6 @@ import { getL2ExtraFee, simulateHandleOpAndGetGasCost } from './send-user-operat
 
 const abiCoder = AbiCoder.defaultAbiCoder();
 export async function estimateUserOperationGas(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
-    Helper.assertTrue(body.params.length === 2, -32602, MESSAGE_32602_INVALID_PARAMS_LENGTH);
     Helper.assertTrue(typeof body.params[0] === 'object', -32602, MESSAGE_32602_INVALID_USEROP_TYPE);
     Helper.assertTrue(typeof body.params[1] === 'string' && isAddress(body.params[1]), -32602, MESSAGE_32602_INVALID_ENTRY_POINT_ADDRESS);
 
