@@ -26,7 +26,6 @@ import { cloneDeep } from 'lodash';
 import MultiCall3Abi from './multi-call-3-abi';
 
 export async function sendUserOperation(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
-    Helper.assertTrue(body.params.length === 2, -32602, MESSAGE_32602_INVALID_PARAMS_LENGTH);
     const userOp = body.params[0];
     let entryPointInput = getAddress(body.params[1]);
 
