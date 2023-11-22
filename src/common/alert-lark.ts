@@ -12,7 +12,7 @@ export class AlertLarkService implements IAlert {
     }
 
     public async sendMessage(content: string, title?: string): Promise<any> {
-        const titleWithEnv = `${this.larkTitle} | ${title ?? ''} | ${process.env.ENVIRONMENT}`;
+        const titleWithEnv = `${Date.now()} | ${this.larkTitle} | ${title ?? ''} | ${process.env.ENVIRONMENT}`;
 
         try {
             const chunk = Helper.chunkString(content, 2000);

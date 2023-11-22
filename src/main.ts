@@ -33,7 +33,7 @@ async function bootstrap() {
 
     if (process.env.LARK_NOTICE_URL) {
         Alert.setAlert(new AlertLarkService(process.env.LARK_NOTICE_URL));
-        Alert.sendMessage('Particle Bundler Server Started');
+        Alert.sendMessage(`Particle Bundler Server Started, ENVIRONMENT: ${process.env.ENVIRONMENT}`);
     }
 
     const server = await app.listen(3000, '0.0.0.0');

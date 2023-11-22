@@ -226,6 +226,9 @@ export async function handlePendingTransaction(
                 `SetUserOperationsAsDone Error On Chain ${transaction.chainId} For ${transaction.from}: ${Helper.converErrorToString(error)}\nUserOpHashes: ${JSON.stringify(userOpHashes)}\nTransactionId:${transaction.id}`,
             );
         }
+
+        // wait for 3 seconds to avoid write conflict
+        await new Promise((resolve) => setTimeout(resolve, 3000));
     }
 
     Logger.log('handlePendingTransaction final release', keyLock);
