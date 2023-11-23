@@ -1,4 +1,4 @@
-import { Wallet, Contract, JsonRpcProvider } from 'ethers';
+import { Wallet, Contract, JsonRpcProvider, keccak256 } from 'ethers';
 import { Connection } from 'mongoose';
 import { BLOCK_SIGNER_REASON, keyLockSendingTransaction } from '../../../common/common-types';
 import { Helper } from '../../../common/helper';
@@ -12,6 +12,7 @@ import { BigNumber } from '../../../common/bignumber';
 import { RpcService } from '../services/rpc.service';
 import { Alert } from '../../../common/alert';
 import { SUPPORT_EIP_1559 } from '../../../configs/bundler-common';
+import { Logger } from '@nestjs/common';
 
 export async function createBundleTransaction(
     chainId: number,
@@ -80,24 +81,29 @@ export async function handleLocalTransaction(
 
 export async function trySendAndUpdateTransactionStatus(transaction: TransactionDocument, provider: JsonRpcProvider, aaService: AAService) {
     const currentSignedTx = transaction.getCurrentSignedTx();
-    const keyLock = keyLockSendingTransaction(currentSignedTx);
+    const currentSignedTxHash = keccak256(currentSignedTx);
+    const keyLock = keyLockSendingTransaction(transaction.chainId, currentSignedTxHash);
     if (Lock.isAcquired(keyLock)) {
-        console.log('trySendAndUpdateTransactionStatus already acquired', currentSignedTx.slice(0, 20));
+        Logger.log(`trySendAndUpdateTransactionStatus already acquired; Hash: ${currentSignedTxHash} On Chain ${transaction.chainId}`);
         return;
     }
 
     await Lock.acquire(keyLock);
-    console.log('trySendAndUpdateTransactionStatus acquire', currentSignedTx.slice(0, 20));
+    Logger.log(`trySendAndUpdateTransactionStatus acquire; Hash: ${currentSignedTxHash} On Chain ${transaction.chainId}`);
 
     if (aaService.isBlockedSigner(transaction.chainId, transaction.from)) {
-        console.log('trySendAndUpdateTransactionStatus release isBlockedSigner', currentSignedTx.slice(0, 20));
+        Logger.log(
+            `trySendAndUpdateTransactionStatus release isBlockedSigner ${transaction.from} On ${transaction.chainId}; Hash: ${currentSignedTxHash}, TransactionId: ${transaction.id}`,
+        );
         Lock.release(keyLock);
         return;
     }
 
     transaction = await aaService.transactionService.getTransactionById(transaction.id);
     if (!transaction.isLocal()) {
-        console.log('trySendAndUpdateTransactionStatus release !transaction.isLocal()', currentSignedTx.slice(0, 20));
+        Logger.log(
+            `trySendAndUpdateTransactionStatus release !transaction.isLocal(); Hash: ${currentSignedTxHash} On Chain ${transaction.chainId}`,
+        );
         Lock.release(keyLock);
         return;
     }
@@ -125,7 +131,7 @@ export async function trySendAndUpdateTransactionStatus(transaction: Transaction
 
     await aaService.transactionService.updateTransactionStatus(transaction, TRANSACTION_STATUS.PENDING);
 
-    console.log('trySendAndUpdateTransactionStatus release', currentSignedTx.slice(0, 20));
+    Logger.log(`trySendAndUpdateTransactionStatus release hash: ${currentSignedTxHash} On Chain ${transaction.chainId}`);
     Lock.release(keyLock);
 }
 

@@ -30,8 +30,8 @@ export function keyLockPendingTransaction(id: string) {
     return `bundler:lock:pending_transaction:${id}`;
 }
 
-export function keyLockSendingTransaction(signedTx: string) {
-    return `bundler:lock:sending_transaction:${signedTx}`;
+export function keyLockSendingTransaction(chainId: number, signedTx: string) {
+    return `bundler:lock:sending_transaction:${chainId}:${signedTx}`;
 }
 
 export function keyLockSigner(chainId: number, signer: string) {
