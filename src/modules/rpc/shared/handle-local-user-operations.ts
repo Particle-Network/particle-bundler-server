@@ -22,10 +22,6 @@ export async function handleLocalUserOperations(
     mongodbConnection: Connection,
 ) {
     try {
-        if (userOperations.length <= 0) {
-            return;
-        }
-
         Logger.log(`Start Handling ${userOperations.length} user operations on chain ${chainId}`);
 
         const provider = rpcService.getJsonRpcProvider(chainId);

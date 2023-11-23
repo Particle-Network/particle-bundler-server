@@ -155,6 +155,8 @@ export class TaskService {
         if (targetSigner) {
             const targetSignerPendingTxCount = await this.transactionService.getPendingTransactionCountBySigner(chainId, targetSigner.address);
             if (targetSignerPendingTxCount >= PENDING_TRANSACTION_SIGNER_HANDLE_LIMIT) {
+                Alert.sendMessage(`Signer ${targetSigner.address} is pending On Chain ${chainId}`);
+                
                 targetSigner = null;
                 Lock.release(keyLockSigner(chainId, targetSigner.address));
             }
@@ -302,12 +304,12 @@ export class TaskService {
                         const balanceEtherAfter = BigNumber.from(balanceAfter).div(1e9).toNumber() / 1e9;
                         Logger.log('After send', chainId, address, balanceEtherAfter);
 
-                        this.aaService.UnblockedSigner(Number(chainId), address);
-
                         Alert.sendMessage(
                             `Fill Signer For ${currentAddress} On ChainId ${currentChainId}, Current Balance: ${balanceAfter}`,
                             `Fill Signer Success`,
                         );
+                    } else {
+                        this.aaService.UnblockedSigner(Number(chainId), address);
                     }
                 }
             } catch (error) {
