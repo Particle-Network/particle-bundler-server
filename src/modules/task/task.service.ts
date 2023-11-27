@@ -112,9 +112,8 @@ export class TaskService {
             const targetSignerPendingTxCount = await this.transactionService.getPendingTransactionCountBySigner(chainId, targetSigner.address);
             if (targetSignerPendingTxCount >= PENDING_TRANSACTION_SIGNER_HANDLE_LIMIT) {
                 Alert.sendMessage(`Signer ${targetSigner.address} is pending On Chain ${chainId}`);
-
-                targetSigner = null;
                 Lock.release(keyLockSigner(chainId, targetSigner.address));
+                targetSigner = null;
             }
         }
 
