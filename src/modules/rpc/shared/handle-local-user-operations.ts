@@ -97,7 +97,7 @@ async function sealUserOps(
         }
     }
 
-    Logger.log(`sealUserOps Finish, ${chainId}`, bundles);
+    Logger.log(`SealUserOps Finish, ${chainId}`, bundles);
 
     let latestTransaction: any, pendingNonce: any, feeData: any;
     try {

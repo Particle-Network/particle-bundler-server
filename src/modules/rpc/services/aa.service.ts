@@ -69,7 +69,7 @@ export class AAService {
         return this.blockedSigners.has(`${chainId}-${signerAddress}`);
     }
 
-    public tryLockUserOperations(userOperations: UserOperationDocument[]): UserOperationDocument[] {
+    public tryLockUserOperationsAndGetUnuseds(userOperations: UserOperationDocument[]): UserOperationDocument[] {
         const unusedUserOperations = [];
         for (const userOperation of userOperations) {
             if (this.lockedUserOperationIds.has(userOperation.id)) {

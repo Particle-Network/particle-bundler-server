@@ -55,7 +55,7 @@ export class TaskService {
 
         try {
             let userOperations = await this.userOperationService.getLocalUserOperations();
-            userOperations = this.aaService.tryLockUserOperations(userOperations);
+            userOperations = this.aaService.tryLockUserOperationsAndGetUnuseds(userOperations);
             if (userOperations.length <= 0) {
                 this.inSealingUserOps = false;
                 return;
@@ -92,6 +92,7 @@ export class TaskService {
         }
 
         await handleLocalUserOperations(chainId, this.rpcService, this.aaService, targetSigner, userOperations, this.connection);
+        this.aaService.unlockUserOperations(userOperations);
         Lock.release(keyLockSigner(chainId, targetSigner.address));
     }
 
