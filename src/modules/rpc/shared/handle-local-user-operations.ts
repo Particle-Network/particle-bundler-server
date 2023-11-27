@@ -54,10 +54,10 @@ async function sealUserOps(
         if (r1 !== 0) {
             return r1;
         }
-    
+
         return BigNumber.from(a.userOpNonce).gt(BigNumber.from(b.userOpNonce)) ? 1 : -1;
     });
-    
+
     const bundlesMap = {};
     for (let index = 0; index < userOperations.length; index++) {
         const userOperation = userOperations[index];
@@ -99,11 +99,11 @@ async function sealUserOps(
 
     Logger.log(`SealUserOps Finish, ${chainId}`, bundles);
 
-    let latestTransaction: any, pendingNonce: any, feeData: any;
+    let latestTransaction: any, latestNonce: any, feeData: any;
     try {
-        [latestTransaction, pendingNonce, feeData] = await Promise.all([
+        [latestTransaction, latestNonce, feeData] = await Promise.all([
             aaService.transactionService.getLatestTransaction(chainId, signer.address),
-            provider.getTransactionCount(signer.address, 'pending'),
+            provider.getTransactionCount(signer.address, 'latest'),
             getFeeDataFromParticle(chainId, GAS_FEE_LEVEL.MEDIUM),
         ]);
     } catch (error) {
@@ -113,18 +113,17 @@ async function sealUserOps(
             `Fetch Provider Error On Chain ${chainId}; UserOpIds ${JSON.stringify(userOperationIds)}; ${Helper.converErrorToString(error)}`,
         );
 
-        setTimeout(() => {
-            // retry after 1s
-            sealUserOps(chainId, provider, signer, userOperations, mongodbConnection, rpcService, aaService);
-        }, 1000);
+        // retry after 1s
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        await sealUserOps(chainId, provider, signer, userOperations, mongodbConnection, rpcService, aaService);
         return;
     }
 
-    let latestNonce = (latestTransaction ? latestTransaction.nonce : -1) + 1;
-    let finalizedNonce = latestNonce > pendingNonce ? latestNonce : pendingNonce;
+    let localLatestNonce = (latestTransaction ? latestTransaction.nonce : -1) + 1;
+    let finalizedNonce = localLatestNonce > latestNonce ? localLatestNonce : latestNonce;
 
     let newFeeData: any = feeData;
-    console.log('latestNonce', latestTransaction?.nonce, latestNonce, finalizedNonce);
+    console.log('latestNonce', latestTransaction?.nonce, localLatestNonce, finalizedNonce);
     console.log('newFeeData', newFeeData);
 
     const promises = [];

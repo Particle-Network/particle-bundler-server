@@ -5,12 +5,7 @@ import { InjectConnection } from '@nestjs/mongoose';
 import { Connection } from 'mongoose';
 import { RpcService } from '../rpc/services/rpc.service';
 import { TransactionService } from '../rpc/services/transaction.service';
-import {
-    BLOCK_SIGNER_REASON,
-    IS_DEVELOPMENT,
-    PENDING_TRANSACTION_SIGNER_HANDLE_LIMIT,
-    keyLockSigner,
-} from '../../common/common-types';
+import { BLOCK_SIGNER_REASON, IS_DEVELOPMENT, PENDING_TRANSACTION_SIGNER_HANDLE_LIMIT, keyLockSigner } from '../../common/common-types';
 import { TRANSACTION_STATUS, TransactionDocument } from '../rpc/schemas/transaction.schema';
 import { Helper } from '../../common/helper';
 import { UserOperationService } from '../rpc/services/user-operation.service';
@@ -38,7 +33,7 @@ export class TaskService {
         private readonly transactionService: TransactionService,
         private readonly userOperationService: UserOperationService,
         @InjectConnection() private readonly connection: Connection,
-    ){}
+    ) {}
 
     private canRun: boolean = true;
     private inSealingUserOps: boolean = false;
