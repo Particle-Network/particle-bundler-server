@@ -7,24 +7,19 @@ import { RpcService } from '../rpc/services/rpc.service';
 import { TransactionService } from '../rpc/services/transaction.service';
 import {
     BLOCK_SIGNER_REASON,
-    BUNDLING_MODE,
     IS_DEVELOPMENT,
     PENDING_TRANSACTION_SIGNER_HANDLE_LIMIT,
-    REDIS_TASK_CONNECTION_NAME,
-    keyEventSendUserOperation,
     keyLockSigner,
 } from '../../common/common-types';
 import { TRANSACTION_STATUS, TransactionDocument } from '../rpc/schemas/transaction.schema';
 import { Helper } from '../../common/helper';
 import { UserOperationService } from '../rpc/services/user-operation.service';
-import { InjectRedis } from '@liaoliaots/nestjs-redis';
-import Redis from 'ioredis';
 import { handlePendingTransaction, tryIncrTransactionGasPrice } from '../rpc/shared/handle-pending-transactions';
 import { handleLocalUserOperations } from '../rpc/shared/handle-local-user-operations';
 import { Cron } from '@nestjs/schedule';
 import Lock from '../../common/global-lock';
 import { handleLocalTransaction } from '../rpc/shared/handle-local-transactions';
-import { CHAIN_BALANCE_RANGE, CHAIN_SIGNER_MIN_BALANCE, RPC_CONFIG } from '../../configs/bundler-common';
+import { CHAIN_BALANCE_RANGE, CHAIN_SIGNER_MIN_BALANCE } from '../../configs/bundler-common';
 import { Wallet, parseEther } from 'ethers';
 import { BigNumber } from '../../common/bignumber';
 import { Alert } from '../../common/alert';
@@ -34,12 +29,6 @@ import { UserOperationDocument } from '../rpc/schemas/user-operation.schema';
 
 const FETCH_TRANSACTION_SIZE = 500;
 
-/**
- * Please Ensure that the task service is only running on one instance
- * To make sure the user operations are sealed and executed in order.
- *
- * TODO: add redis lock to make sure only one instance is running
- */
 @Injectable()
 export class TaskService {
     public constructor(
@@ -52,21 +41,9 @@ export class TaskService {
     ){}
 
     private canRun: boolean = true;
-    private latestSealUserOpsAtByChainId: Map<number, number> = new Map();
-    private sealUserOpsFlag: Map<number, boolean> = new Map();
     private inSealingUserOps: boolean = false;
     private inCheckingSignerBalance: boolean = false;
     private inCheckingAndReleaseBlockSigners: boolean = false;
-
-    @Cron('* * * * * *')
-    public async sealUserOps22() {
-        for (const chainId in RPC_CONFIG) {
-            if (this.sealUserOpsFlag.get(Number(chainId))) {
-                Logger.log('sealUserOps', chainId);
-                // this.sealUserOpsByDuration(Number(chainId));
-            }
-        }
-    }
 
     @Cron('* * * * * *')
     public async sealUserOps() {

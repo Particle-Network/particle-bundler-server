@@ -8,7 +8,6 @@ import * as AA from './../aa';
 import * as DEBUG from './../debug';
 import { AAService } from './aa.service';
 import { JsonRpcProvider, Network } from 'ethers';
-import { RedisService } from '@liaoliaots/nestjs-redis';
 import { AA_METHODS } from '../../../configs/bundler-common';
 import { IS_DEVELOPMENT } from '../../../common/common-types';
 
@@ -17,7 +16,7 @@ export class RpcService {
     private readonly jsonRpcProviders: Map<number, JsonRpcProvider> = new Map();
     private readonly cachedValidPaymasters: Map<number, string> = new Map();
 
-    public constructor(public readonly aaService: AAService, public readonly redisService: RedisService) {}
+    public constructor(public readonly aaService: AAService) {}
 
     public getJsonRpcProvider(chainId: number): JsonRpcProvider {
         if (!this.jsonRpcProviders.has(chainId)) {
