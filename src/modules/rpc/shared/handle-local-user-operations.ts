@@ -99,8 +99,11 @@ async function sealUserOps(
             getFeeDataFromParticle(chainId, GAS_FEE_LEVEL.MEDIUM),
         ]);
     } catch (error) {
-        Logger.error(`fetch provider error on chain ${chainId}`, error);
-        Alert.sendMessage(`Fetch Provider Error On Chain ${chainId}: ${Helper.converErrorToString(error)}`);
+        const userOperationIds = userOperations.map((u) => u.id);
+        Logger.error(`fetch provider error on chain ${chainId}; UserOpIds ${JSON.stringify(userOperationIds)}`, error);
+        Alert.sendMessage(
+            `Fetch Provider Error On Chain ${chainId}; UserOpIds ${JSON.stringify(userOperationIds)}; ${Helper.converErrorToString(error)}`,
+        );
 
         setTimeout(() => {
             // retry after 1s

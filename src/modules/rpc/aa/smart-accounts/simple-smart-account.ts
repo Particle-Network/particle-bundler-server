@@ -43,15 +43,10 @@ export class SimpleSmartAccount implements IContractAccount {
             initCode = await this.createInitCode();
         }
 
-        const initGas = await this.estimateCreationGas(initCode);
+        const initGas = BigNumber.from(500000).toHexString();
         const verificationGasLimit = BigNumber.from(await this.getVerificationGasLimit())
             .add(initGas)
             .toHexString();
-
-        const network = await this.provider.getNetwork();
-        const feeData = await getFeeDataFromParticle(Number(network.chainId));
-        const maxFeePerGas = feeData.maxFeePerGas ?? undefined;
-        const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas ?? undefined;
 
         const partialUserOp: any = {
             sender: this.getAccountAddress(),
@@ -60,8 +55,8 @@ export class SimpleSmartAccount implements IContractAccount {
             callData,
             callGasLimit,
             verificationGasLimit,
-            maxFeePerGas,
-            maxPriorityFeePerGas,
+            maxFeePerGas: '0x00',
+            maxPriorityFeePerGas: '0x00',
             paymasterAndData: '0x',
         };
 
@@ -92,17 +87,9 @@ export class SimpleSmartAccount implements IContractAccount {
             callData = await this.encodeExecute(detailsForUserOp[0].to, value.toHexString(), detailsForUserOp[0].data);
         }
 
-        const callGasLimit = BigNumber.from(
-            await this.provider.estimateGas({
-                from: this.entryPointAddress,
-                to: this.getAccountAddress(),
-                data: callData,
-            }),
-        );
-
         return {
             callData,
-            callGasLimit: callGasLimit.toHexString(),
+            callGasLimit: BigNumber.from(500000).toHexString(),
         };
     }
 
