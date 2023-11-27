@@ -60,7 +60,7 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
     userOp.maxFeePerGas = maxFeePerGas;
     userOp.maxPriorityFeePerGas = maxPriorityFeePerGas;
     if (initGas > 0n && BigNumber.from(gasCostInContract).gt(initGas)) {
-        userOp.callGasLimit = BigNumber.from(gasCostInContract).sub(initGas).sub(userOp.preVerificationGas).toHexString();
+        userOp.callGasLimit = BigNumber.from(gasCostInContract).sub(initGas).toHexString();
     }
     if (gasCostWholeTransaction.gt(gasCostInContract)) {
         userOp.preVerificationGas = gasCostWholeTransaction.sub(gasCostInContract).toHexString();
