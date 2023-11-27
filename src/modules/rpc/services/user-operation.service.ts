@@ -98,6 +98,14 @@ export class UserOperationService {
         });
     }
 
+    public async getLocalUserOperations(limit: number = 1000): Promise<UserOperationDocument[]> {
+        return await this.userOperationModel
+            .find({
+                status: USER_OPERATION_STATUS.LOCAL,
+            })
+            .limit(limit);
+    }
+
     // Ensure nonce is sorted by asc
     public async getLocalUserOperationsByChainIdAndSortByCreatedAt(
         chainId: number,

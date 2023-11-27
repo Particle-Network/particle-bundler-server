@@ -3,11 +3,10 @@ import { AAService } from '../services/aa.service';
 import { Helper } from '../../../common/helper';
 import { RpcService } from '../services/rpc.service';
 import { UserOperationDocument } from '../schemas/user-operation.schema';
-import { GAS_FEE_LEVEL, keyLockSigner } from '../../../common/common-types';
+import { GAS_FEE_LEVEL } from '../../../common/common-types';
 import { calcUserOpTotalGasLimit, getFeeDataFromParticle } from '../aa/utils';
 import { createBundleTransaction } from './handle-local-transactions';
 import { Connection } from 'mongoose';
-import Lock from '../../../common/global-lock';
 import { BigNumber } from '../../../common/bignumber';
 import { Alert } from '../../../common/alert';
 import { getBundlerConfig } from '../../../configs/bundler-common';
@@ -32,7 +31,6 @@ export async function handleLocalUserOperations(
     }
 
     Logger.log(`handleLocalUserOperations Finish release on chain ${chainId} with ${signer.address}`);
-    Lock.release(keyLockSigner(chainId, signer.address));
 }
 
 async function sealUserOps(
@@ -48,8 +46,18 @@ async function sealUserOps(
         return;
     }
 
-    Logger.log(`${chainId}: ${userOperations.length} user operations`);
+    Logger.log(`SealUserOps On Chain ${chainId}: ${userOperations.length} user operations`);
 
+    // Sort user operations by sender and nonce
+    userOperations.sort((a, b) => {
+        const r1 = a.userOpSender.localeCompare(b.userOpSender);
+        if (r1 !== 0) {
+            return r1;
+        }
+    
+        return BigNumber.from(a.userOpNonce).gt(BigNumber.from(b.userOpNonce)) ? 1 : -1;
+    });
+    
     const bundlesMap = {};
     for (let index = 0; index < userOperations.length; index++) {
         const userOperation = userOperations[index];

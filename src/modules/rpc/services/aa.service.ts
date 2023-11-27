@@ -5,6 +5,7 @@ import { TransactionService } from './transaction.service';
 import { BLOCK_SIGNER_REASON, BUNDLING_MODE, IS_DEVELOPMENT } from '../../../common/common-types';
 import { Alert } from '../../../common/alert';
 import { ConfigService } from '@nestjs/config';
+import { UserOperationDocument } from '../schemas/user-operation.schema';
 
 export enum TRANSACTION_EXTRA_STATUS {
     NONE,
@@ -14,9 +15,7 @@ export enum TRANSACTION_EXTRA_STATUS {
 @Injectable()
 export class AAService {
     private readonly blockedSigners: Map<string, any & { reason: BLOCK_SIGNER_REASON }> = new Map();
-    private readonly transactionInSending: Set<string> = new Set();
-    private readonly transactionInFinishing: Set<string> = new Set();
-    private readonly lockedUserOpHash: Set<string> = new Set();
+    private readonly lockedUserOperationIds: Set<string> = new Set();
 
     private bundlingMode: BUNDLING_MODE = IS_DEVELOPMENT && process.env.MANUAL_MODE ? BUNDLING_MODE.MANUAL : BUNDLING_MODE.AUTO;
 
@@ -70,43 +69,23 @@ export class AAService {
         return this.blockedSigners.has(`${chainId}-${signerAddress}`);
     }
 
-    public clearSendingTx(signedTx: string) {
-        this.transactionInSending.delete(signedTx);
-    }
+    public tryLockUserOperations(userOperations: UserOperationDocument[]): UserOperationDocument[] {
+        const unusedUserOperations = [];
+        for (const userOperation of userOperations) {
+            if (this.lockedUserOperationIds.has(userOperation.id)) {
+                continue;
+            }
 
-    public isTxSending(signedTx: string): boolean {
-        return this.transactionInSending.has(signedTx);
-    }
-
-    public setSendingTx(signedTx: string) {
-        this.transactionInSending.add(signedTx);
-    }
-
-    public clearFinishingTx(signedTx: string) {
-        this.transactionInFinishing.delete(signedTx);
-    }
-
-    public isTxFinishing(signedTx: string): boolean {
-        return this.transactionInFinishing.has(signedTx);
-    }
-
-    public setFinishingTx(signedTx: string) {
-        this.transactionInFinishing.add(signedTx);
-    }
-
-    public getLockedUserOpHashes(): string[] {
-        return Array.from(this.lockedUserOpHash);
-    }
-
-    public unlockUserOpHashes(userOpHashes: string[]) {
-        for (const userOpHash of userOpHashes) {
-            this.lockedUserOpHash.delete(userOpHash);
+            this.lockedUserOperationIds.add(userOperation.id);
+            unusedUserOperations.push(userOperation);
         }
+
+        return unusedUserOperations;
     }
 
-    public lockUserOpHashes(userOpHashes: string[]) {
-        for (const userOpHash of userOpHashes) {
-            this.lockedUserOpHash.add(userOpHash);
+    public unlockUserOperations(userOperations: UserOperationDocument[]) {
+        for (const userOperation of userOperations) {
+            this.lockedUserOperationIds.delete(userOperation.id);
         }
     }
 

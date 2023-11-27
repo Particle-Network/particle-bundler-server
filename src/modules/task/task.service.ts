@@ -12,7 +12,6 @@ import {
     PENDING_TRANSACTION_SIGNER_HANDLE_LIMIT,
     REDIS_TASK_CONNECTION_NAME,
     keyEventSendUserOperation,
-    keyLockChainId,
     keyLockSigner,
 } from '../../common/common-types';
 import { TRANSACTION_STATUS, TransactionDocument } from '../rpc/schemas/transaction.schema';
@@ -31,6 +30,7 @@ import { BigNumber } from '../../common/bignumber';
 import { Alert } from '../../common/alert';
 import { isObject } from 'lodash';
 import { getFeeDataFromParticle } from '../rpc/aa/utils';
+import { UserOperationDocument } from '../rpc/schemas/user-operation.schema';
 
 const FETCH_TRANSACTION_SIZE = 500;
 
@@ -48,96 +48,74 @@ export class TaskService {
         private readonly aaService: AAService,
         private readonly transactionService: TransactionService,
         private readonly userOperationService: UserOperationService,
-        @InjectRedis(REDIS_TASK_CONNECTION_NAME) private readonly redis: Redis,
         @InjectConnection() private readonly connection: Connection,
-    ) {
-        this.initialize();
-    }
+    ){}
 
     private canRun: boolean = true;
     private latestSealUserOpsAtByChainId: Map<number, number> = new Map();
     private sealUserOpsFlag: Map<number, boolean> = new Map();
+    private inSealingUserOps: boolean = false;
     private inCheckingSignerBalance: boolean = false;
     private inCheckingAndReleaseBlockSigners: boolean = false;
 
-    private initialize() {
-        if (!this.canRunCron()) {
-            return;
-        }
-
-        this.redis.subscribe(keyEventSendUserOperation);
-        this.redis.on('message', (channel, message) => {
-            if (channel !== keyEventSendUserOperation) {
-                return;
+    @Cron('* * * * * *')
+    public async sealUserOps22() {
+        for (const chainId in RPC_CONFIG) {
+            if (this.sealUserOpsFlag.get(Number(chainId))) {
+                Logger.log('sealUserOps', chainId);
+                // this.sealUserOpsByDuration(Number(chainId));
             }
-
-            try {
-                const data = JSON.parse(message);
-                this.sealUserOpsByDuration(data?.chainId);
-            } catch (error) {
-                // nothing
-            }
-        });
-
-        const bundlingMode = this.aaService.getBundlingMode();
-        if (bundlingMode === BUNDLING_MODE.AUTO) {
-            Object.values(RPC_CONFIG).forEach((rpcConfig: any) => {
-                this.sealUserOpsByDuration(rpcConfig.chainId);
-            });
         }
     }
 
     @Cron('* * * * * *')
     public async sealUserOps() {
-        for (const chainId in RPC_CONFIG) {
-            if (this.sealUserOpsFlag.get(Number(chainId))) {
-                Logger.log('sealUserOps', chainId);
-                this.sealUserOpsByDuration(Number(chainId));
-            }
+        if (!this.canRunCron() || this.inSealingUserOps) {
+            return;
         }
+
+        this.inSealingUserOps = true;
+
+        try {
+            let userOperations = await this.userOperationService.getLocalUserOperations();
+            userOperations = this.aaService.tryLockUserOperations(userOperations);
+            if (userOperations.length <= 0) {
+                this.inSealingUserOps = false;
+                return;
+            }
+
+            Logger.log(`[SealUserOps] UserOpLength: ${userOperations.length}`);
+            const userOperationsByChainId: any = {};
+            for (const userOperation of userOperations) {
+                if (!userOperationsByChainId[userOperation.chainId]) {
+                    userOperationsByChainId[userOperation.chainId] = [];
+                }
+
+                userOperationsByChainId[userOperation.chainId].push(userOperation);
+            }
+
+            const chainIds = Object.keys(userOperationsByChainId);
+            for (const chainId of chainIds) {
+                this.assignSignerAndSealUserOps(Number(chainId), userOperationsByChainId[chainId]);
+            }
+        } catch (error) {
+            Logger.error(`Seal User Ops Error`, error);
+            Alert.sendMessage(`Seal User Ops Error: ${Helper.converErrorToString(error)}`);
+        }
+
+        this.inSealingUserOps = false;
     }
 
-    private async sealUserOpsByDuration(chainId: number) {
-        this.sealUserOpsFlag.set(chainId, true);
-
+    private async assignSignerAndSealUserOps(chainId: number, userOperations: UserOperationDocument[]) {
         const targetSigner: Wallet = await this.waitForASigner(chainId);
         if (!targetSigner) {
             Logger.warn(`No signer available on ${chainId}`);
+            this.aaService.unlockUserOperations(userOperations);
             return;
         }
 
-        await Lock.acquire(keyLockChainId(chainId));
-
-        Logger.log(`sealUserOpsByDuration acquire ${targetSigner.address} on chain ${chainId}`);
-        if (!this.sealUserOpsFlag.get(chainId)) {
-            Logger.log(`sealUserOpsByDuration release ${targetSigner.address} on chain ${chainId}`);
-
-            Lock.release(keyLockSigner(chainId, targetSigner.address));
-            Lock.release(keyLockChainId(chainId));
-            return;
-        }
-
-        this.sealUserOpsFlag.set(chainId, false);
-
-        const endAt = Date.now();
-        const startAt = this.latestSealUserOpsAtByChainId.get(chainId) || 0;
-        this.latestSealUserOpsAtByChainId.set(chainId, endAt);
-
-        Lock.release(keyLockChainId(chainId));
-
-        this.getAndHandleLocalUserOperationsByDuration(chainId, targetSigner, startAt, endAt);
-    }
-
-    private async getAndHandleLocalUserOperationsByDuration(chainId: number, targetSigner: Wallet, startAt: number, endAt: number) {
-        const userOperations = await this.userOperationService.getLocalUserOperationsByDuration(chainId, startAt, endAt);
-        Logger.log(`[sealUserOpsByDuration] chainId=${chainId}, startAt=${startAt}, endAt=${endAt}, userOpLength: ${userOperations.length}`);
-
-        if (userOperations.length <= 0) {
-            Lock.release(keyLockSigner(chainId, targetSigner.address));
-            return;
-        }
-
-        handleLocalUserOperations(chainId, this.rpcService, this.aaService, targetSigner, userOperations, this.connection);
+        await handleLocalUserOperations(chainId, this.rpcService, this.aaService, targetSigner, userOperations, this.connection);
+        Lock.release(keyLockSigner(chainId, targetSigner.address));
     }
 
     private async waitForASigner(chainId: number): Promise<Wallet> {
@@ -156,7 +134,7 @@ export class TaskService {
             const targetSignerPendingTxCount = await this.transactionService.getPendingTransactionCountBySigner(chainId, targetSigner.address);
             if (targetSignerPendingTxCount >= PENDING_TRANSACTION_SIGNER_HANDLE_LIMIT) {
                 Alert.sendMessage(`Signer ${targetSigner.address} is pending On Chain ${chainId}`);
-                
+
                 targetSigner = null;
                 Lock.release(keyLockSigner(chainId, targetSigner.address));
             }
