@@ -128,21 +128,19 @@ async function sealUserOps(
 
     const promises = [];
     for (const bundle of bundles) {
-        promises.push(
-            createBundleTransaction(
-                chainId,
-                bundle.userOperations[0].entryPoint,
-                mongodbConnection,
-                provider,
-                aaService,
-                bundle.userOperations,
-                bundle.gasLimit,
-                signer,
-                finalizedNonce,
-                newFeeData,
-            ),
+        await createBundleTransaction(
+            chainId,
+            bundle.userOperations[0].entryPoint,
+            mongodbConnection,
+            provider,
+            aaService,
+            bundle.userOperations,
+            bundle.gasLimit,
+            signer,
+            finalizedNonce,
+            newFeeData,
         );
-
+        
         finalizedNonce++;
     }
 
