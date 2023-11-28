@@ -105,7 +105,7 @@ export async function simulateHandleOpAndGetGasCost(rpcService: RpcService, chai
         }
     }
 
-    Helper.assertTrue(!!errorResult?.revert, -32000, 'Can not simulate the user op');
+    Helper.assertTrue(!!errorResult?.revert, -32000, `Can not simulate the user op, No revert message`);
     if (errorResult?.revert?.name === 'FailedOp') {
         if (!IS_PRODUCTION) {
             console.error(errorResult);
