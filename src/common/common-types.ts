@@ -5,6 +5,7 @@ export const USE_MONOGODB_TRANSACTION = () => process.env.USE_MONOGODB_TRANSACTI
 
 export const BUNDLE_LIMIT: number = 100;
 
+export const PROVIDER_FETCH_TIMEOUT = 5000; // 5s
 export const PENDING_TRANSACTION_WAITING_TIME = 60;
 export const PENDING_TRANSACTION_SIGNER_HANDLE_LIMIT = 10;
 export const PARTICLE_PUBLIC_RPC_URL = 'https://rpc-debug.particle.network/evm-chain/public';

@@ -7,9 +7,9 @@ import { AppException } from '../../../common/app-exception';
 import * as AA from './../aa';
 import * as DEBUG from './../debug';
 import { AAService } from './aa.service';
-import { JsonRpcProvider, Network } from 'ethers';
+import { FetchRequest, JsonRpcProvider, Network } from 'ethers';
 import { AA_METHODS } from '../../../configs/bundler-common';
-import { IS_DEVELOPMENT } from '../../../common/common-types';
+import { IS_DEVELOPMENT, PROVIDER_FETCH_TIMEOUT } from '../../../common/common-types';
 
 @Injectable()
 export class RpcService {
@@ -22,7 +22,9 @@ export class RpcService {
         if (!this.jsonRpcProviders.has(chainId)) {
             const rpcUrl = RPC_CONFIG[chainId].rpcUrl;
             const network = new Network('', chainId);
-            const provider = new JsonRpcProvider(rpcUrl, network, { batchMaxCount: 1, staticNetwork: network });
+            const fetchRequest = new FetchRequest(rpcUrl);
+            fetchRequest.timeout = PROVIDER_FETCH_TIMEOUT;
+            const provider = new JsonRpcProvider(fetchRequest, network, { batchMaxCount: 1, staticNetwork: network });
             this.jsonRpcProviders.set(chainId, provider);
         }
 

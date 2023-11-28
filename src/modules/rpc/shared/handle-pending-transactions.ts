@@ -1,4 +1,4 @@
-import { Wallet, Contract, JsonRpcProvider } from 'ethers';
+import { Contract, JsonRpcProvider } from 'ethers';
 import { Connection } from 'mongoose';
 import { EVENT_ENTRY_POINT_USER_OPERATION, keyLockPendingTransaction } from '../../../common/common-types';
 import { Helper } from '../../../common/helper';
