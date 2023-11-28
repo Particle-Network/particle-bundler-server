@@ -126,7 +126,6 @@ async function sealUserOps(
     console.log('latestNonce', latestTransaction?.nonce, localLatestNonce, finalizedNonce);
     console.log('newFeeData', newFeeData);
 
-    const promises = [];
     for (const bundle of bundles) {
         await createBundleTransaction(
             chainId,
@@ -143,6 +142,4 @@ async function sealUserOps(
         
         finalizedNonce++;
     }
-
-    await Promise.all(promises);
 }
