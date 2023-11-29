@@ -225,7 +225,7 @@ export class TaskService {
                 const provider = this.rpcService.getJsonRpcProvider(Number(chainId));
 
                 const minEtherBalance = CHAIN_SIGNER_MIN_BALANCE[chainId];
-                const signers = this.aaService.getSigners();
+                const signers = this.aaService.getSigners(Number(chainId));
                 for (const signer of signers) {
                     const address = signer.address;
                     currentAddress = address;

@@ -26,13 +26,17 @@ export class AAService {
     ) {}
 
     public getRandomSigners(chainId: number): Wallet[] {
-        const signers = this.getSigners();
+        const signers = this.getSigners(chainId);
 
         return signers.sort(() => Math.random() - 0.5).filter((signer: Wallet) => !this.blockedSigners.has(`${chainId}-${signer.address}`));
     }
 
-    public getSigners(): Wallet[] {
-        let pks = this.configService.get('BUNDLER_SIGNERS').split(',');
+    public getSigners(chainId: number): Wallet[] {
+        let pks = this.configService.get(`BUNDLER_SIGNERS_${chainId}`);
+        if (!pks) {
+            pks = this.configService.get('BUNDLER_SIGNERS').split(',');
+        }
+
         return (pks = pks.filter((pk: string) => !!pk).map((privateKey: string) => new Wallet(privateKey)));
     }
 

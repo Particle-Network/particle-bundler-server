@@ -42,7 +42,7 @@ export async function tryIncrTransactionGasPrice(
         return;
     }
 
-    const allSigners = aaService.getSigners();
+    const allSigners = aaService.getSigners(transaction.chainId);
     const signer = allSigners.find((signer) => signer.address.toLowerCase() === transaction.from.toLowerCase());
     if (!signer) {
         Logger.log(`Not found signer for ${transaction.from}`);

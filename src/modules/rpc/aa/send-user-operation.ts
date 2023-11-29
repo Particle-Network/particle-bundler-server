@@ -145,7 +145,7 @@ export async function getL2ExtraFee(rpcService: RpcService, chainId: number, use
     const contractEntryPoint = new Contract(entryPoint, EntryPointAbi, provider);
     const l1GasPriceOracleContract = new Contract(L2_GAS_ORACLE[String(chainId)], l1GasPriceOracleAbi, provider);
 
-    const fakeSigner = rpcService.aaService.getSigners()[0];
+    const fakeSigner = rpcService.aaService.getSigners(chainId)[0];
     const simulateTx = await contractEntryPoint.handleOps.populateTransaction([userOp], fakeSigner.address);
     simulateTx.from = fakeSigner.address;
 
@@ -228,7 +228,7 @@ async function checkUserOpNonce(rpcService: RpcService, chainId: number, userOp:
 async function checkUserOpCanExecutedSucceed(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string) {
     const provider = rpcService.getJsonRpcProvider(chainId);
     const contractEntryPoint = new Contract(entryPoint, EntryPointAbi, provider);
-    const signer = rpcService.aaService.getSigners()[0];
+    const signer = rpcService.aaService.getSigners(chainId)[0];
 
     const promises = [contractEntryPoint.handleOps.staticCall([userOp], signer.address)];
     if (BigNumber.from(userOp.nonce).gte(1)) {
