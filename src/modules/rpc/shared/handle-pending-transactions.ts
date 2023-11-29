@@ -42,6 +42,14 @@ export async function tryIncrTransactionGasPrice(
         return;
     }
 
+    const allSigners = aaService.getSigners();
+    const signer = allSigners.find((signer) => signer.address.toLowerCase() === transaction.from.toLowerCase());
+    if (!signer) {
+        Logger.log(`Not found signer for ${transaction.from}`);
+        Lock.release(keyLock);
+        return;
+    }
+
     Logger.log('Try Replace Transaction', transaction.txHash);
 
     try {
@@ -86,8 +94,6 @@ export async function tryIncrTransactionGasPrice(
             Logger.log(`Replace Transaction, Old gasPrice: ${tx.gasPrice}, New gasPrice: ${txData.gasPrice}`);
         }
 
-        const allSigners = aaService.getSigners();
-        const signer = allSigners.find((signer) => signer.address.toLowerCase() === transaction.from.toLowerCase());
         const signedTx = await signer.signTransaction({
             chainId: transaction.chainId,
             to: txData.to,
@@ -223,7 +229,9 @@ export async function handlePendingTransaction(
         } catch (error) {
             Logger.error('SetUserOperationsAsDone error', error);
             Alert.sendMessage(
-                `SetUserOperationsAsDone Error On Chain ${transaction.chainId} For ${transaction.from}: ${Helper.converErrorToString(error)}\nUserOpHashes: ${JSON.stringify(userOpHashes)}\nTransactionId:${transaction.id}`,
+                `SetUserOperationsAsDone Error On Chain ${transaction.chainId} For ${transaction.from}: ${Helper.converErrorToString(
+                    error,
+                )}\nUserOpHashes: ${JSON.stringify(userOpHashes)}\nTransactionId:${transaction.id}`,
             );
         }
 
