@@ -34,8 +34,10 @@ export class AAService {
     public getSigners(chainId: number): Wallet[] {
         let pks = this.configService.get(`BUNDLER_SIGNERS_${chainId}`);
         if (!pks) {
-            pks = this.configService.get('BUNDLER_SIGNERS').split(',');
+            pks = this.configService.get('BUNDLER_SIGNERS');
         }
+
+        pks = pks.split(',');
 
         return (pks = pks.filter((pk: string) => !!pk).map((privateKey: string) => new Wallet(privateKey)));
     }
