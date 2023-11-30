@@ -6,14 +6,11 @@ import { ConfigModule } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { mongodbConfigAsync } from './configs/mongodb.config';
 import { TaskModule } from './modules/task/task.module';
-import { redisConfigAsync } from './configs/redis.config';
-import { RedisModule } from '@liaoliaots/nestjs-redis';
 
 @Module({
     imports: [
         ConfigModule.forRoot(configConfig),
         MongooseModule.forRootAsync(mongodbConfigAsync),
-        RedisModule.forRootAsync(redisConfigAsync),
         CommonModule,
         RpcModule,
         TaskModule,

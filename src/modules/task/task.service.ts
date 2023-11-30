@@ -5,41 +5,25 @@ import { InjectConnection } from '@nestjs/mongoose';
 import { Connection } from 'mongoose';
 import { RpcService } from '../rpc/services/rpc.service';
 import { TransactionService } from '../rpc/services/transaction.service';
-import {
-    BLOCK_SIGNER_REASON,
-    BUNDLING_MODE,
-    IS_DEVELOPMENT,
-    PENDING_TRANSACTION_SIGNER_HANDLE_LIMIT,
-    REDIS_TASK_CONNECTION_NAME,
-    keyEventSendUserOperation,
-    keyLockChainId,
-    keyLockSigner,
-} from '../../common/common-types';
+import { BLOCK_SIGNER_REASON, IS_DEVELOPMENT, PENDING_TRANSACTION_SIGNER_HANDLE_LIMIT, keyLockSigner } from '../../common/common-types';
 import { TRANSACTION_STATUS, TransactionDocument } from '../rpc/schemas/transaction.schema';
 import { Helper } from '../../common/helper';
 import { UserOperationService } from '../rpc/services/user-operation.service';
-import { InjectRedis } from '@liaoliaots/nestjs-redis';
-import Redis from 'ioredis';
 import { handlePendingTransaction, tryIncrTransactionGasPrice } from '../rpc/shared/handle-pending-transactions';
 import { handleLocalUserOperations } from '../rpc/shared/handle-local-user-operations';
 import { Cron } from '@nestjs/schedule';
 import Lock from '../../common/global-lock';
 import { handleLocalTransaction } from '../rpc/shared/handle-local-transactions';
-import { CHAIN_BALANCE_RANGE, CHAIN_SIGNER_MIN_BALANCE, RPC_CONFIG } from '../../configs/bundler-common';
+import { CHAIN_BALANCE_RANGE, CHAIN_SIGNER_MIN_BALANCE } from '../../configs/bundler-common';
 import { Wallet, parseEther } from 'ethers';
 import { BigNumber } from '../../common/bignumber';
 import { Alert } from '../../common/alert';
 import { isObject } from 'lodash';
 import { getFeeDataFromParticle } from '../rpc/aa/utils';
+import { UserOperationDocument } from '../rpc/schemas/user-operation.schema';
 
 const FETCH_TRANSACTION_SIZE = 500;
 
-/**
- * Please Ensure that the task service is only running on one instance
- * To make sure the user operations are sealed and executed in order.
- *
- * TODO: add redis lock to make sure only one instance is running
- */
 @Injectable()
 export class TaskService {
     public constructor(
@@ -48,96 +32,63 @@ export class TaskService {
         private readonly aaService: AAService,
         private readonly transactionService: TransactionService,
         private readonly userOperationService: UserOperationService,
-        @InjectRedis(REDIS_TASK_CONNECTION_NAME) private readonly redis: Redis,
         @InjectConnection() private readonly connection: Connection,
-    ) {
-        this.initialize();
-    }
+    ) {}
 
     private canRun: boolean = true;
-    private latestSealUserOpsAtByChainId: Map<number, number> = new Map();
-    private sealUserOpsFlag: Map<number, boolean> = new Map();
+    private inSealingUserOps: boolean = false;
     private inCheckingSignerBalance: boolean = false;
     private inCheckingAndReleaseBlockSigners: boolean = false;
 
-    private initialize() {
-        if (!this.canRunCron()) {
+    @Cron('* * * * * *')
+    public async sealUserOps() {
+        if (!this.canRunCron() || this.inSealingUserOps) {
             return;
         }
 
-        this.redis.subscribe(keyEventSendUserOperation);
-        this.redis.on('message', (channel, message) => {
-            if (channel !== keyEventSendUserOperation) {
+        this.inSealingUserOps = true;
+
+        try {
+            let userOperations = await this.userOperationService.getLocalUserOperations();
+            userOperations = this.aaService.tryLockUserOperationsAndGetUnuseds(userOperations);
+            if (userOperations.length <= 0) {
+                this.inSealingUserOps = false;
                 return;
             }
 
-            try {
-                const data = JSON.parse(message);
-                this.sealUserOpsByDuration(data?.chainId);
-            } catch (error) {
-                // nothing
-            }
-        });
+            Logger.log(`[SealUserOps] UserOpLength: ${userOperations.length}`);
+            const userOperationsByChainId: any = {};
+            for (const userOperation of userOperations) {
+                if (!userOperationsByChainId[userOperation.chainId]) {
+                    userOperationsByChainId[userOperation.chainId] = [];
+                }
 
-        const bundlingMode = this.aaService.getBundlingMode();
-        if (bundlingMode === BUNDLING_MODE.AUTO) {
-            Object.values(RPC_CONFIG).forEach((rpcConfig: any) => {
-                this.sealUserOpsByDuration(rpcConfig.chainId);
-            });
+                userOperationsByChainId[userOperation.chainId].push(userOperation);
+            }
+
+            const chainIds = Object.keys(userOperationsByChainId);
+            for (const chainId of chainIds) {
+                this.assignSignerAndSealUserOps(Number(chainId), userOperationsByChainId[chainId]);
+            }
+        } catch (error) {
+            Logger.error(`Seal User Ops Error`, error);
+            Alert.sendMessage(`Seal User Ops Error: ${Helper.converErrorToString(error)}`);
         }
+
+        this.inSealingUserOps = false;
     }
 
-    @Cron('* * * * * *')
-    public async sealUserOps() {
-        for (const chainId in RPC_CONFIG) {
-            if (this.sealUserOpsFlag.get(Number(chainId))) {
-                Logger.log('sealUserOps', chainId);
-                this.sealUserOpsByDuration(Number(chainId));
-            }
-        }
-    }
-
-    private async sealUserOpsByDuration(chainId: number) {
-        this.sealUserOpsFlag.set(chainId, true);
-
+    private async assignSignerAndSealUserOps(chainId: number, userOperations: UserOperationDocument[]) {
         const targetSigner: Wallet = await this.waitForASigner(chainId);
         if (!targetSigner) {
             Logger.warn(`No signer available on ${chainId}`);
+            this.aaService.unlockUserOperations(userOperations);
             return;
         }
 
-        await Lock.acquire(keyLockChainId(chainId));
-
-        Logger.log(`sealUserOpsByDuration acquire ${targetSigner.address} on chain ${chainId}`);
-        if (!this.sealUserOpsFlag.get(chainId)) {
-            Logger.log(`sealUserOpsByDuration release ${targetSigner.address} on chain ${chainId}`);
-
-            Lock.release(keyLockSigner(chainId, targetSigner.address));
-            Lock.release(keyLockChainId(chainId));
-            return;
-        }
-
-        this.sealUserOpsFlag.set(chainId, false);
-
-        const endAt = Date.now();
-        const startAt = this.latestSealUserOpsAtByChainId.get(chainId) || 0;
-        this.latestSealUserOpsAtByChainId.set(chainId, endAt);
-
-        Lock.release(keyLockChainId(chainId));
-
-        this.getAndHandleLocalUserOperationsByDuration(chainId, targetSigner, startAt, endAt);
-    }
-
-    private async getAndHandleLocalUserOperationsByDuration(chainId: number, targetSigner: Wallet, startAt: number, endAt: number) {
-        const userOperations = await this.userOperationService.getLocalUserOperationsByDuration(chainId, startAt, endAt);
-        Logger.log(`[sealUserOpsByDuration] chainId=${chainId}, startAt=${startAt}, endAt=${endAt}, userOpLength: ${userOperations.length}`);
-
-        if (userOperations.length <= 0) {
-            Lock.release(keyLockSigner(chainId, targetSigner.address));
-            return;
-        }
-
-        handleLocalUserOperations(chainId, this.rpcService, this.aaService, targetSigner, userOperations, this.connection);
+        await handleLocalUserOperations(chainId, this.rpcService, this.aaService, targetSigner, userOperations, this.connection);
+        this.aaService.unlockUserOperations(userOperations);
+        Lock.release(keyLockSigner(chainId, targetSigner.address));
     }
 
     private async waitForASigner(chainId: number): Promise<Wallet> {
@@ -156,9 +107,8 @@ export class TaskService {
             const targetSignerPendingTxCount = await this.transactionService.getPendingTransactionCountBySigner(chainId, targetSigner.address);
             if (targetSignerPendingTxCount >= PENDING_TRANSACTION_SIGNER_HANDLE_LIMIT) {
                 Alert.sendMessage(`Signer ${targetSigner.address} is pending On Chain ${chainId}`);
-                
-                targetSigner = null;
                 Lock.release(keyLockSigner(chainId, targetSigner.address));
+                targetSigner = null;
             }
         }
 
@@ -275,7 +225,7 @@ export class TaskService {
                 const provider = this.rpcService.getJsonRpcProvider(Number(chainId));
 
                 const minEtherBalance = CHAIN_SIGNER_MIN_BALANCE[chainId];
-                const signers = this.aaService.getSigners();
+                const signers = this.aaService.getSigners(Number(chainId));
                 for (const signer of signers) {
                     const address = signer.address;
                     currentAddress = address;

@@ -44,7 +44,7 @@ yarn
 ```
 
 ### 🧷 Setup the environment
-Set your configuration in **.env.dev**. We require the **mongodb** and **redis**. 
+Set your configuration in **.env.dev**. We require the **mongodb**. 
 
 ### 🏄🏻‍♂️ Start the project
 ```bash

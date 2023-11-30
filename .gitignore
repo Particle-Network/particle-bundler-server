@@ -35,3 +35,4 @@ bundler-config-particle.ts
 bundler-config-production.ts
 bundler-config.ts.bak
 build
+scripts/benchmark.ts

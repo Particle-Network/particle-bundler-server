@@ -2,12 +2,11 @@ import { Contract, getAddress, isAddress } from 'ethers';
 import { JsonRPCRequestDto } from '../dtos/json-rpc-request.dto';
 import { RpcService } from '../services/rpc.service';
 import { Helper } from '../../../common/helper';
-import { BUNDLING_MODE, GAS_FEE_LEVEL, IS_PRODUCTION, MULTI_CALL_3_ADDRESS, keyEventSendUserOperation } from '../../../common/common-types';
+import { GAS_FEE_LEVEL, IS_PRODUCTION, MULTI_CALL_3_ADDRESS } from '../../../common/common-types';
 import {
     AppException,
     AppExceptionMessages,
     MESSAGE_32602_INVALID_ENTRY_POINT_ADDRESS,
-    MESSAGE_32602_INVALID_PARAMS_LENGTH,
     MESSAGE_32602_INVALID_USEROP_TYPE,
 } from '../../../common/app-exception';
 import { calcUserOpGasPrice, calcUserOpTotalGasLimit, getFeeDataFromParticle, isUserOpValid } from './utils';
@@ -77,10 +76,6 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
 
     await rpcService.aaService.userOperationService.createOrUpdateUserOperation(chainId, userOp, userOpHash, entryPointInput);
 
-    if (rpcService.aaService.getBundlingMode() === BUNDLING_MODE.AUTO) {
-        rpcService.redisService.getClient().publish(keyEventSendUserOperation, JSON.stringify({ chainId }));
-    }
-
     return userOpHash;
 }
 
@@ -110,7 +105,7 @@ export async function simulateHandleOpAndGetGasCost(rpcService: RpcService, chai
         }
     }
 
-    Helper.assertTrue(!!errorResult?.revert, -32000, 'Can not simulate the user op');
+    Helper.assertTrue(!!errorResult?.revert, -32000, `Can not simulate the user op, No revert message`);
     if (errorResult?.revert?.name === 'FailedOp') {
         if (!IS_PRODUCTION) {
             console.error(errorResult);
@@ -150,7 +145,7 @@ export async function getL2ExtraFee(rpcService: RpcService, chainId: number, use
     const contractEntryPoint = new Contract(entryPoint, EntryPointAbi, provider);
     const l1GasPriceOracleContract = new Contract(L2_GAS_ORACLE[String(chainId)], l1GasPriceOracleAbi, provider);
 
-    const fakeSigner = rpcService.aaService.getSigners()[0];
+    const fakeSigner = rpcService.aaService.getSigners(chainId)[0];
     const simulateTx = await contractEntryPoint.handleOps.populateTransaction([userOp], fakeSigner.address);
     simulateTx.from = fakeSigner.address;
 
@@ -233,7 +228,7 @@ async function checkUserOpNonce(rpcService: RpcService, chainId: number, userOp:
 async function checkUserOpCanExecutedSucceed(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string) {
     const provider = rpcService.getJsonRpcProvider(chainId);
     const contractEntryPoint = new Contract(entryPoint, EntryPointAbi, provider);
-    const signer = rpcService.aaService.getSigners()[0];
+    const signer = rpcService.aaService.getSigners(chainId)[0];
 
     const promises = [contractEntryPoint.handleOps.staticCall([userOp], signer.address)];
     if (BigNumber.from(userOp.nonce).gte(1)) {

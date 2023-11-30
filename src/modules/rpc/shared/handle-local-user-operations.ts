@@ -3,11 +3,10 @@ import { AAService } from '../services/aa.service';
 import { Helper } from '../../../common/helper';
 import { RpcService } from '../services/rpc.service';
 import { UserOperationDocument } from '../schemas/user-operation.schema';
-import { GAS_FEE_LEVEL, keyLockSigner } from '../../../common/common-types';
+import { GAS_FEE_LEVEL } from '../../../common/common-types';
 import { calcUserOpTotalGasLimit, getFeeDataFromParticle } from '../aa/utils';
 import { createBundleTransaction } from './handle-local-transactions';
 import { Connection } from 'mongoose';
-import Lock from '../../../common/global-lock';
 import { BigNumber } from '../../../common/bignumber';
 import { Alert } from '../../../common/alert';
 import { getBundlerConfig } from '../../../configs/bundler-common';
@@ -32,7 +31,6 @@ export async function handleLocalUserOperations(
     }
 
     Logger.log(`handleLocalUserOperations Finish release on chain ${chainId} with ${signer.address}`);
-    Lock.release(keyLockSigner(chainId, signer.address));
 }
 
 async function sealUserOps(
@@ -48,7 +46,17 @@ async function sealUserOps(
         return;
     }
 
-    Logger.log(`${chainId}: ${userOperations.length} user operations`);
+    Logger.log(`SealUserOps On Chain ${chainId}: ${userOperations.length} user operations`);
+
+    // Sort user operations by sender and nonce
+    userOperations.sort((a, b) => {
+        const r1 = a.userOpSender.localeCompare(b.userOpSender);
+        if (r1 !== 0) {
+            return r1;
+        }
+
+        return BigNumber.from(a.userOpNonce).gt(BigNumber.from(b.userOpNonce)) ? 1 : -1;
+    });
 
     const bundlesMap = {};
     for (let index = 0; index < userOperations.length; index++) {
@@ -89,13 +97,13 @@ async function sealUserOps(
         }
     }
 
-    Logger.log(`sealUserOps Finish, ${chainId}`, bundles);
+    Logger.log(`SealUserOps Finish, ${chainId}`, bundles);
 
-    let latestTransaction: any, pendingNonce: any, feeData: any;
+    let latestTransaction: any, latestNonce: any, feeData: any;
     try {
-        [latestTransaction, pendingNonce, feeData] = await Promise.all([
+        [latestTransaction, latestNonce, feeData] = await Promise.all([
             aaService.transactionService.getLatestTransaction(chainId, signer.address),
-            provider.getTransactionCount(signer.address, 'pending'),
+            provider.getTransactionCount(signer.address, 'latest'),
             getFeeDataFromParticle(chainId, GAS_FEE_LEVEL.MEDIUM),
         ]);
     } catch (error) {
@@ -105,39 +113,33 @@ async function sealUserOps(
             `Fetch Provider Error On Chain ${chainId}; UserOpIds ${JSON.stringify(userOperationIds)}; ${Helper.converErrorToString(error)}`,
         );
 
-        setTimeout(() => {
-            // retry after 1s
-            sealUserOps(chainId, provider, signer, userOperations, mongodbConnection, rpcService, aaService);
-        }, 1000);
+        // retry after 1s
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        await sealUserOps(chainId, provider, signer, userOperations, mongodbConnection, rpcService, aaService);
         return;
     }
 
-    let latestNonce = (latestTransaction ? latestTransaction.nonce : -1) + 1;
-    let finalizedNonce = latestNonce > pendingNonce ? latestNonce : pendingNonce;
+    let localLatestNonce = (latestTransaction ? latestTransaction.nonce : -1) + 1;
+    let finalizedNonce = localLatestNonce > latestNonce ? localLatestNonce : latestNonce;
 
     let newFeeData: any = feeData;
-    console.log('latestNonce', latestTransaction?.nonce, latestNonce, finalizedNonce);
+    console.log('latestNonce', latestTransaction?.nonce, localLatestNonce, finalizedNonce);
     console.log('newFeeData', newFeeData);
 
-    const promises = [];
     for (const bundle of bundles) {
-        promises.push(
-            createBundleTransaction(
-                chainId,
-                bundle.userOperations[0].entryPoint,
-                mongodbConnection,
-                provider,
-                aaService,
-                bundle.userOperations,
-                bundle.gasLimit,
-                signer,
-                finalizedNonce,
-                newFeeData,
-            ),
+        await createBundleTransaction(
+            chainId,
+            bundle.userOperations[0].entryPoint,
+            mongodbConnection,
+            provider,
+            aaService,
+            bundle.userOperations,
+            bundle.gasLimit,
+            signer,
+            finalizedNonce,
+            newFeeData,
         );
-
+        
         finalizedNonce++;
     }
-
-    await Promise.all(promises);
 }

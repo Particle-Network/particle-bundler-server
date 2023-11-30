@@ -59,6 +59,8 @@ export async function createBundleTransaction(
     } catch (error) {
         console.error('Failed to create bundle transaction', error);
         Alert.sendMessage(`Failed to create bundle transaction: ${Helper.converErrorToString(error)}`);
+
+        throw error;
     }
 }
 

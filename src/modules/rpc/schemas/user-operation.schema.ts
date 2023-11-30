@@ -84,3 +84,7 @@ UserOperationSchema.index({
     userOpSender: 1,
     userOpNonce: 1,
 });
+
+UserOperationSchema.index({
+    status: 1,
+});
