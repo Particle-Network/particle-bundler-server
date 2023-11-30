@@ -5,6 +5,8 @@ export const RPC_CONFIG = [
     },
 ];
 
+export const PARTICLE_PUBLIC_RPC_URL = 'https://rpc.particle.network/evm-chain/public';
+
 export const BUNDLER_CONFIG: any = {
     default: {
         MAX_BUNDLE_GAS: 7000000,

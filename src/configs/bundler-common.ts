@@ -5,6 +5,7 @@ import * as Fs from 'fs';
 export const PARTICLE_PAYMASTER_URL = 'https://paymaster.particle.network';
 
 export const RPC_CONFIG: any = {};
+export let PARTICLE_PUBLIC_RPC_URL: string;
 export let MINIMUM_GAS_FEE: any = {};
 export let BUNDLER_CONFIG: any = {};
 export let CHAIN_BALANCE_RANGE: any = {};
@@ -23,6 +24,7 @@ export async function initializeBundlerConfig() {
     BUNDLER_CONFIG = bc.BUNDLER_CONFIG;
     CHAIN_BALANCE_RANGE = bc.CHAIN_BALANCE_RANGE;
     CHAIN_SIGNER_MIN_BALANCE = bc.CHAIN_SIGNER_MIN_BALANCE;
+    PARTICLE_PUBLIC_RPC_URL = bc.PARTICLE_PUBLIC_RPC_URL;
 
     for (const item of bc.RPC_CONFIG) {
         RPC_CONFIG[String(item.chainId)] = item;
