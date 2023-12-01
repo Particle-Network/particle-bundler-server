@@ -26,12 +26,11 @@ import MultiCall3Abi from './multi-call-3-abi';
 
 export async function sendUserOperation(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
     const userOp = body.params[0];
-    let entryPointInput = getAddress(body.params[1]);
 
     Helper.assertTrue(typeof body.params[0] === 'object', -32602, MESSAGE_32602_INVALID_USEROP_TYPE);
     Helper.assertTrue(typeof body.params[1] === 'string' && isAddress(body.params[1]), -32602, MESSAGE_32602_INVALID_ENTRY_POINT_ADDRESS);
 
-    entryPointInput = getAddress(entryPointInput);
+    const entryPointInput = getAddress(body.params[1]);
     const bundlerConfig = getBundlerConfig(chainId);
     Helper.assertTrue(bundlerConfig.SUPPORTED_ENTRYPOINTS.includes(entryPointInput), -32003);
 
