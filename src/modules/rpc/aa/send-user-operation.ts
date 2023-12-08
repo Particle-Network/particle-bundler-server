@@ -208,7 +208,10 @@ async function checkUserOpGasPriceIsSatisfied(chainId: number, userOp: any, gasC
 }
 
 async function checkUserOpNonce(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string) {
-    if (!BigNumber.from(userOp.nonce).eq(0)) {
+    const bgNonce = BigNumber.from(userOp.nonce);
+    Helper.assertTrue(bgNonce.lte(BigInt(Number.MAX_SAFE_INTEGER)) && bgNonce.gte(0), -32006);
+
+    if (!bgNonce.eq(0)) {
         const provider = rpcService.getJsonRpcProvider(chainId);
         const epContract = new Contract(entryPoint, EntryPointAbi, provider);
         let [remoteNonce, localMaxNonce] = await Promise.all([
@@ -222,7 +225,7 @@ async function checkUserOpNonce(rpcService: RpcService, chainId: number, userOp:
         const targetNonce = BigNumber.from(localMaxNonce).gt(remoteNonce) ? localMaxNonce : remoteNonce;
 
         Helper.assertTrue(
-            BigNumber.from(userOp.nonce).gte(targetNonce),
+            bgNonce.gte(targetNonce),
             -32602,
             AppExceptionMessages.messageExtend(-32602, 'AA25 invalid account nonce'),
         );

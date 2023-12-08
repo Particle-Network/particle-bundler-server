@@ -25,6 +25,7 @@ export class AppExceptionMessages {
         [-32003, 'Not supported entry point'],
         [-32004, 'The UserOP is already processed'],
         [-32005, 'Estimate gas failed'],
+        [-32006, 'Invalid UserOp Nonce'],
 
         // JSON-RPC
         [-32600, 'Invalid Request'],

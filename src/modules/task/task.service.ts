@@ -87,8 +87,10 @@ export class TaskService {
         }
 
         await handleLocalUserOperations(chainId, this.rpcService, this.aaService, targetSigner, userOperations, this.connection);
-        this.aaService.unlockUserOperations(userOperations);
         Lock.release(keyLockSigner(chainId, targetSigner.address));
+        
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        this.aaService.unlockUserOperations(userOperations);
     }
 
     private async waitForASigner(chainId: number): Promise<Wallet> {

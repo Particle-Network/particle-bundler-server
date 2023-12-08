@@ -254,11 +254,11 @@ export async function handlePendingTransaction(
 
 // check is the userop is bundled by other tx(mev)
 export async function checkAndHandleFailedReceipt(receipt: any, provider: JsonRpcProvider, targetUserOpHashes: string[]) {
-    if (BigNumber.from(receipt.status).eq(1)) {
-        return [{ receipt, userOpHashes: targetUserOpHashes }];
-    }
-
     try {
+        if (BigNumber.from(receipt.status).eq(1)) {
+            return [{ receipt, userOpHashes: targetUserOpHashes }];
+        }
+
         const logs = await provider.getLogs({
             fromBlock: BigNumber.from(receipt.blockNumber).sub(20).toHexString(),
             toBlock: BigNumber.from(receipt.blockNumber).toHexString(),

@@ -51,7 +51,11 @@ export async function createBundleTransaction(
                 session,
             );
 
-            Helper.assertTrue(updateInfo.modifiedCount === userOperationDocuments.length, 10001, 'Failed to update user operations as pending');
+            Helper.assertTrue(
+                updateInfo.modifiedCount === userOperationDocuments.length,
+                10001,
+                `Failed to update user operations as pending\n${JSON.stringify(updateInfo)}\n${JSON.stringify(userOpHashes)}`,
+            );
         });
 
         // no need to await
