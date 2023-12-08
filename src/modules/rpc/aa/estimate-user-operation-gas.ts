@@ -161,6 +161,8 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
             EVM_CHAIN_ID.OPTIMISM_TESTNET,
             EVM_CHAIN_ID.MANTLE_MAINNET,
             EVM_CHAIN_ID.MANTLE_TESTNET,
+            EVM_CHAIN_ID.SCROLL_MAINNET,
+            EVM_CHAIN_ID.SCROLL_SEPOLIA,
         ].includes(chainId)
     ) {
         let ratio = 1.05;
