@@ -66,7 +66,7 @@ export class RpcController {
             console.error(error);
 
             if (!(error instanceof AppException) || error.errorCode === -32000) {
-                Alert.sendMessage(`Bundler RPC Error: ${Helper.converErrorToString(error)}`);
+                Alert.sendMessage(`Bundler RPC Error\nChainId: ${chainId}\nBody:${JSON.stringify(body)}\n${Helper.converErrorToString(error)}`);
             }
 
             return JsonRPCResponse.createErrorResponse(body, error);

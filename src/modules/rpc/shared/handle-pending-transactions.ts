@@ -28,9 +28,18 @@ export async function tryIncrTransactionGasPrice(
     }
 
     await Lock.acquire(keyLock);
-    const remoteNonce = await provider.getTransactionCount(transaction.from, 'latest');
-    if (remoteNonce != transaction.nonce) {
-        Logger.log('tryIncrTransactionGasPrice release', 'remoteNonce != transaction.nonce', remoteNonce, transaction.nonce);
+    try {
+        const remoteNonce = await provider.getTransactionCount(transaction.from, 'latest');
+        if (remoteNonce != transaction.nonce) {
+            Logger.log('tryIncrTransactionGasPrice release', 'remoteNonce != transaction.nonce', remoteNonce, transaction.nonce);
+            Lock.release(keyLock);
+            return;
+        }
+    } catch (error) {
+        Alert.sendMessage(
+            `TryIncrTransactionGasPrice GetTransactionCount Error On Chain ${transaction.chainId} For ${transaction.from}: ${Helper.converErrorToString(error)}`,
+        );
+
         Lock.release(keyLock);
         return;
     }
