@@ -204,7 +204,7 @@ async function checkUserOpGasPriceIsSatisfied(chainId: number, userOp: any, gasC
 
 async function checkUserOpNonce(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string) {
     const bgNonce = BigNumber.from(userOp.nonce);
-    Helper.assertTrue(bgNonce.lte(Number.MAX_SAFE_INTEGER) && bgNonce.gte(0), -32006);
+    Helper.assertTrue(bgNonce.lte(BigInt(Number.MAX_SAFE_INTEGER)) && bgNonce.gte(0), -32006);
 
     if (!bgNonce.eq(0)) {
         const provider = rpcService.getJsonRpcProvider(chainId);
