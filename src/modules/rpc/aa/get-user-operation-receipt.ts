@@ -44,7 +44,7 @@ export async function getUserOperationReceipt(rpcService: RpcService, chainId: n
     return deepHexlify({
         userOpHash: userOperation.userOpHash,
         sender: userOperation.userOpSender,
-        nonce: BigNumber.from(userOperation.userOpNonce.toString()).toHexString(),
+        nonce: userOperation.origin?.nonce,
         actualGasCost: userOperationEvent?.args[5] ?? 0,
         actualGasUsed: userOperationEvent?.args[6] ?? 0,
         success: userOperationEvent?.args[4] ?? false,
@@ -90,7 +90,7 @@ export async function manuallyGetUserOperationReceipt(chainId: number, rpcServic
         return deepHexlify({
             userOpHash: userOperation.userOpHash,
             sender: userOperation.userOpSender,
-            nonce: BigNumber.from(userOperation.userOpNonce.toString()).toHexString(),
+            nonce: userOperation.origin?.nonce,
             actualGasCost: userOperationEvent?.args[5] ?? 0,
             actualGasUsed: userOperationEvent?.args[6] ?? 0,
             success: userOperationEvent?.args[4] ?? false,

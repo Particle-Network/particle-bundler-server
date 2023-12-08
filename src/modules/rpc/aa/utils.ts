@@ -128,3 +128,16 @@ export async function getFeeDataFromParticle(chainId: number, level: string = GA
 export function calcUserOpGasPrice(feeData: any, baseFee: number = 0): number {
     return Math.min(BigNumber.from(feeData.maxFeePerGas).toNumber(), BigNumber.from(feeData.maxPriorityFeePerGas).toNumber() + baseFee);
 }
+
+export function splitOriginNonce(originNonce: string) {
+    const bn = BigNumber.from(originNonce);
+    const key = bn.shr(64);
+
+    let valueString = bn.toHexString();
+    if (!key.eq(0)) {
+        valueString = bn.shl(192).toHexString();
+        valueString = `0x${valueString.slice(-48)}`;
+    }
+
+    return { nonceKey: key.toHexString(), nonceValue: BigNumber.from(valueString).toHexString() };
+}

@@ -117,22 +117,11 @@ async function createBiconomySmartAccount(chainId: number): Promise<IContractAcc
 }
 
 async function createFakeUserOp(chainId: number, simpleAccount: IContractAccount) {
-    const feeData = await getFeeDataFromParticle(chainId);
-    let maxFeePerGas = feeData.maxFeePerGas;
-    let maxPriorityFeePerGas = feeData.maxPriorityFeePerGas;
-    let gasPrice = feeData.gasPrice;
-    if (!SUPPORT_EIP_1559.includes(chainId)) {
-        maxFeePerGas = gasPrice;
-        maxPriorityFeePerGas = gasPrice;
-    }
-
     const unsignedUserOp = await simpleAccount.createUnsignedUserOp([
         {
             to: Wallet.createRandom().address,
             value: BigNumber.from(parseEther('0')).toHexString(),
             data: '0x',
-            maxFeePerGas,
-            maxPriorityFeePerGas,
         },
     ]);
     return deepHexlify(await resolveProperties(unsignedUserOp));

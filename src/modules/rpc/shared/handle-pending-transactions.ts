@@ -228,6 +228,7 @@ export async function handlePendingTransaction(
                 await aaService.transactionService.updateTransactionStatus(targetTransaction, status, session);
 
                 await aaService.userOperationService.transactionSetUserOperationsAsDone(
+                    chainId,
                     userOpHashes,
                     targetTransaction.txHash,
                     blockNumber,

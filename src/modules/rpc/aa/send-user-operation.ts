@@ -9,7 +9,7 @@ import {
     MESSAGE_32602_INVALID_ENTRY_POINT_ADDRESS,
     MESSAGE_32602_INVALID_USEROP_TYPE,
 } from '../../../common/app-exception';
-import { calcUserOpGasPrice, calcUserOpTotalGasLimit, getFeeDataFromParticle, isUserOpValid } from './utils';
+import { calcUserOpGasPrice, calcUserOpTotalGasLimit, getFeeDataFromParticle, isUserOpValid, splitOriginNonce } from './utils';
 import { BigNumber } from '../../../common/bignumber';
 import {
     EVM_CHAIN_ID,
@@ -203,15 +203,17 @@ async function checkUserOpGasPriceIsSatisfied(chainId: number, userOp: any, gasC
 }
 
 async function checkUserOpNonce(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string) {
-    const bgNonce = BigNumber.from(userOp.nonce);
-    Helper.assertTrue(bgNonce.lte(BigInt(Number.MAX_SAFE_INTEGER)) && bgNonce.gte(0), -32006);
+    const { nonceKey, nonceValue } = splitOriginNonce(userOp.nonce);
+
+    const bgNonce = BigNumber.from(nonceValue);
+    Helper.assertTrue(bgNonce.gte(0), -32006);
 
     if (!bgNonce.eq(0)) {
         const provider = rpcService.getJsonRpcProvider(chainId);
         const epContract = new Contract(entryPoint, EntryPointAbi, provider);
         let [remoteNonce, localMaxNonce] = await Promise.all([
-            epContract.getNonce(userOp.sender, 0),
-            rpcService.aaService.userOperationService.getSuccessUserOperationNonce(chainId, getAddress(userOp.sender)),
+            epContract.getNonce(userOp.sender, nonceKey),
+            rpcService.aaService.userOperationService.getSuccessUserOperationNonce(chainId, getAddress(userOp.sender), nonceKey),
         ]);
 
         localMaxNonce = BigNumber.from(localMaxNonce ?? '-1')
@@ -219,11 +221,7 @@ async function checkUserOpNonce(rpcService: RpcService, chainId: number, userOp:
             .toHexString();
         const targetNonce = BigNumber.from(localMaxNonce).gt(remoteNonce) ? localMaxNonce : remoteNonce;
 
-        Helper.assertTrue(
-            bgNonce.gte(targetNonce),
-            -32602,
-            AppExceptionMessages.messageExtend(-32602, 'AA25 invalid account nonce'),
-        );
+        Helper.assertTrue(bgNonce.gte(targetNonce), -32602, AppExceptionMessages.messageExtend(-32602, 'AA25 invalid account nonce'));
     }
 }
 
@@ -233,8 +231,11 @@ async function checkUserOpCanExecutedSucceed(rpcService: RpcService, chainId: nu
     const signer = rpcService.aaService.getSigners(chainId)[0];
 
     const promises = [contractEntryPoint.handleOps.staticCall([userOp], signer.address)];
-    if (BigNumber.from(userOp.nonce).gte(1)) {
-        // check account call is success
+    const { nonceKey, nonceValue } = splitOriginNonce(userOp.nonce);
+
+    // check account exists to replace check nonce??
+    if (BigNumber.from(nonceValue).gte(1)) {
+        // check account call is success because entry point will catch the error
         promises.push(
             provider.estimateGas({
                 from: entryPoint,
