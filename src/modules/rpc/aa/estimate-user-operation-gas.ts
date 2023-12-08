@@ -37,7 +37,7 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
     }
 
     const paymasterAddress = await rpcService.getValidPaymasterAddress(chainId);
-    if ((!!paymasterAddress && !userOp.paymasterAndData) || userOp.paymasterAndData === '0x') {
+    if (!!paymasterAddress && userOp.paymasterAndData === '0x') {
         // dummy signature
         userOp.paymasterAndData = hexConcat([paymasterAddress, abiCoder.encode(['uint48', 'uint48'], ['0x0', '0x0']), DUMMY_SIGNATURE]);
     }
