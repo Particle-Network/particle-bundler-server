@@ -2883,11 +2883,6 @@ asap@^2.0.0:
   resolved "https://packages.aliyun.com/60a5dbcb44816b8ed23324b6/npm/npm-registry/asap/-/asap-2.0.6.tgz#e50347611d7e690943208bbdafebcbc2fb866d46"
   integrity sha512-BSHWgDSAiKs50o2Re8ppvp3seVHXSRM44cdSsT9FfNEUUZLOGWVCsiWaRPWM1Znn+mqZ1OfVZ3z3DWEzSp7hRA==
 
-async-await-mutex-lock@^1.0.10:
-  version "1.0.10"
-  resolved "https://registry.npmmirror.com/async-await-mutex-lock/-/async-await-mutex-lock-1.0.10.tgz#749901fcb650b12e2324aa076c75d1a4338c944d"
-  integrity sha512-HJOfObEYDecjNsr6+8TOoUW7biAkexkIIgYTdaAAWZ3Q4N2xFfWL/Avbfp8YQc/7vChuWPF1R9aSpmJPXx2Jkw==
-
 asynckit@^0.4.0:
   version "0.4.0"
   resolved "https://packages.aliyun.com/60a5dbcb44816b8ed23324b6/npm/npm-registry/asynckit/-/asynckit-0.4.0.tgz#c79ed97f7f34cb8f2ba1bc9790bcc366474b4b79"

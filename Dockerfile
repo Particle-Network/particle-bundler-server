@@ -1,13 +1,15 @@
-FROM node:18.13.0-alpine3.17
+FROM --platform=linux/amd64 node:18.13.0-alpine3.17
+
+RUN yarn config set registry https://registry.npm.taobao.org
+RUN yarn --network-timeout 1000000
+
+RUN npm config set registry https://registry.npm.taobao.org
 
 RUN npm install --location=global pm2
 RUN pm2 install pm2-logrotate
 
 RUN mkdir -p /data/code/particle-bundler-server
 WORKDIR /data/code/particle-bundler-server
-
-RUN yarn config set registry https://registry.npm.taobao.org
-RUN yarn --network-timeout 1000000
 
 COPY ecosystem.config.js /data/code/particle-bundler-server/ecosystem.config.js
 COPY package.json /data/code/particle-bundler-server/package.json
