@@ -37,7 +37,7 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
     }
 
     const paymasterAddress = await rpcService.getValidPaymasterAddress(chainId);
-    if ((!!paymasterAddress && !userOp.paymasterAndData) || userOp.paymasterAndData === '0x') {
+    if (!!paymasterAddress && userOp.paymasterAndData === '0x') {
         // dummy signature
         userOp.paymasterAndData = hexConcat([paymasterAddress, abiCoder.encode(['uint48', 'uint48'], ['0x0', '0x0']), DUMMY_SIGNATURE]);
     }
@@ -161,6 +161,8 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
             EVM_CHAIN_ID.OPTIMISM_TESTNET,
             EVM_CHAIN_ID.MANTLE_MAINNET,
             EVM_CHAIN_ID.MANTLE_TESTNET,
+            EVM_CHAIN_ID.SCROLL_MAINNET,
+            EVM_CHAIN_ID.SCROLL_SEPOLIA,
         ].includes(chainId)
     ) {
         let ratio = 1.05;
@@ -177,7 +179,7 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
 
     // TODO HACK temporary not strict check for opBNB and Combo
     // at least 0.5 Gwei
-    if ([EVM_CHAIN_ID.OPBNB_MAINNET, EVM_CHAIN_ID.OPBNB_TESTNET, EVM_CHAIN_ID.COMBO_TESTNET].includes(chainId)) {
+    if ([EVM_CHAIN_ID.OPBNB_MAINNET, EVM_CHAIN_ID.OPBNB_TESTNET, EVM_CHAIN_ID.COMBO_MAINNET, EVM_CHAIN_ID.COMBO_TESTNET].includes(chainId)) {
         const minUserOpGasPrice = 5 * 10 ** 8;
         if (userOpGasPrice < minUserOpGasPrice) {
             const diff = BigNumber.from(minUserOpGasPrice).sub(userOpGasPrice);

@@ -175,7 +175,12 @@ async function checkUserOpGasPriceIsSatisfied(chainId: number, userOp: any, gasC
     );
 
     // TODO HACK temporary not strict check for opBNB and Combo
-    if (chainId === EVM_CHAIN_ID.OPBNB_MAINNET || chainId === EVM_CHAIN_ID.OPBNB_TESTNET || chainId === EVM_CHAIN_ID.COMBO_TESTNET) {
+    if (
+        chainId === EVM_CHAIN_ID.OPBNB_MAINNET ||
+        chainId === EVM_CHAIN_ID.OPBNB_TESTNET ||
+        chainId === EVM_CHAIN_ID.COMBO_MAINNET ||
+        chainId === EVM_CHAIN_ID.COMBO_TESTNET
+    ) {
         const minUserOpGasPrice = 5 * 10 ** 8;
         Helper.assertTrue(BigNumber.from(userOpGasPrice).gte(minUserOpGasPrice), -32602, `maxFeePerGas or maxPriorityFeePerGas is too low`);
         return;
