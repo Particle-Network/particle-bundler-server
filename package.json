@@ -29,7 +29,6 @@
         "@nestjs/mongoose": "^9.2.1",
         "@nestjs/platform-fastify": "^10.1.2",
         "@nestjs/schedule": "^2.1.0",
-        "async-await-mutex-lock": "^1.0.10",
         "axios": "^1.4.0",
         "bn.js": "^5.2.1",
         "class-transformer": "^0.5.1",
