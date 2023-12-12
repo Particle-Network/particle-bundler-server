@@ -58,20 +58,21 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
         'preVerificationGas is too low',
     );
 
-    const [userOpHash, rSimulation, extraFee] = await Promise.all([
+    const [userOpHash, rSimulation, extraFee, signerFeeData] = await Promise.all([
         getUserOpHash(rpcService, chainId, userOp, entryPointInput),
         simulateHandleOpAndGetGasCost(rpcService, chainId, userOp, entryPointInput),
         getL2ExtraFee(rpcService, chainId, userOp, entryPointInput),
+        getFeeDataFromParticle(chainId, GAS_FEE_LEVEL.MEDIUM),
+        // do not care return value
         checkUserOpNonce(rpcService, chainId, userOp, entryPointInput),
+        checkUserOpCanExecutedSucceed(rpcService, chainId, userOp, entryPointInput),
     ]);
-
-    await checkUserOpCanExecutedSucceed(rpcService, chainId, userOp, entryPointInput);
 
     const gasCostInContract = BigNumber.from(rSimulation.gasCostInContract);
     const gasCostWholeTransaction = BigNumber.from(rSimulation.gasCostWholeTransaction);
     const gasCost = gasCostWholeTransaction.gt(gasCostInContract) ? gasCostWholeTransaction : gasCostInContract;
 
-    await checkUserOpGasPriceIsSatisfied(chainId, userOp, gasCost, extraFee);
+    checkUserOpGasPriceIsSatisfied(chainId, userOp, gasCost, extraFee, signerFeeData);
 
     await rpcService.aaService.userOperationService.createOrUpdateUserOperation(chainId, userOp, userOpHash, entryPointInput);
 
@@ -161,8 +162,7 @@ async function getUserOpHash(rpcService: RpcService, chainId: number, userOp: an
     return await contractEntryPoint.getUserOpHash(userOp);
 }
 
-async function checkUserOpGasPriceIsSatisfied(chainId: number, userOp: any, gasCost: any, extraFee: any) {
-    const signerFeeData = await getFeeDataFromParticle(chainId, GAS_FEE_LEVEL.MEDIUM);
+function checkUserOpGasPriceIsSatisfied(chainId: number, userOp: any, gasCost: any, extraFee: any, signerFeeData?: any) {
     const signerGasPrice = SUPPORT_EIP_1559.includes(chainId)
         ? calcUserOpGasPrice(signerFeeData, signerFeeData.baseFee)
         : signerFeeData.gasPrice;
@@ -236,7 +236,7 @@ async function checkUserOpCanExecutedSucceed(rpcService: RpcService, chainId: nu
     const signer = rpcService.aaService.getSigners(chainId)[0];
 
     const promises = [contractEntryPoint.handleOps.staticCall([userOp], signer.address)];
-    const { nonceKey, nonceValue } = splitOriginNonce(userOp.nonce);
+    const { nonceValue } = splitOriginNonce(userOp.nonce);
 
     // check account exists to replace check nonce??
     if (BigNumber.from(nonceValue).gte(1)) {
