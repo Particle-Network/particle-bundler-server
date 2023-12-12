@@ -1,9 +1,9 @@
 FROM --platform=linux/amd64 node:18.13.0-alpine3.17
 
-RUN yarn config set registry https://registry.npm.taobao.org
+RUN yarn config set registry https://registry.npmmirror.com
 RUN yarn --network-timeout 1000000
 
-RUN npm config set registry https://registry.npm.taobao.org
+RUN npm config set registry https://registry.npmmirror.com
 
 RUN npm install --location=global pm2
 RUN pm2 install pm2-logrotate
