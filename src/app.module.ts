@@ -8,12 +8,6 @@ import { mongodbConfigAsync } from './configs/mongodb.config';
 import { TaskModule } from './modules/task/task.module';
 
 @Module({
-    imports: [
-        ConfigModule.forRoot(configConfig),
-        MongooseModule.forRootAsync(mongodbConfigAsync),
-        CommonModule,
-        RpcModule,
-        TaskModule,
-    ],
+    imports: [ConfigModule.forRoot(configConfig), MongooseModule.forRootAsync(mongodbConfigAsync), CommonModule, RpcModule, TaskModule],
 })
 export class AppModule {}
