@@ -21,14 +21,14 @@ export async function getUserOperationReceipt(rpcService: RpcService, chainId: n
         return null;
     }
 
-    if (userOperation.status === USER_OPERATION_STATUS.PENDING) {
-        return await manuallyGetUserOperationReceipt(chainId, rpcService, userOperation);
-    }
-
     const [transaction, userOperationEvent] = await Promise.all([
         transactionService.getTransaction(chainId, userOperation.txHash),
         userOperationService.getUserOperationEvent(chainId, userOperation.userOpHash),
     ]);
+
+    if (userOperation.status === USER_OPERATION_STATUS.PENDING && !!transaction && transaction.status === TRANSACTION_STATUS.PENDING) {
+        return await manuallyGetUserOperationReceipt(chainId, rpcService, userOperation);
+    }
 
     if (!transaction || ![TRANSACTION_STATUS.FAILED, TRANSACTION_STATUS.SUCCESS].includes(transaction.status)) {
         return null;
@@ -96,7 +96,6 @@ export async function manuallyGetUserOperationReceipt(chainId: number, rpcServic
             success: userOperationEvent?.args[4] ?? false,
             logs,
             receipt,
-            isPending: true,
         });
     } catch (error) {
         console.error(error);
