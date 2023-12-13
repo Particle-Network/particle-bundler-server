@@ -106,7 +106,7 @@ async function sealUserOps(
             aaService.getFeeData(chainId),
         ]);
     } catch (error) {
-        const userOperationIds = userOperations.map((u) => u.id);
+        const userOperationIds = userOperations.map((u) => `${u.chainId}-${u.userOpHash}`);
         Logger.error(`fetch provider error on chain ${chainId}; UserOpIds ${JSON.stringify(userOperationIds)}`, error);
         Alert.sendMessage(
             `Fetch Provider Error On Chain ${chainId}; UserOpIds ${JSON.stringify(userOperationIds)}; ${Helper.converErrorToString(error)}`,

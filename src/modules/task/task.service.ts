@@ -12,10 +12,9 @@ import {
     PROCESS_NOTIFY_TYPE,
     keyLockSigner,
 } from '../../common/common-types';
-import { TRANSACTION_STATUS, TransactionDocument } from '../rpc/schemas/transaction.schema';
+import { TRANSACTION_STATUS } from '../rpc/schemas/transaction.schema';
 import { Helper } from '../../common/helper';
 import { UserOperationService } from '../rpc/services/user-operation.service';
-import { handlePendingTransaction, tryIncrTransactionGasPrice } from '../rpc/shared/handle-pending-transactions';
 import { handleLocalUserOperations } from '../rpc/shared/handle-local-user-operations';
 import { Cron } from '@nestjs/schedule';
 import Lock from '../../common/global-lock';
@@ -42,7 +41,12 @@ export class TaskService {
     ) {
         ProcessNotify.registerHandler((packet: any) => {
             if (packet.type === PROCESS_NOTIFY_TYPE.CREATE_USER_OPERATION) {
-                this.sealUserOps();
+                console.log('cccc', packet);
+
+                const { chainId, userOpDoc } = packet.data;
+                if (!!chainId && !!userOpDoc) {
+                    this.sealUserOps([userOpDoc]);
+                }
             }
         });
     }
@@ -53,7 +57,7 @@ export class TaskService {
     private inCheckingAndReleaseBlockSigners: boolean = false;
 
     @Cron('* * * * * *')
-    public async sealUserOps() {
+    public async sealUserOps(userOpDoc?: any[]) {
         if (!this.canRunCron() || this.inSealingUserOps) {
             return;
         }
@@ -61,7 +65,7 @@ export class TaskService {
         this.inSealingUserOps = true;
 
         try {
-            let userOperations = await this.userOperationService.getLocalUserOperations();
+            let userOperations = userOpDoc ?? (await this.userOperationService.getLocalUserOperations());
             userOperations = this.aaService.tryLockUserOperationsAndGetUnuseds(userOperations);
             if (userOperations.length <= 0) {
                 this.inSealingUserOps = false;

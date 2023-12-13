@@ -1,4 +1,4 @@
-import { Contract, getAddress, isAddress } from 'ethers';
+import { Contract, JsonRpcProvider, getAddress, isAddress } from 'ethers';
 import { JsonRPCRequestDto } from '../dtos/json-rpc-request.dto';
 import { RpcService } from '../services/rpc.service';
 import { Helper } from '../../../common/helper';
@@ -60,11 +60,19 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
     );
 
     const userOpHash = getUserOpHash(chainId, userOp, entryPointInput);
+    const { nonceKey, nonceValue } = splitOriginNonce(userOp.nonce);
+    const userOpSender = getAddress(userOp.sender);
 
-    const [rSimulation, extraFee, signerFeeData] = await Promise.all([
+    const [rSimulation, extraFee, signerFeeData, userOpDoc] = await Promise.all([
         simulateHandleOpAndGetGasCost(rpcService, chainId, userOp, entryPointInput),
         getL2ExtraFee(rpcService, chainId, userOp, entryPointInput),
         rpcService.aaService.getFeeData(chainId),
+        rpcService.aaService.userOperationService.getUserOperationByAddressNonce(
+            chainId,
+            userOpSender,
+            nonceKey,
+            BigNumber.from(nonceValue).toString(),
+        ),
         // do not care return value
         checkUserOpCanExecutedSucceed(rpcService, chainId, userOp, entryPointInput),
     ]);
@@ -75,8 +83,15 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
 
     checkUserOpGasPriceIsSatisfied(chainId, userOp, gasCost, extraFee, signerFeeData);
 
-    await rpcService.aaService.userOperationService.createOrUpdateUserOperation(chainId, userOp, userOpHash, entryPointInput);
-    ProcessNotify.sendMessages(PROCESS_NOTIFY_TYPE.CREATE_USER_OPERATION);
+    const { userOpDoc: NewUserOpDoc } = await rpcService.aaService.userOperationService.createOrUpdateUserOperation(
+        chainId,
+        userOp,
+        userOpHash,
+        entryPointInput,
+        userOpDoc,
+    );
+
+    ProcessNotify.sendMessages(PROCESS_NOTIFY_TYPE.CREATE_USER_OPERATION, { chainId, userOpDoc: NewUserOpDoc.toJSON() });
 
     return userOpHash;
 }
@@ -89,9 +104,10 @@ export async function simulateHandleOpAndGetGasCost(rpcService: RpcService, chai
     const provider = rpcService.getJsonRpcProvider(chainId);
     const contractEntryPoint = new Contract(entryPoint, EntryPointAbi, provider);
 
-    let errorResult = await contractEntryPoint.simulateHandleOp
-        .staticCall(userOp, '0x0000000000000000000000000000000000000000', '0x')
-        .catch((e) => e);
+    let [errorResult, gasCostWholeTransaction] = await Promise.all([
+        contractEntryPoint.simulateHandleOp.staticCall(userOp, '0x0000000000000000000000000000000000000000', '0x').catch((e) => e),
+        tryGetGasCostWholeTransaction(chainId, provider, contractEntryPoint, entryPoint, userOp),
+    ]);
 
     if (!errorResult?.revert) {
         // Comptibility with GNOSIS_NETWORK
@@ -117,23 +133,6 @@ export async function simulateHandleOpAndGetGasCost(rpcService: RpcService, chai
     }
 
     const gasCostInContract = BigNumber.from(errorResult?.revert?.args[1]).toHexString();
-    let gasCostWholeTransaction = '0x0';
-    if (USE_PROXY_CONTRACT_TO_ESTIMATE_GAS.includes(chainId)) {
-        const simulateHandleOpTx = await contractEntryPoint.simulateHandleOp.populateTransaction(
-            userOp,
-            '0x0000000000000000000000000000000000000000',
-            '0x',
-        );
-
-        const multiCallContract = new Contract(MULTI_CALL_3_ADDRESS, MultiCall3Abi, provider);
-        const toEstimatedTx = await multiCallContract.tryAggregate.populateTransaction(false, [
-            {
-                target: entryPoint,
-                callData: simulateHandleOpTx.data,
-            },
-        ]);
-        gasCostWholeTransaction = BigNumber.from(await provider.estimateGas(toEstimatedTx)).toHexString();
-    }
 
     return { gasCostInContract, gasCostWholeTransaction };
 }
@@ -231,4 +230,33 @@ async function checkUserOpCanExecutedSucceed(rpcService: RpcService, chainId: nu
 
         throw new AppException(-32606, AppExceptionMessages.messageExtend(-32606, error?.revert?.args.at(-1)), error?.transaction);
     }
+}
+
+async function tryGetGasCostWholeTransaction(
+    chainId: number,
+    provider: JsonRpcProvider,
+    contractEntryPoint: Contract,
+    entryPoint: string,
+    userOp: any,
+) {
+    let gasCostWholeTransaction = '0x0';
+
+    if (USE_PROXY_CONTRACT_TO_ESTIMATE_GAS.includes(chainId)) {
+        const simulateHandleOpTx = await contractEntryPoint.simulateHandleOp.populateTransaction(
+            userOp,
+            '0x0000000000000000000000000000000000000000',
+            '0x',
+        );
+
+        const multiCallContract = new Contract(MULTI_CALL_3_ADDRESS, MultiCall3Abi, provider);
+        const toEstimatedTx = await multiCallContract.tryAggregate.populateTransaction(false, [
+            {
+                target: entryPoint,
+                callData: simulateHandleOpTx.data,
+            },
+        ]);
+        gasCostWholeTransaction = BigNumber.from(await provider.estimateGas(toEstimatedTx)).toHexString();
+    }
+
+    return gasCostWholeTransaction;
 }

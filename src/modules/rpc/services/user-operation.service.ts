@@ -19,11 +19,18 @@ export class UserOperationService {
     ) {}
 
     // TODO: should use mongodb transaction
-    public async createOrUpdateUserOperation(chainId: number, userOp: any, userOpHash: string, entryPoint: string) {
+    public async createOrUpdateUserOperation(
+        chainId: number,
+        userOp: any,
+        userOpHash: string,
+        entryPoint: string,
+        userOpDoc?: UserOperationDocument,
+    ) {
         const userOpSender = getAddress(userOp.sender);
         const { nonceKey, nonceValue } = splitOriginNonce(userOp.nonce);
 
-        let userOpDoc = await this.getUserOperationByAddressNonce(chainId, userOpSender, nonceKey, BigNumber.from(nonceValue).toString());
+        userOpDoc =
+            userOpDoc ?? (await this.getUserOperationByAddressNonce(chainId, userOpSender, nonceKey, BigNumber.from(nonceValue).toString()));
 
         // Allow to replace failed user operation, because the nonce of the user operation is not increased
         if (userOpDoc) {
@@ -36,7 +43,6 @@ export class UserOperationService {
 
             return {
                 userOpDoc: await this.resetToLocal(userOpDoc, userOpHash, entryPoint, userOp),
-                replaced: true,
             };
         }
 
@@ -51,9 +57,10 @@ export class UserOperationService {
             status: USER_OPERATION_STATUS.LOCAL,
         });
 
+        userOperation.save(); // async save
+
         return {
-            userOpDoc: await userOperation.save(),
-            replaced: false,
+            userOpDoc: userOperation,
         };
     }
 

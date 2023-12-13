@@ -19,7 +19,7 @@ const GAS_FEE_TIMEOUT = 5000; // 5s
 @Injectable()
 export class AAService {
     private readonly blockedSigners: Map<string, any & { reason: BLOCK_SIGNER_REASON }> = new Map();
-    private readonly lockedUserOperationIds: Set<string> = new Set();
+    private readonly lockedUserOperationHashes: Set<string> = new Set();
     private readonly feeCaches: Map<number, { fee: any; timestamp: number }> = new Map();
     private readonly transactionCountCaches: Map<string, number> = new Map();
 
@@ -104,11 +104,12 @@ export class AAService {
     public tryLockUserOperationsAndGetUnuseds(userOperations: UserOperationDocument[]): UserOperationDocument[] {
         const unusedUserOperations = [];
         for (const userOperation of userOperations) {
-            if (this.lockedUserOperationIds.has(userOperation.id)) {
+            const key = `${userOperation.chainId}-${userOperation.userOpHash}`;
+            if (this.lockedUserOperationHashes.has(key)) {
                 continue;
             }
 
-            this.lockedUserOperationIds.add(userOperation.id);
+            this.lockedUserOperationHashes.add(key);
             unusedUserOperations.push(userOperation);
         }
 
@@ -117,7 +118,8 @@ export class AAService {
 
     public unlockUserOperations(userOperations: UserOperationDocument[]) {
         for (const userOperation of userOperations) {
-            this.lockedUserOperationIds.delete(userOperation.id);
+            const key = `${userOperation.chainId}-${userOperation.userOpHash}`;
+            this.lockedUserOperationHashes.delete(key);
         }
     }
 
