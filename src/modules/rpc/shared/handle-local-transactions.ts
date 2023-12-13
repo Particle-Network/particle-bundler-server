@@ -60,7 +60,7 @@ export async function createBundleTransaction(
         });
 
         // no need to await
-        trySendAndUpdateTransactionStatus(localTransaction, provider, rpcService, aaService, mongodbConnection);
+        trySendAndUpdateTransactionStatus(localTransaction, provider, rpcService, aaService, mongodbConnection, true);
     } catch (error) {
         console.error('Failed to create bundle transaction', error);
         Alert.sendMessage(`Failed to create bundle transaction: ${Helper.converErrorToString(error)}`);
@@ -92,6 +92,7 @@ export async function trySendAndUpdateTransactionStatus(
     rpcService: RpcService,
     aaService: AAService,
     mongodbConnection: Connection,
+    skipCheck: boolean = false,
 ) {
     const currentSignedTx = transaction.getCurrentSignedTx();
     const currentSignedTxHash = keccak256(currentSignedTx);
@@ -112,13 +113,15 @@ export async function trySendAndUpdateTransactionStatus(
         return;
     }
 
-    transaction = await aaService.transactionService.getTransactionById(transaction.id);
-    if (!transaction.isLocal()) {
-        Logger.log(
-            `trySendAndUpdateTransactionStatus release !transaction.isLocal(); Hash: ${currentSignedTxHash} On Chain ${transaction.chainId}`,
-        );
-        Lock.release(keyLock);
-        return;
+    if (!skipCheck) {
+        transaction = await aaService.transactionService.getTransactionById(transaction.id);
+        if (!transaction.isLocal()) {
+            Logger.log(
+                `trySendAndUpdateTransactionStatus release !transaction.isLocal(); Hash: ${currentSignedTxHash} On Chain ${transaction.chainId}`,
+            );
+            Lock.release(keyLock);
+            return;
+        }
     }
 
     try {
