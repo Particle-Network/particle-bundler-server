@@ -19,7 +19,7 @@ import { handlePendingTransaction, tryIncrTransactionGasPrice } from '../rpc/sha
 import { handleLocalUserOperations } from '../rpc/shared/handle-local-user-operations';
 import { Cron } from '@nestjs/schedule';
 import Lock from '../../common/global-lock';
-import { handleLocalTransaction } from '../rpc/shared/handle-local-transactions';
+import { getReceiptAndHandlePendingTransactions, handleLocalTransaction } from '../rpc/shared/handle-local-transactions';
 import { CHAIN_BALANCE_RANGE, CHAIN_SIGNER_MIN_BALANCE } from '../../configs/bundler-common';
 import { Wallet, parseEther } from 'ethers';
 import { BigNumber } from '../../common/bignumber';
@@ -169,48 +169,7 @@ export class TaskService {
     private async handlePendingTransactionsAction() {
         const pendingTransactions = await this.transactionService.getTransactionsByStatus(TRANSACTION_STATUS.PENDING, FETCH_TRANSACTION_SIZE);
         for (const pendingTransaction of pendingTransactions) {
-            this.getReceiptAndHandlePendingTransactions(pendingTransaction);
-        }
-    }
-
-    private async getReceiptAndHandlePendingTransactions(pendingTransaction: TransactionDocument) {
-        try {
-            const provider = this.rpcService.getJsonRpcProvider(pendingTransaction.chainId);
-            const receiptPromises = pendingTransaction.txHashes.map((txHash) => this.rpcService.getTransactionReceipt(provider, txHash));
-            const receipts = await Promise.all(receiptPromises);
-
-            Logger.log('getReceiptAndHandlePendingTransactions', receipts.length);
-            if (receipts.some((r) => !!r)) {
-                Logger.log(
-                    'receipts',
-                    receipts.map((r: any, index: number) => {
-                        return {
-                            result: !!r,
-                            txHash: pendingTransaction.txHashes[index],
-                            chainId: pendingTransaction.chainId,
-                            from: pendingTransaction.from,
-                            nonce: pendingTransaction.nonce,
-                        };
-                    }),
-                );
-            }
-
-            for (const receipt of receipts) {
-                if (!!receipt) {
-                    await handlePendingTransaction(provider, receipt, this.connection, pendingTransaction, this.aaService);
-                    return;
-                }
-            }
-
-            if (!pendingTransaction.isPendingTimeout()) {
-                return;
-            }
-
-            await tryIncrTransactionGasPrice(pendingTransaction, this.connection, provider, this.aaService);
-        } catch (error) {
-            Logger.error('getReceiptAndHandlePendingTransactions error', error);
-
-            Alert.sendMessage(`getReceiptAndHandlePendingTransactions Error: ${Helper.converErrorToString(error)}`);
+            getReceiptAndHandlePendingTransactions(pendingTransaction, this.rpcService, this.connection);
         }
     }
 

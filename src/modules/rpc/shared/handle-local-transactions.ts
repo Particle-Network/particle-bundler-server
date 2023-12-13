@@ -7,7 +7,7 @@ import { TRANSACTION_STATUS, TransactionDocument } from '../schemas/transaction.
 import { UserOperationDocument } from '../schemas/user-operation.schema';
 import { AAService } from '../services/aa.service';
 import Lock from '../../../common/global-lock';
-import { handlePendingTransaction } from './handle-pending-transactions';
+import { handlePendingTransaction, tryIncrTransactionGasPrice } from './handle-pending-transactions';
 import { BigNumber } from '../../../common/bignumber';
 import { RpcService } from '../services/rpc.service';
 import { Alert } from '../../../common/alert';
@@ -19,7 +19,7 @@ export async function createBundleTransaction(
     entryPoint: string,
     mongodbConnection: Connection,
     provider: JsonRpcProvider,
-    aaService: AAService,
+    rpcService: RpcService,
     userOperationDocuments: UserOperationDocument[],
     bundleGasLimit: string,
     signer: Wallet,
@@ -27,6 +27,7 @@ export async function createBundleTransaction(
     feeData: any,
 ) {
     try {
+        const aaService = rpcService.aaService;
         const beneficiary = signer.address;
         const entryPointContract = new Contract(entryPoint, entryPointAbi, provider);
         const userOps = userOperationDocuments.map((userOperationDocument) => userOperationDocument.origin);
@@ -59,7 +60,7 @@ export async function createBundleTransaction(
         });
 
         // no need to await
-        trySendAndUpdateTransactionStatus(localTransaction, provider, aaService);
+        trySendAndUpdateTransactionStatus(localTransaction, provider, rpcService, aaService, mongodbConnection);
     } catch (error) {
         console.error('Failed to create bundle transaction', error);
         Alert.sendMessage(`Failed to create bundle transaction: ${Helper.converErrorToString(error)}`);
@@ -82,10 +83,16 @@ export async function handleLocalTransaction(
         return;
     }
 
-    trySendAndUpdateTransactionStatus(localTransaction, provider, aaService);
+    trySendAndUpdateTransactionStatus(localTransaction, provider, rpcService, aaService, mongodbConnection);
 }
 
-export async function trySendAndUpdateTransactionStatus(transaction: TransactionDocument, provider: JsonRpcProvider, aaService: AAService) {
+export async function trySendAndUpdateTransactionStatus(
+    transaction: TransactionDocument,
+    provider: JsonRpcProvider,
+    rpcService: RpcService,
+    aaService: AAService,
+    mongodbConnection: Connection,
+) {
     const currentSignedTx = transaction.getCurrentSignedTx();
     const currentSignedTxHash = keccak256(currentSignedTx);
     const keyLock = keyLockSendingTransaction(transaction.chainId, currentSignedTxHash);
@@ -135,7 +142,10 @@ export async function trySendAndUpdateTransactionStatus(transaction: Transaction
         return;
     }
 
-    await aaService.transactionService.updateTransactionStatus(transaction, TRANSACTION_STATUS.PENDING);
+    await Promise.all([
+        tryGetReceiptAndHandlePendingTransactionsDirectly(transaction, rpcService, mongodbConnection),
+        aaService.transactionService.updateTransactionStatus(transaction, TRANSACTION_STATUS.PENDING),
+    ]);
 
     Logger.log(`trySendAndUpdateTransactionStatus release hash: ${currentSignedTxHash} On Chain ${transaction.chainId}`);
     Lock.release(keyLock);
@@ -155,4 +165,67 @@ export function createTxGasData(chainId: number, feeData: any) {
         maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ?? 0,
         maxFeePerGas: feeData.maxFeePerGas ?? 0,
     };
+}
+
+async function tryGetReceiptAndHandlePendingTransactionsDirectly(
+    pendingTransaction: TransactionDocument,
+    rpcService: RpcService,
+    mongodbConnection: Connection,
+) {
+    for (let index = 0; index < 10; index++) {
+        const [result] = await Promise.all([
+            getReceiptAndHandlePendingTransactions(pendingTransaction, rpcService, mongodbConnection),
+            new Promise((resolve) => setTimeout(resolve, 500)),
+        ]);
+
+        if (result) {
+            return;
+        }
+    }
+}
+
+export async function getReceiptAndHandlePendingTransactions(
+    pendingTransaction: TransactionDocument,
+    rpcService: RpcService,
+    mongodbConnection: Connection,
+) {
+    try {
+        const provider = rpcService.getJsonRpcProvider(pendingTransaction.chainId);
+        const receiptPromises = pendingTransaction.txHashes.map((txHash) => rpcService.getTransactionReceipt(provider, txHash));
+        const receipts = await Promise.all(receiptPromises);
+
+        Logger.log('getReceiptAndHandlePendingTransactions', receipts.length);
+        if (receipts.some((r) => !!r)) {
+            Logger.log(
+                'receipts',
+                receipts.map((r: any, index: number) => {
+                    return {
+                        result: !!r,
+                        txHash: pendingTransaction.txHashes[index],
+                        chainId: pendingTransaction.chainId,
+                        from: pendingTransaction.from,
+                        nonce: pendingTransaction.nonce,
+                    };
+                }),
+            );
+        }
+
+        for (const receipt of receipts) {
+            if (!!receipt) {
+                await handlePendingTransaction(provider, receipt, mongodbConnection, pendingTransaction, rpcService.aaService);
+                return true;
+            }
+        }
+
+        if (!pendingTransaction.isPendingTimeout()) {
+            return false;
+        }
+
+        await tryIncrTransactionGasPrice(pendingTransaction, mongodbConnection, provider, rpcService.aaService);
+        return false;
+    } catch (error) {
+        Logger.error('getReceiptAndHandlePendingTransactions error', error);
+
+        Alert.sendMessage(`getReceiptAndHandlePendingTransactions Error: ${Helper.converErrorToString(error)}`);
+    }
 }

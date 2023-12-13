@@ -131,7 +131,7 @@ async function sealUserOps(
             bundle.userOperations[0].entryPoint,
             mongodbConnection,
             provider,
-            aaService,
+            rpcService,
             bundle.userOperations,
             bundle.gasLimit,
             signer,

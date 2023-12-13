@@ -13,7 +13,7 @@ import {
 } from '../../../common/app-exception';
 import { EVM_CHAIN_ID, L2_GAS_ORACLE, SUPPORT_EIP_1559, getBundlerConfig } from '../../../configs/bundler-common';
 import { Logger } from '@nestjs/common';
-import { DUMMY_SIGNATURE, GAS_FEE_LEVEL } from '../../../common/common-types';
+import { DUMMY_SIGNATURE } from '../../../common/common-types';
 import { getL2ExtraFee, simulateHandleOpAndGetGasCost } from './send-user-operation';
 
 const abiCoder = AbiCoder.defaultAbiCoder();
