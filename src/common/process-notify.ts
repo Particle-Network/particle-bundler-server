@@ -18,8 +18,6 @@ class ProcessNotifyClass {
 
     public constructor() {
         process.on('message', (packet: any) => {
-            console.log('eeee', packet);
-
             if (typeof packet !== 'object' || !packet?.type) {
                 return;
             }
@@ -31,8 +29,6 @@ class ProcessNotifyClass {
     }
 
     public sendMessages(type: PROCESS_NOTIFY_TYPE, data: any = null) {
-        console.log('fffff', nodeIds, type);
-
         for (const nodeId of nodeIds) {
             pm2.sendDataToProcessId(
                 nodeId,
