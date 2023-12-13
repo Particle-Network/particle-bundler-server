@@ -22,6 +22,7 @@ export class AAService {
     private readonly lockedUserOperationHashes: Set<string> = new Set();
     private readonly feeCaches: Map<number, { fee: any; timestamp: number }> = new Map();
     private readonly transactionCountCaches: Map<string, number> = new Map();
+    private readonly userOpHashReceipts: Map<string, any> = new Map();
 
     private bundlingMode: BUNDLING_MODE = IS_DEVELOPMENT && process.env.MANUAL_MODE ? BUNDLING_MODE.MANUAL : BUNDLING_MODE.AUTO;
 
@@ -46,6 +47,18 @@ export class AAService {
 
                 if (!!chainId && !!address) {
                     this.setTransactionCountLocalCache(chainId, address, nonce);
+                }
+            }
+
+            if (packet.type === PROCESS_NOTIFY_TYPE.SET_RECEIPT) {
+                const { chainId, userOpHashes, receipt } = packet.data;
+
+                console.log(`Set Receipt On Chain ${chainId} For ${userOpHashes}`, receipt);
+
+                if (!!chainId && !!userOpHashes && !!receipt) {
+                    for (const userOpHash of userOpHashes) {
+                        this.setUserOpHashReceipt(chainId, userOpHash, receipt);
+                    }
                 }
             }
         });
@@ -176,5 +189,23 @@ export class AAService {
     // cache once is ok, because nonce will be used from database
     private setTransactionCountLocalCache(chainId: number, address: string, nonce: any) {
         this.transactionCountCaches.set(`${chainId}-${address}`, nonce);
+    }
+
+    public async getUserOpHashReceipts(chainId: number, userOpHash: string): Promise<any> {
+        const key = `${chainId}-${userOpHash}`;
+        if (this.userOpHashReceipts.has(key)) {
+            return this.userOpHashReceipts.get(key);
+        }
+
+        return null;
+    }
+
+    private setUserOpHashReceipt(chainId: number, userOpHash: string, receipt: any) {
+        const key = `${chainId}-${userOpHash}`;
+        this.userOpHashReceipts.set(key, receipt);
+
+        setTimeout(() => {
+            this.userOpHashReceipts.delete(key);
+        }, 10000);
     }
 }

@@ -13,6 +13,7 @@ import { createTxGasData } from './handle-local-transactions';
 import { BigNumber } from '../../../common/bignumber';
 import { deepHexlify } from '../aa/utils';
 import { Alert } from '../../../common/alert';
+import { ProcessNotify } from '../../../common/process-notify';
 
 export async function tryIncrTransactionGasPrice(
     transaction: TransactionDocument,
@@ -150,6 +151,12 @@ export async function handlePendingTransaction(
     if (!receipt) {
         return;
     }
+
+    ProcessNotify.sendMessages(PROCESS_NOTIFY_TYPE.SET_RECEIPT, {
+        chainId: transaction.chainId,
+        userOpHashes: transaction.userOperationHashes,
+        receipt,
+    });
 
     const keyLock = keyLockPendingTransaction(transaction.id);
     if (Lock.isAcquired(keyLock)) {

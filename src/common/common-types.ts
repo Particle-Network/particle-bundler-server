@@ -28,6 +28,7 @@ export enum PROCESS_NOTIFY_TYPE {
     CREATE_USER_OPERATION = 'create_user_operation',
     GET_GAS_FEE = 'get_gas_fee',
     GET_TRANSACTION_COUNT = 'get_transaction_count',
+    SET_RECEIPT = 'set_receipt',
 }
 
 export function keyLockPendingTransaction(id: string) {
