@@ -41,8 +41,6 @@ export class TaskService {
     ) {
         ProcessNotify.registerHandler((packet: any) => {
             if (packet.type === PROCESS_NOTIFY_TYPE.CREATE_USER_OPERATION) {
-                console.log('cccc', packet);
-
                 const { chainId, userOpDoc } = packet.data;
                 if (!!chainId && !!userOpDoc) {
                     this.sealUserOps([userOpDoc]);
