@@ -178,7 +178,7 @@ async function tryGetReceiptAndHandlePendingTransactionsDirectly(
     for (let index = 0; index < 10; index++) {
         const [result] = await Promise.all([
             getReceiptAndHandlePendingTransactions(pendingTransaction, rpcService, mongodbConnection),
-            new Promise((resolve) => setTimeout(resolve, 500)),
+            new Promise((resolve) => setTimeout(resolve, 300)),
         ]);
 
         if (result) {

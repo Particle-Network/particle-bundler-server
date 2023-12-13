@@ -3,6 +3,7 @@
  */
 
 const BN = require('bn.js');
+import { trimStart } from 'lodash';
 // import BN = _BN.BN;
 
 import { Bytes, Hexable, hexlify, isBytes, isHexString } from '@ethersproject/bytes';
@@ -213,7 +214,18 @@ export class BigNumber implements Hexable {
     }
 
     toHexString(): string {
-        return this._hex;
+        let hex = this._hex;
+
+        // 0x0123 -> 0x123
+        if (hex.startsWith('0x')) {
+            const hexTemp = hex.slice(2);
+            const hexTrim = trimStart(hexTemp, '0');
+            if (hexTrim !== '') {
+                return `0x${hexTrim}`;
+            }
+        }
+
+        return hex;
     }
 
     toJSON(key?: string): any {

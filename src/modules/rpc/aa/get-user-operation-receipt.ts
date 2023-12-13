@@ -27,7 +27,9 @@ export async function getUserOperationReceipt(rpcService: RpcService, chainId: n
     ]);
 
     if (userOperation.status === USER_OPERATION_STATUS.PENDING && !!transaction && transaction.status === TRANSACTION_STATUS.PENDING) {
-        return await manuallyGetUserOperationReceipt(chainId, rpcService, userOperation);
+        if (Date.now() - transaction.latestSentAt.getTime() > 5000) {
+            return await manuallyGetUserOperationReceipt(chainId, rpcService, userOperation);
+        }
     }
 
     if (!transaction || ![TRANSACTION_STATUS.FAILED, TRANSACTION_STATUS.SUCCESS].includes(transaction.status)) {
