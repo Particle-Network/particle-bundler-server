@@ -5,7 +5,13 @@ import { InjectConnection } from '@nestjs/mongoose';
 import { Connection } from 'mongoose';
 import { RpcService } from '../rpc/services/rpc.service';
 import { TransactionService } from '../rpc/services/transaction.service';
-import { BLOCK_SIGNER_REASON, IS_DEVELOPMENT, PENDING_TRANSACTION_SIGNER_HANDLE_LIMIT, keyLockSigner } from '../../common/common-types';
+import {
+    BLOCK_SIGNER_REASON,
+    IS_DEVELOPMENT,
+    PENDING_TRANSACTION_SIGNER_HANDLE_LIMIT,
+    PROCESS_NOTIFY_TYPE,
+    keyLockSigner,
+} from '../../common/common-types';
 import { TRANSACTION_STATUS, TransactionDocument } from '../rpc/schemas/transaction.schema';
 import { Helper } from '../../common/helper';
 import { UserOperationService } from '../rpc/services/user-operation.service';
@@ -21,6 +27,7 @@ import { Alert } from '../../common/alert';
 import { isObject } from 'lodash';
 import { getFeeDataFromParticle } from '../rpc/aa/utils';
 import { UserOperationDocument } from '../rpc/schemas/user-operation.schema';
+import { ProcessNotify } from '../../common/process-notify';
 
 const FETCH_TRANSACTION_SIZE = 500;
 
@@ -33,7 +40,13 @@ export class TaskService {
         private readonly transactionService: TransactionService,
         private readonly userOperationService: UserOperationService,
         @InjectConnection() private readonly connection: Connection,
-    ) {}
+    ) {
+        ProcessNotify.registerHandler((packet: any) => {
+            if (packet.type === PROCESS_NOTIFY_TYPE.CREATE_USER_OPERATION) {
+                this.sealUserOps();
+            }
+        });
+    }
 
     private canRun: boolean = true;
     private inSealingUserOps: boolean = false;
@@ -88,7 +101,7 @@ export class TaskService {
 
         await handleLocalUserOperations(chainId, this.rpcService, this.aaService, targetSigner, userOperations, this.connection);
         Lock.release(keyLockSigner(chainId, targetSigner.address));
-        
+
         await new Promise((resolve) => setTimeout(resolve, 2000));
         this.aaService.unlockUserOperations(userOperations);
     }

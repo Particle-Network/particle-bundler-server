@@ -2,7 +2,7 @@ import { Contract, getAddress, isAddress } from 'ethers';
 import { JsonRPCRequestDto } from '../dtos/json-rpc-request.dto';
 import { RpcService } from '../services/rpc.service';
 import { Helper } from '../../../common/helper';
-import { GAS_FEE_LEVEL, IS_PRODUCTION, MULTI_CALL_3_ADDRESS } from '../../../common/common-types';
+import { GAS_FEE_LEVEL, IS_PRODUCTION, MULTI_CALL_3_ADDRESS, PROCESS_NOTIFY_TYPE } from '../../../common/common-types';
 import {
     AppException,
     AppExceptionMessages,
@@ -23,6 +23,7 @@ import { calcPreVerificationGas } from '@account-abstraction/sdk';
 import l1GasPriceOracleAbi from './l1-gas-price-oracle-abi';
 import { cloneDeep } from 'lodash';
 import MultiCall3Abi from './multi-call-3-abi';
+import { ProcessNotify } from '../../../common/process-notify';
 
 export async function sendUserOperation(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
     const userOp = body.params[0];
@@ -75,6 +76,7 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
     checkUserOpGasPriceIsSatisfied(chainId, userOp, gasCost, extraFee, signerFeeData);
 
     await rpcService.aaService.userOperationService.createOrUpdateUserOperation(chainId, userOp, userOpHash, entryPointInput);
+    ProcessNotify.sendToNodes(PROCESS_NOTIFY_TYPE.CREATE_USER_OPERATION);
 
     return userOpHash;
 }

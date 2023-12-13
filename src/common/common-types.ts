@@ -24,6 +24,10 @@ export enum GAS_FEE_LEVEL {
     HIGH = 'high',
 }
 
+export enum PROCESS_NOTIFY_TYPE {
+    CREATE_USER_OPERATION = 'create_user_operation',
+}
+
 export function keyLockPendingTransaction(id: string) {
     return `bundler:lock:pending_transaction:${id}`;
 }
