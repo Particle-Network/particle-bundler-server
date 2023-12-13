@@ -3,8 +3,7 @@ import { AAService } from '../services/aa.service';
 import { Helper } from '../../../common/helper';
 import { RpcService } from '../services/rpc.service';
 import { UserOperationDocument } from '../schemas/user-operation.schema';
-import { GAS_FEE_LEVEL } from '../../../common/common-types';
-import { calcUserOpTotalGasLimit, getFeeDataFromParticle } from '../aa/utils';
+import { calcUserOpTotalGasLimit } from '../aa/utils';
 import { createBundleTransaction } from './handle-local-transactions';
 import { Connection } from 'mongoose';
 import { BigNumber } from '../../../common/bignumber';
@@ -103,8 +102,8 @@ async function sealUserOps(
     try {
         [latestTransaction, latestNonce, feeData] = await Promise.all([
             aaService.transactionService.getLatestTransaction(chainId, signer.address),
-            provider.getTransactionCount(signer.address, 'latest'),
-            getFeeDataFromParticle(chainId, GAS_FEE_LEVEL.MEDIUM),
+            aaService.getTransactionCountLocalCache(provider, chainId, signer.address),
+            aaService.getFeeData(chainId),
         ]);
     } catch (error) {
         const userOperationIds = userOperations.map((u) => u.id);
@@ -139,7 +138,7 @@ async function sealUserOps(
             finalizedNonce,
             newFeeData,
         );
-        
+
         finalizedNonce++;
     }
 }

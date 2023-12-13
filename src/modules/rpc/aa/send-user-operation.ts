@@ -9,7 +9,7 @@ import {
     MESSAGE_32602_INVALID_ENTRY_POINT_ADDRESS,
     MESSAGE_32602_INVALID_USEROP_TYPE,
 } from '../../../common/app-exception';
-import { calcUserOpGasPrice, calcUserOpTotalGasLimit, getFeeDataFromParticle, isUserOpValid, splitOriginNonce } from './utils';
+import { calcUserOpGasPrice, calcUserOpTotalGasLimit, isUserOpValid, splitOriginNonce } from './utils';
 import { BigNumber } from '../../../common/bignumber';
 import {
     EVM_CHAIN_ID,
@@ -63,7 +63,7 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
         getUserOpHash(rpcService, chainId, userOp, entryPointInput),
         simulateHandleOpAndGetGasCost(rpcService, chainId, userOp, entryPointInput),
         getL2ExtraFee(rpcService, chainId, userOp, entryPointInput),
-        getFeeDataFromParticle(chainId, GAS_FEE_LEVEL.MEDIUM),
+        rpcService.aaService.getFeeData(chainId),
         // do not care return value
         checkUserOpNonce(rpcService, chainId, userOp, entryPointInput),
         checkUserOpCanExecutedSucceed(rpcService, chainId, userOp, entryPointInput),
@@ -76,7 +76,7 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
     checkUserOpGasPriceIsSatisfied(chainId, userOp, gasCost, extraFee, signerFeeData);
 
     await rpcService.aaService.userOperationService.createOrUpdateUserOperation(chainId, userOp, userOpHash, entryPointInput);
-    ProcessNotify.sendToNodes(PROCESS_NOTIFY_TYPE.CREATE_USER_OPERATION);
+    ProcessNotify.sendMessages(PROCESS_NOTIFY_TYPE.CREATE_USER_OPERATION);
 
     return userOpHash;
 }

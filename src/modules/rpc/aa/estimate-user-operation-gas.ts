@@ -3,7 +3,7 @@ import { JsonRPCRequestDto } from '../dtos/json-rpc-request.dto';
 import { RpcService } from '../services/rpc.service';
 import { Helper } from '../../../common/helper';
 import { calcPreVerificationGas } from '@account-abstraction/sdk';
-import { calcUserOpGasPrice, deepHexlify, getFeeDataFromParticle, hexConcat, isUserOpValid } from './utils';
+import { calcUserOpGasPrice, deepHexlify, hexConcat, isUserOpValid } from './utils';
 import { BigNumber } from '../../../common/bignumber';
 import {
     AppException,
@@ -120,7 +120,7 @@ async function estimateGasLimit(provider: JsonRpcProvider, entryPoint: string, u
 async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string) {
     const [rSimulation, userOpFeeData, extraFee] = await Promise.all([
         simulateHandleOpAndGetGasCost(rpcService, chainId, userOp, entryPoint),
-        getFeeDataFromParticle(chainId, GAS_FEE_LEVEL.MEDIUM),
+        rpcService.aaService.getFeeData(chainId),
         getL2ExtraFee(rpcService, chainId, userOp, entryPoint),
     ]);
 

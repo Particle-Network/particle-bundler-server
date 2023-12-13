@@ -1,6 +1,6 @@
 import { Contract, JsonRpcProvider } from 'ethers';
 import { Connection } from 'mongoose';
-import { EVENT_ENTRY_POINT_USER_OPERATION, keyLockPendingTransaction } from '../../../common/common-types';
+import { EVENT_ENTRY_POINT_USER_OPERATION, PROCESS_NOTIFY_TYPE, keyLockPendingTransaction } from '../../../common/common-types';
 import { Helper } from '../../../common/helper';
 import { TRANSACTION_STATUS, TransactionDocument } from '../schemas/transaction.schema';
 import { AAService } from '../services/aa.service';
@@ -11,7 +11,7 @@ import { AppException } from '../../../common/app-exception';
 import { Logger } from '@nestjs/common';
 import { createTxGasData } from './handle-local-transactions';
 import { BigNumber } from '../../../common/bignumber';
-import { deepHexlify, getFeeDataFromParticle } from '../aa/utils';
+import { deepHexlify } from '../aa/utils';
 import { Alert } from '../../../common/alert';
 
 export async function tryIncrTransactionGasPrice(
@@ -29,7 +29,7 @@ export async function tryIncrTransactionGasPrice(
 
     await Lock.acquire(keyLock);
     try {
-        const remoteNonce = await provider.getTransactionCount(transaction.from, 'latest');
+        const remoteNonce = await aaService.getTransactionCountLocalCache(provider, transaction.chainId, transaction.from, true);
         if (remoteNonce != transaction.nonce) {
             Logger.log('tryIncrTransactionGasPrice release', 'remoteNonce != transaction.nonce', remoteNonce, transaction.nonce);
             Lock.release(keyLock);
@@ -37,7 +37,9 @@ export async function tryIncrTransactionGasPrice(
         }
     } catch (error) {
         Alert.sendMessage(
-            `TryIncrTransactionGasPrice GetTransactionCount Error On Chain ${transaction.chainId} For ${transaction.from}: ${Helper.converErrorToString(error)}`,
+            `TryIncrTransactionGasPrice GetTransactionCount Error On Chain ${transaction.chainId} For ${
+                transaction.from
+            }: ${Helper.converErrorToString(error)}`,
         );
 
         Lock.release(keyLock);
@@ -68,7 +70,7 @@ export async function tryIncrTransactionGasPrice(
         const tx = tryParseSignedTx(currentSignedTx);
         const txData: any = tx.toJSON();
 
-        const feeData = await getFeeDataFromParticle(transaction.chainId);
+        const feeData = await aaService.getFeeData(transaction.chainId);
 
         if (tx instanceof FeeMarketEIP1559Transaction) {
             if (BigNumber.from(feeData.maxFeePerGas).gt(tx.maxFeePerGas)) {

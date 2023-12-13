@@ -21,11 +21,13 @@ export enum BUNDLING_MODE {
 
 export enum GAS_FEE_LEVEL {
     MEDIUM = 'medium',
-    HIGH = 'high',
+    HIGH = 'high', // Not used
 }
 
 export enum PROCESS_NOTIFY_TYPE {
     CREATE_USER_OPERATION = 'create_user_operation',
+    GET_GAS_FEE = 'get_gas_fee',
+    GET_TRANSACTION_COUNT = 'get_transaction_count',
 }
 
 export function keyLockPendingTransaction(id: string) {

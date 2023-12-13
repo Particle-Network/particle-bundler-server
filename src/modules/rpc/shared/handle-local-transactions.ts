@@ -11,7 +11,7 @@ import { handlePendingTransaction } from './handle-pending-transactions';
 import { BigNumber } from '../../../common/bignumber';
 import { RpcService } from '../services/rpc.service';
 import { Alert } from '../../../common/alert';
-import { SUPPORT_EIP_1559 } from '../../../configs/bundler-common';
+import { EVM_CHAIN_ID, SUPPORT_EIP_1559 } from '../../../configs/bundler-common';
 import { Logger } from '@nestjs/common';
 
 export async function createBundleTransaction(

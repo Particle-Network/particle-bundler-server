@@ -25,7 +25,6 @@ import { Wallet, parseEther } from 'ethers';
 import { BigNumber } from '../../common/bignumber';
 import { Alert } from '../../common/alert';
 import { isObject } from 'lodash';
-import { getFeeDataFromParticle } from '../rpc/aa/utils';
 import { UserOperationDocument } from '../rpc/schemas/user-operation.schema';
 import { ProcessNotify } from '../../common/process-notify';
 
@@ -253,7 +252,7 @@ export class TaskService {
                         const etherToSend = (minEtherBalance - balanceEther).toFixed(10);
                         Logger.log(`[Send ether to signer] chainId=${chainId}, address=${address}, etherToSend=${etherToSend}`);
                         const signerToPay = new Wallet(process.env.PAYMENT_SIGNER, provider);
-                        const feeData: any = await getFeeDataFromParticle(Number(chainId));
+                        const feeData: any = await this.aaService.getFeeData(Number(chainId));
 
                         // force use gas price
                         const tx = await signerToPay.sendTransaction({

@@ -30,7 +30,7 @@ class ProcessNotifyClass {
         });
     }
 
-    public sendToNodes(type: PROCESS_NOTIFY_TYPE, data: any = null) {
+    public sendMessages(type: PROCESS_NOTIFY_TYPE, data: any = null) {
         console.log('fffff', nodeIds, type);
 
         for (const nodeId of nodeIds) {
