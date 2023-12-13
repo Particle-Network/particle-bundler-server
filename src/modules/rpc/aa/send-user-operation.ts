@@ -2,14 +2,14 @@ import { Contract, getAddress, isAddress } from 'ethers';
 import { JsonRPCRequestDto } from '../dtos/json-rpc-request.dto';
 import { RpcService } from '../services/rpc.service';
 import { Helper } from '../../../common/helper';
-import { GAS_FEE_LEVEL, IS_PRODUCTION, MULTI_CALL_3_ADDRESS, PROCESS_NOTIFY_TYPE } from '../../../common/common-types';
+import { IS_PRODUCTION, MULTI_CALL_3_ADDRESS, PROCESS_NOTIFY_TYPE } from '../../../common/common-types';
 import {
     AppException,
     AppExceptionMessages,
     MESSAGE_32602_INVALID_ENTRY_POINT_ADDRESS,
     MESSAGE_32602_INVALID_USEROP_TYPE,
 } from '../../../common/app-exception';
-import { calcUserOpGasPrice, calcUserOpTotalGasLimit, isUserOpValid, splitOriginNonce } from './utils';
+import { calcUserOpGasPrice, calcUserOpTotalGasLimit, getUserOpHash, isUserOpValid, splitOriginNonce } from './utils';
 import { BigNumber } from '../../../common/bignumber';
 import {
     EVM_CHAIN_ID,
@@ -59,13 +59,13 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
         'preVerificationGas is too low',
     );
 
-    const [userOpHash, rSimulation, extraFee, signerFeeData] = await Promise.all([
-        getUserOpHash(rpcService, chainId, userOp, entryPointInput),
+    const userOpHash = getUserOpHash(chainId, userOp, entryPointInput);
+
+    const [rSimulation, extraFee, signerFeeData] = await Promise.all([
         simulateHandleOpAndGetGasCost(rpcService, chainId, userOp, entryPointInput),
         getL2ExtraFee(rpcService, chainId, userOp, entryPointInput),
         rpcService.aaService.getFeeData(chainId),
         // do not care return value
-        checkUserOpNonce(rpcService, chainId, userOp, entryPointInput),
         checkUserOpCanExecutedSucceed(rpcService, chainId, userOp, entryPointInput),
     ]);
 
@@ -157,13 +157,6 @@ export async function getL2ExtraFee(rpcService: RpcService, chainId: number, use
     return BigNumber.from(l2ExtraFee).toHexString();
 }
 
-async function getUserOpHash(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string) {
-    const provider = rpcService.getJsonRpcProvider(chainId);
-    const contractEntryPoint = new Contract(entryPoint, EntryPointAbi, provider);
-
-    return await contractEntryPoint.getUserOpHash(userOp);
-}
-
 function checkUserOpGasPriceIsSatisfied(chainId: number, userOp: any, gasCost: any, extraFee: any, signerFeeData?: any) {
     const signerGasPrice = SUPPORT_EIP_1559.includes(chainId)
         ? calcUserOpGasPrice(signerFeeData, signerFeeData.baseFee)
@@ -207,29 +200,6 @@ function checkUserOpGasPriceIsSatisfied(chainId: number, userOp: any, gasCost: a
             baseFee: signerFeeData.baseFee,
         })}`,
     );
-}
-
-async function checkUserOpNonce(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string) {
-    const { nonceKey, nonceValue } = splitOriginNonce(userOp.nonce);
-
-    const bgNonce = BigNumber.from(nonceValue);
-    Helper.assertTrue(bgNonce.gte(0), -32006);
-
-    if (!bgNonce.eq(0)) {
-        const provider = rpcService.getJsonRpcProvider(chainId);
-        const epContract = new Contract(entryPoint, EntryPointAbi, provider);
-        let [remoteNonce, localMaxNonce] = await Promise.all([
-            epContract.getNonce(userOp.sender, nonceKey),
-            rpcService.aaService.userOperationService.getSuccessUserOperationNonce(chainId, getAddress(userOp.sender), nonceKey),
-        ]);
-
-        localMaxNonce = BigNumber.from(localMaxNonce ?? '-1')
-            .add(1)
-            .toHexString();
-        const targetNonce = BigNumber.from(localMaxNonce).gt(remoteNonce) ? localMaxNonce : remoteNonce;
-
-        Helper.assertTrue(bgNonce.gte(targetNonce), -32602, AppExceptionMessages.messageExtend(-32602, 'AA25 invalid account nonce'));
-    }
 }
 
 async function checkUserOpCanExecutedSucceed(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string) {
