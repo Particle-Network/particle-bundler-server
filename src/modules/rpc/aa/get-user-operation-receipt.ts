@@ -21,6 +21,11 @@ export async function getUserOperationReceipt(rpcService: RpcService, chainId: n
         return null;
     }
 
+    const receipt = rpcService.aaService.getUserOpHashReceipts(chainId, body.params[0]);
+    if (!!receipt && userOperation.status !== USER_OPERATION_STATUS.DONE) {
+        return await manuallyGetUserOperationReceipt(chainId, rpcService, userOperation, receipt);
+    }
+
     const [transaction, userOperationEvent] = await Promise.all([
         transactionService.getTransaction(chainId, userOperation.txHash),
         userOperationService.getUserOperationEvent(chainId, userOperation.userOpHash),
@@ -55,10 +60,17 @@ export async function getUserOperationReceipt(rpcService: RpcService, chainId: n
     });
 }
 
-export async function manuallyGetUserOperationReceipt(chainId: number, rpcService: RpcService, userOperation: UserOperationDocument) {
+export async function manuallyGetUserOperationReceipt(
+    chainId: number,
+    rpcService: RpcService,
+    userOperation: UserOperationDocument,
+    receipt?: any,
+) {
     try {
         const provider = rpcService.getJsonRpcProvider(chainId);
-        const receipt: any = await rpcService.getTransactionReceipt(provider, userOperation.txHash);
+        if (!receipt) {
+            receipt = await rpcService.getTransactionReceipt(provider, userOperation.txHash);
+        }
 
         // failed transaction use local database value
         if (!receipt || BigNumber.from(receipt.status).toNumber() === 0) {

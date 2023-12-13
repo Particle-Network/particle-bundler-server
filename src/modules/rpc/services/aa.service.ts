@@ -191,7 +191,7 @@ export class AAService {
         this.transactionCountCaches.set(`${chainId}-${address}`, nonce);
     }
 
-    public async getUserOpHashReceipts(chainId: number, userOpHash: string): Promise<any> {
+    public getUserOpHashReceipts(chainId: number, userOpHash: string): any {
         const key = `${chainId}-${userOpHash}`;
         if (this.userOpHashReceipts.has(key)) {
             return this.userOpHashReceipts.get(key);
