@@ -12,7 +12,7 @@ import {
     PROCESS_NOTIFY_TYPE,
     keyLockSigner,
 } from '../../common/common-types';
-import { TRANSACTION_STATUS } from '../rpc/schemas/transaction.schema';
+import { TRANSACTION_STATUS, TransactionDocument } from '../rpc/schemas/transaction.schema';
 import { Helper } from '../../common/helper';
 import { UserOperationService } from '../rpc/services/user-operation.service';
 import { handleLocalUserOperations } from '../rpc/shared/handle-local-user-operations';
@@ -170,8 +170,21 @@ export class TaskService {
 
     private async handlePendingTransactionsAction() {
         const pendingTransactions = await this.transactionService.getTransactionsByStatus(TRANSACTION_STATUS.PENDING, FETCH_TRANSACTION_SIZE);
+
+        const chainIdSignerLatestDoneTransaction: Map<string, TransactionDocument> = new Map();
         for (const pendingTransaction of pendingTransactions) {
-            getReceiptAndHandlePendingTransactions(pendingTransaction, this.rpcService, this.connection);
+            const key = `${pendingTransaction.chainId}-${pendingTransaction.from}`;
+            let latestTransaction = chainIdSignerLatestDoneTransaction.get(key);
+            if (!latestTransaction) {
+                latestTransaction = await this.transactionService.getLatestTransaction(pendingTransaction.chainId, pendingTransaction.from, [
+                    TRANSACTION_STATUS.SUCCESS,
+                    TRANSACTION_STATUS.FAILED,
+                ]);
+
+                chainIdSignerLatestDoneTransaction.set(key, latestTransaction);
+            }
+
+            getReceiptAndHandlePendingTransactions(pendingTransaction, this.rpcService, this.connection, latestTransaction);
         }
     }
 

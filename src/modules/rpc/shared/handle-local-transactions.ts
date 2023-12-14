@@ -178,6 +178,7 @@ async function tryGetReceiptAndHandlePendingTransactionsDirectly(
     const latestTransaction = await rpcService.aaService.transactionService.getLatestTransaction(
         pendingTransaction.chainId,
         pendingTransaction.from,
+        [TRANSACTION_STATUS.SUCCESS, TRANSACTION_STATUS.FAILED],
     );
 
     for (let index = 0; index < 10; index++) {
@@ -229,14 +230,6 @@ export async function getReceiptAndHandlePendingTransactions(
         if (!pendingTransaction.isPendingTimeout()) {
             return false;
         }
-
-        latestTransaction =
-            latestTransaction ??
-            (await rpcService.aaService.transactionService.getLatestTransaction(
-                pendingTransaction.chainId,
-                pendingTransaction.from,
-                TRANSACTION_STATUS.SUCCESS,
-            ));
 
         if (latestTransaction && latestTransaction.nonce + 1 === pendingTransaction.nonce) {
             await tryIncrTransactionGasPrice(pendingTransaction, mongodbConnection, provider, rpcService.aaService);
