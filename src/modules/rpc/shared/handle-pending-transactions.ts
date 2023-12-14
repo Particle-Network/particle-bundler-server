@@ -117,15 +117,17 @@ export async function tryIncrTransactionGasPrice(
         });
 
         const rTxHash = await provider.send(METHOD_SEND_RAW_TRANSACTION, [signedTx]);
-        const txHash = typeof rTxHash === 'string' ? rTxHash : rTxHash.hash;
+        const txHash = typeof rTxHash === 'string' ? rTxHash : rTxHash.result;
 
         Logger.log('New TxHash', txHash);
         Logger.log('New SignedTxs', signedTx);
 
-        // should update user ops tx hash ???
-        await Helper.startMongoTransaction(mongodbConnection, async (session: any) => {
-            await aaService.transactionService.replaceTransactionTxHash(transaction, txHash, signedTx, txData, session);
-        });
+        if (!!txHash) {
+            // should update user ops tx hash ???
+            await Helper.startMongoTransaction(mongodbConnection, async (session: any) => {
+                await aaService.transactionService.replaceTransactionTxHash(transaction, txHash, signedTx, txData, session);
+            });
+        }
     } catch (error) {
         Logger.error(`Replace Transaction error on chain ${transaction.chainId}`, error, transaction);
 
