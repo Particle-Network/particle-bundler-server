@@ -21,14 +21,21 @@ export async function getUserOperationReceipt(rpcService: RpcService, chainId: n
         return null;
     }
 
-    if (userOperation.status === USER_OPERATION_STATUS.PENDING) {
-        return await manuallyGetUserOperationReceipt(chainId, rpcService, userOperation);
+    const receipt = rpcService.aaService.getUserOpHashReceipts(chainId, body.params[0]);
+    if (!!receipt && userOperation.status !== USER_OPERATION_STATUS.DONE) {
+        return await manuallyGetUserOperationReceipt(chainId, rpcService, userOperation, receipt);
     }
 
     const [transaction, userOperationEvent] = await Promise.all([
         transactionService.getTransaction(chainId, userOperation.txHash),
         userOperationService.getUserOperationEvent(chainId, userOperation.userOpHash),
     ]);
+
+    if (userOperation.status === USER_OPERATION_STATUS.PENDING && !!transaction && transaction.status === TRANSACTION_STATUS.PENDING) {
+        if (Date.now() - transaction.latestSentAt.getTime() > 5000) {
+            return await manuallyGetUserOperationReceipt(chainId, rpcService, userOperation);
+        }
+    }
 
     if (!transaction || ![TRANSACTION_STATUS.FAILED, TRANSACTION_STATUS.SUCCESS].includes(transaction.status)) {
         return null;
@@ -44,19 +51,26 @@ export async function getUserOperationReceipt(rpcService: RpcService, chainId: n
     return deepHexlify({
         userOpHash: userOperation.userOpHash,
         sender: userOperation.userOpSender,
-        nonce: BigNumber.from(userOperation.userOpNonce.toString()).toHexString(),
-        actualGasCost: userOperationEvent?.args[5] ?? 0,
-        actualGasUsed: userOperationEvent?.args[6] ?? 0,
+        nonce: BigNumber.from(userOperation.origin?.nonce).toHexString(),
+        actualGasCost: BigNumber.from(userOperationEvent?.args[5] ?? 0).toHexString(),
+        actualGasUsed: BigNumber.from(userOperationEvent?.args[6] ?? 0).toHexString(),
         success: userOperationEvent?.args[4] ?? false,
         logs,
         receipt: transaction.receipt,
     });
 }
 
-export async function manuallyGetUserOperationReceipt(chainId: number, rpcService: RpcService, userOperation: UserOperationDocument) {
+export async function manuallyGetUserOperationReceipt(
+    chainId: number,
+    rpcService: RpcService,
+    userOperation: UserOperationDocument,
+    receipt?: any,
+) {
     try {
         const provider = rpcService.getJsonRpcProvider(chainId);
-        const receipt: any = await rpcService.getTransactionReceipt(provider, userOperation.txHash);
+        if (!receipt) {
+            receipt = await rpcService.getTransactionReceipt(provider, userOperation.txHash);
+        }
 
         // failed transaction use local database value
         if (!receipt || BigNumber.from(receipt.status).toNumber() === 0) {
@@ -90,13 +104,12 @@ export async function manuallyGetUserOperationReceipt(chainId: number, rpcServic
         return deepHexlify({
             userOpHash: userOperation.userOpHash,
             sender: userOperation.userOpSender,
-            nonce: BigNumber.from(userOperation.userOpNonce.toString()).toHexString(),
+            nonce: userOperation.origin?.nonce,
             actualGasCost: userOperationEvent?.args[5] ?? 0,
             actualGasUsed: userOperationEvent?.args[6] ?? 0,
             success: userOperationEvent?.args[4] ?? false,
             logs,
             receipt,
-            isPending: true,
         });
     } catch (error) {
         console.error(error);

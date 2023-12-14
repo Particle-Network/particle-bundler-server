@@ -8,6 +8,7 @@ import { getAddress } from 'ethers';
 import { TRANSACTION_STATUS, Transaction, TransactionDocument } from '../schemas/transaction.schema';
 import { AppException } from '../../../common/app-exception';
 import { Helper } from '../../../common/helper';
+import { splitOriginNonce } from '../aa/utils';
 
 @Injectable()
 export class UserOperationService {
@@ -18,11 +19,18 @@ export class UserOperationService {
     ) {}
 
     // TODO: should use mongodb transaction
-    public async createOrUpdateUserOperation(chainId: number, userOp: any, userOpHash: string, entryPoint: string) {
+    public async createOrUpdateUserOperation(
+        chainId: number,
+        userOp: any,
+        userOpHash: string,
+        entryPoint: string,
+        userOpDoc?: UserOperationDocument,
+    ) {
         const userOpSender = getAddress(userOp.sender);
-        const userOpNonce = BigNumber.from(userOp.nonce).toString();
+        const { nonceKey, nonceValue } = splitOriginNonce(userOp.nonce);
 
-        let userOpDoc = await this.getUserOperationByAddressNonce(chainId, userOpSender, userOpNonce);
+        userOpDoc =
+            userOpDoc ?? (await this.getUserOperationByAddressNonce(chainId, userOpSender, nonceKey, BigNumber.from(nonceValue).toString()));
 
         // Allow to replace failed user operation, because the nonce of the user operation is not increased
         if (userOpDoc) {
@@ -35,23 +43,24 @@ export class UserOperationService {
 
             return {
                 userOpDoc: await this.resetToLocal(userOpDoc, userOpHash, entryPoint, userOp),
-                replaced: true,
             };
         }
 
         const userOperation = new this.userOperationModel({
             userOpHash,
             userOpSender: userOp.sender,
-            userOpNonce: BigNumber.from(userOp.nonce).toString(),
+            userOpNonceKey: nonceKey,
+            userOpNonce: BigNumber.from(nonceValue).toString(),
             chainId,
             entryPoint,
             origin: userOp,
             status: USER_OPERATION_STATUS.LOCAL,
         });
 
+        userOperation.save(); // async save
+
         return {
-            userOpDoc: await userOperation.save(),
-            replaced: false,
+            userOpDoc: userOperation,
         };
     }
 
@@ -62,13 +71,18 @@ export class UserOperationService {
         });
     }
 
-    public async getUserOperationByAddressNonce(chainId: number, userOpSender: string, userOpNonce: string): Promise<UserOperationDocument> {
-        return await this.userOperationModel.findOne({ chainId, userOpSender, userOpNonce });
+    public async getUserOperationByAddressNonce(
+        chainId: number,
+        userOpSender: string,
+        userOpNonceKey: string,
+        userOpNonce: string,
+    ): Promise<UserOperationDocument> {
+        return await this.userOperationModel.findOne({ chainId, userOpSender, userOpNonceKey, userOpNonce });
     }
 
-    public async getSuccessUserOperationNonce(chainId: number, userOpSender: string): Promise<string> {
+    public async getSuccessUserOperationNonce(chainId: number, userOpSender: string, userOpNonceKey: string): Promise<string> {
         const userOpDoc = await this.userOperationModel
-            .findOne({ chainId, userOpSender, status: USER_OPERATION_STATUS.DONE })
+            .findOne({ chainId, userOpSender, userOpNonceKey, status: USER_OPERATION_STATUS.DONE })
             .sort({ userOpNonce: -1 });
         if (!userOpDoc) {
             return null;
@@ -133,6 +147,7 @@ export class UserOperationService {
     }
 
     public async transactionSetUserOperationsAsDone(
+        chainId: number,
         userOpHashes: string[],
         txHash: string,
         blockNumber: number,
@@ -140,7 +155,7 @@ export class UserOperationService {
         session: any,
     ) {
         return await this.userOperationModel.updateMany(
-            { userOpHash: { $in: userOpHashes } },
+            { chainId, userOpHash: { $in: userOpHashes } },
             { $set: { status: USER_OPERATION_STATUS.DONE, txHash, blockNumber, blockHash } },
             { session },
         );

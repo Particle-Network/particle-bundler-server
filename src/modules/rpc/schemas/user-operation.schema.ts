@@ -26,6 +26,9 @@ export class UserOperation {
     @Prop({ required: true, type: Schema.Types.Decimal128 })
     public userOpNonce: Types.Decimal128;
 
+    @Prop({ required: true, type: Schema.Types.String })
+    public userOpNonceKey: string;
+
     @Prop({ required: true, type: Schema.Types.Mixed })
     public origin: any;
 
@@ -70,6 +73,7 @@ UserOperationSchema.index(
     {
         chainId: 1,
         userOpSender: 1,
+        userOpNonceKey: 1,
         userOpNonce: 1,
     },
     {
@@ -82,6 +86,7 @@ UserOperationSchema.index({
     status: 1,
     userOpHash: 1,
     userOpSender: 1,
+    userOpNonceKey: 1,
     userOpNonce: 1,
 });
 

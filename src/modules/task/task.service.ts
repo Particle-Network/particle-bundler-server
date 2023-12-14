@@ -5,22 +5,27 @@ import { InjectConnection } from '@nestjs/mongoose';
 import { Connection } from 'mongoose';
 import { RpcService } from '../rpc/services/rpc.service';
 import { TransactionService } from '../rpc/services/transaction.service';
-import { BLOCK_SIGNER_REASON, IS_DEVELOPMENT, PENDING_TRANSACTION_SIGNER_HANDLE_LIMIT, keyLockSigner } from '../../common/common-types';
+import {
+    BLOCK_SIGNER_REASON,
+    IS_DEVELOPMENT,
+    PENDING_TRANSACTION_SIGNER_HANDLE_LIMIT,
+    PROCESS_NOTIFY_TYPE,
+    keyLockSigner,
+} from '../../common/common-types';
 import { TRANSACTION_STATUS, TransactionDocument } from '../rpc/schemas/transaction.schema';
 import { Helper } from '../../common/helper';
 import { UserOperationService } from '../rpc/services/user-operation.service';
-import { handlePendingTransaction, tryIncrTransactionGasPrice } from '../rpc/shared/handle-pending-transactions';
 import { handleLocalUserOperations } from '../rpc/shared/handle-local-user-operations';
 import { Cron } from '@nestjs/schedule';
 import Lock from '../../common/global-lock';
-import { handleLocalTransaction } from '../rpc/shared/handle-local-transactions';
+import { getReceiptAndHandlePendingTransactions, handleLocalTransaction } from '../rpc/shared/handle-local-transactions';
 import { CHAIN_BALANCE_RANGE, CHAIN_SIGNER_MIN_BALANCE } from '../../configs/bundler-common';
 import { Wallet, parseEther } from 'ethers';
 import { BigNumber } from '../../common/bignumber';
 import { Alert } from '../../common/alert';
 import { isObject } from 'lodash';
-import { getFeeDataFromParticle } from '../rpc/aa/utils';
 import { UserOperationDocument } from '../rpc/schemas/user-operation.schema';
+import { ProcessNotify } from '../../common/process-notify';
 
 const FETCH_TRANSACTION_SIZE = 500;
 
@@ -33,7 +38,16 @@ export class TaskService {
         private readonly transactionService: TransactionService,
         private readonly userOperationService: UserOperationService,
         @InjectConnection() private readonly connection: Connection,
-    ) {}
+    ) {
+        ProcessNotify.registerHandler((packet: any) => {
+            if (packet.type === PROCESS_NOTIFY_TYPE.CREATE_USER_OPERATION) {
+                const { chainId, userOpDoc } = packet.data;
+                if (!!chainId && !!userOpDoc) {
+                    this.sealUserOps([userOpDoc]);
+                }
+            }
+        });
+    }
 
     private canRun: boolean = true;
     private inSealingUserOps: boolean = false;
@@ -41,7 +55,7 @@ export class TaskService {
     private inCheckingAndReleaseBlockSigners: boolean = false;
 
     @Cron('* * * * * *')
-    public async sealUserOps() {
+    public async sealUserOps(userOpDoc?: any[]) {
         if (!this.canRunCron() || this.inSealingUserOps) {
             return;
         }
@@ -49,7 +63,7 @@ export class TaskService {
         this.inSealingUserOps = true;
 
         try {
-            let userOperations = await this.userOperationService.getLocalUserOperations();
+            let userOperations = userOpDoc ?? (await this.userOperationService.getLocalUserOperations());
             userOperations = this.aaService.tryLockUserOperationsAndGetUnuseds(userOperations);
             if (userOperations.length <= 0) {
                 this.inSealingUserOps = false;
@@ -88,7 +102,7 @@ export class TaskService {
 
         await handleLocalUserOperations(chainId, this.rpcService, this.aaService, targetSigner, userOperations, this.connection);
         Lock.release(keyLockSigner(chainId, targetSigner.address));
-        
+
         await new Promise((resolve) => setTimeout(resolve, 2000));
         this.aaService.unlockUserOperations(userOperations);
     }
@@ -156,49 +170,21 @@ export class TaskService {
 
     private async handlePendingTransactionsAction() {
         const pendingTransactions = await this.transactionService.getTransactionsByStatus(TRANSACTION_STATUS.PENDING, FETCH_TRANSACTION_SIZE);
+
+        const chainIdSignerLatestDoneTransaction: Map<string, TransactionDocument> = new Map();
         for (const pendingTransaction of pendingTransactions) {
-            this.getReceiptAndHandlePendingTransactions(pendingTransaction);
-        }
-    }
+            const key = `${pendingTransaction.chainId}-${pendingTransaction.from}`;
+            let latestTransaction = chainIdSignerLatestDoneTransaction.get(key);
+            if (!latestTransaction) {
+                latestTransaction = await this.transactionService.getLatestTransaction(pendingTransaction.chainId, pendingTransaction.from, [
+                    TRANSACTION_STATUS.SUCCESS,
+                    TRANSACTION_STATUS.FAILED,
+                ]);
 
-    private async getReceiptAndHandlePendingTransactions(pendingTransaction: TransactionDocument) {
-        try {
-            const provider = this.rpcService.getJsonRpcProvider(pendingTransaction.chainId);
-            const receiptPromises = pendingTransaction.txHashes.map((txHash) => this.rpcService.getTransactionReceipt(provider, txHash));
-            const receipts = await Promise.all(receiptPromises);
-
-            Logger.log('getReceiptAndHandlePendingTransactions', receipts.length);
-            if (receipts.some((r) => !!r)) {
-                Logger.log(
-                    'receipts',
-                    receipts.map((r: any, index: number) => {
-                        return {
-                            result: !!r,
-                            txHash: pendingTransaction.txHashes[index],
-                            chainId: pendingTransaction.chainId,
-                            from: pendingTransaction.from,
-                            nonce: pendingTransaction.nonce,
-                        };
-                    }),
-                );
+                chainIdSignerLatestDoneTransaction.set(key, latestTransaction);
             }
 
-            for (const receipt of receipts) {
-                if (!!receipt) {
-                    await handlePendingTransaction(provider, receipt, this.connection, pendingTransaction, this.aaService);
-                    return;
-                }
-            }
-
-            if (!pendingTransaction.isPendingTimeout()) {
-                return;
-            }
-
-            await tryIncrTransactionGasPrice(pendingTransaction, this.connection, provider, this.aaService);
-        } catch (error) {
-            Logger.error('getReceiptAndHandlePendingTransactions error', error);
-
-            Alert.sendMessage(`getReceiptAndHandlePendingTransactions Error: ${Helper.converErrorToString(error)}`);
+            getReceiptAndHandlePendingTransactions(pendingTransaction, this.rpcService, this.connection, latestTransaction);
         }
     }
 
@@ -240,7 +226,7 @@ export class TaskService {
                         const etherToSend = (minEtherBalance - balanceEther).toFixed(10);
                         Logger.log(`[Send ether to signer] chainId=${chainId}, address=${address}, etherToSend=${etherToSend}`);
                         const signerToPay = new Wallet(process.env.PAYMENT_SIGNER, provider);
-                        const feeData: any = await getFeeDataFromParticle(Number(chainId));
+                        const feeData: any = await this.aaService.getFeeData(Number(chainId));
 
                         // force use gas price
                         const tx = await signerToPay.sendTransaction({

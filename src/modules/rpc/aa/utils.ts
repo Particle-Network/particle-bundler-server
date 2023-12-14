@@ -1,6 +1,6 @@
-import { isEmpty } from 'lodash';
+import { isEmpty, trimStart } from 'lodash';
 import { BigNumber } from '../../../common/bignumber';
-import { BytesLike, JsonRpcProvider, Network, hexlify } from 'ethers';
+import { AbiCoder, BytesLike, JsonRpcProvider, Network, hexlify, keccak256 } from 'ethers';
 import { GAS_FEE_LEVEL } from '../../../common/common-types';
 import { EVM_CHAIN_ID, MINIMUM_GAS_FEE, PARTICLE_PUBLIC_RPC_URL } from '../../../configs/bundler-common';
 
@@ -127,4 +127,64 @@ export async function getFeeDataFromParticle(chainId: number, level: string = GA
 
 export function calcUserOpGasPrice(feeData: any, baseFee: number = 0): number {
     return Math.min(BigNumber.from(feeData.maxFeePerGas).toNumber(), BigNumber.from(feeData.maxPriorityFeePerGas).toNumber() + baseFee);
+}
+
+export function splitOriginNonce(originNonce: string) {
+    const bn = BigNumber.from(originNonce);
+    const key = bn.shr(64);
+
+    let valueString = bn.toHexString();
+    if (!key.eq(0)) {
+        valueString = valueString.slice(34);
+        valueString = `0x${valueString}`;
+    }
+
+    return { nonceKey: key.toHexString(), nonceValue: BigNumber.from(valueString).toHexString() };
+}
+
+export function getUserOpHash(chainId: number, userOp: any, entryPoint: string) {
+    const abiCoder = new AbiCoder();
+
+    const userOpHash = keccak256(packUserOp(userOp, true));
+    const enc = abiCoder.encode(['bytes32', 'address', 'uint256'], [userOpHash, entryPoint, chainId]);
+    return keccak256(enc);
+}
+
+export function packUserOp(userOp: any, forSignature = true): string {
+    const abiCoder = new AbiCoder();
+    if (forSignature) {
+        return abiCoder.encode(
+            ['address', 'uint256', 'bytes32', 'bytes32', 'uint256', 'uint256', 'uint256', 'uint256', 'uint256', 'bytes32'],
+            [
+                userOp.sender,
+                userOp.nonce,
+                keccak256(userOp.initCode),
+                keccak256(userOp.callData),
+                userOp.callGasLimit,
+                userOp.verificationGasLimit,
+                userOp.preVerificationGas,
+                userOp.maxFeePerGas,
+                userOp.maxPriorityFeePerGas,
+                keccak256(userOp.paymasterAndData),
+            ],
+        );
+    } else {
+        // for the purpose of calculating gas cost encode also signature (and no keccak of bytes)
+        return abiCoder.encode(
+            ['address', 'uint256', 'bytes', 'bytes', 'uint256', 'uint256', 'uint256', 'uint256', 'uint256', 'bytes', 'bytes'],
+            [
+                userOp.sender,
+                userOp.nonce,
+                userOp.initCode,
+                userOp.callData,
+                userOp.callGasLimit,
+                userOp.verificationGasLimit,
+                userOp.preVerificationGas,
+                userOp.maxFeePerGas,
+                userOp.maxPriorityFeePerGas,
+                userOp.paymasterAndData,
+                userOp.signature,
+            ],
+        );
+    }
 }

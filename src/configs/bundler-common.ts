@@ -9,6 +9,7 @@ export let MINIMUM_GAS_FEE: any = {};
 export let BUNDLER_CONFIG: any = {};
 export let CHAIN_BALANCE_RANGE: any = {};
 export let CHAIN_SIGNER_MIN_BALANCE: any = {};
+export let METHOD_SEND_RAW_TRANSACTION: string;
 
 export async function initializeBundlerConfig() {
     let bc: any;
@@ -25,6 +26,7 @@ export async function initializeBundlerConfig() {
     CHAIN_SIGNER_MIN_BALANCE = bc.CHAIN_SIGNER_MIN_BALANCE;
     PARTICLE_PAYMASTER_URL = bc.PARTICLE_PAYMASTER_URL;
     PARTICLE_PUBLIC_RPC_URL = bc.PARTICLE_PUBLIC_RPC_URL;
+    METHOD_SEND_RAW_TRANSACTION = bc.METHOD_SEND_RAW_TRANSACTION ?? 'eth_sendRawTransaction';
 
     for (const item of bc.RPC_CONFIG) {
         RPC_CONFIG[String(item.chainId)] = item;

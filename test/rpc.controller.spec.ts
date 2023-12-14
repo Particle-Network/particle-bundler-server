@@ -8,8 +8,8 @@ import { mongodbConfigAsync } from '../src/configs/mongodb.config';
 import { configConfig } from '../src/configs/config.config';
 import { ConfigModule } from '@nestjs/config';
 import { Wallet, JsonRpcProvider, resolveProperties, parseEther } from 'ethers';
-import { RPC_CONFIG, AA_METHODS, EVM_CHAIN_ID, SUPPORT_EIP_1559, initializeBundlerConfig } from '../src/configs/bundler-common';
-import { deepHexlify, getFeeDataFromParticle } from '../src/modules/rpc/aa/utils';
+import { RPC_CONFIG, AA_METHODS, EVM_CHAIN_ID, initializeBundlerConfig } from '../src/configs/bundler-common';
+import { deepHexlify } from '../src/modules/rpc/aa/utils';
 import { IContractAccount } from '../src/modules/rpc/aa/interface-contract-account';
 import { BigNumber } from '../src/common/bignumber';
 import { ENTRY_POINT, gaslessSponsor } from './lib/common';
@@ -117,22 +117,11 @@ async function createBiconomySmartAccount(chainId: number): Promise<IContractAcc
 }
 
 async function createFakeUserOp(chainId: number, simpleAccount: IContractAccount) {
-    const feeData = await getFeeDataFromParticle(chainId);
-    let maxFeePerGas = feeData.maxFeePerGas;
-    let maxPriorityFeePerGas = feeData.maxPriorityFeePerGas;
-    let gasPrice = feeData.gasPrice;
-    if (!SUPPORT_EIP_1559.includes(chainId)) {
-        maxFeePerGas = gasPrice;
-        maxPriorityFeePerGas = gasPrice;
-    }
-
     const unsignedUserOp = await simpleAccount.createUnsignedUserOp([
         {
             to: Wallet.createRandom().address,
             value: BigNumber.from(parseEther('0')).toHexString(),
             data: '0x',
-            maxFeePerGas,
-            maxPriorityFeePerGas,
         },
     ]);
     return deepHexlify(await resolveProperties(unsignedUserOp));

@@ -15,13 +15,7 @@ export class Helper {
             return;
         }
 
-        const session = await connection.startSession({
-            defaultTransactionOptions: {
-                readPreference: 'primary',
-                writeConcern: { w: 'majority' },
-                readConcern: 'majority',
-            },
-        });
+        const session = await connection.startSession();
 
         try {
             session.startTransaction();

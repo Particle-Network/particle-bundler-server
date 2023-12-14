@@ -1,4 +1,4 @@
-import { Lock as LockInstance } from 'async-await-mutex-lock';
+import { Lock as LockInstance } from './lock';
 
 const Lock = new LockInstance();
 

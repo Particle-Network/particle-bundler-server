@@ -3,7 +3,7 @@ import { JsonRPCRequestDto } from '../dtos/json-rpc-request.dto';
 import { RpcService } from '../services/rpc.service';
 import { Helper } from '../../../common/helper';
 import { calcPreVerificationGas } from '@account-abstraction/sdk';
-import { calcUserOpGasPrice, deepHexlify, getFeeDataFromParticle, hexConcat, isUserOpValid } from './utils';
+import { calcUserOpGasPrice, deepHexlify, hexConcat, isUserOpValid } from './utils';
 import { BigNumber } from '../../../common/bignumber';
 import {
     AppException,
@@ -13,7 +13,7 @@ import {
 } from '../../../common/app-exception';
 import { EVM_CHAIN_ID, L2_GAS_ORACLE, SUPPORT_EIP_1559, getBundlerConfig } from '../../../configs/bundler-common';
 import { Logger } from '@nestjs/common';
-import { DUMMY_SIGNATURE, GAS_FEE_LEVEL } from '../../../common/common-types';
+import { DUMMY_SIGNATURE } from '../../../common/common-types';
 import { getL2ExtraFee, simulateHandleOpAndGetGasCost } from './send-user-operation';
 
 const abiCoder = AbiCoder.defaultAbiCoder();
@@ -57,6 +57,7 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
         userOp,
         entryPoint,
     );
+
     userOp.maxFeePerGas = maxFeePerGas;
     userOp.maxPriorityFeePerGas = maxPriorityFeePerGas;
     if (initGas > 0n && BigNumber.from(gasCostInContract).gt(initGas)) {
@@ -121,12 +122,16 @@ async function estimateGasLimit(provider: JsonRpcProvider, entryPoint: string, u
 }
 
 async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string) {
-    const rSimulation = await simulateHandleOpAndGetGasCost(rpcService, chainId, userOp, entryPoint);
+    const [rSimulation, userOpFeeData, extraFee] = await Promise.all([
+        simulateHandleOpAndGetGasCost(rpcService, chainId, userOp, entryPoint),
+        rpcService.aaService.getFeeData(chainId),
+        getL2ExtraFee(rpcService, chainId, userOp, entryPoint),
+    ]);
+
     const gasCostInContract = BigNumber.from(rSimulation.gasCostInContract);
     const gasCostWholeTransaction = BigNumber.from(rSimulation.gasCostWholeTransaction);
     const gasCost = gasCostWholeTransaction.gt(gasCostInContract) ? gasCostWholeTransaction : gasCostInContract;
 
-    const userOpFeeData = await getFeeDataFromParticle(chainId, GAS_FEE_LEVEL.MEDIUM);
     userOp.maxFeePerGas = SUPPORT_EIP_1559.includes(chainId)
         ? BigNumber.from(userOpFeeData.maxFeePerGas).toHexString()
         : BigNumber.from(userOpFeeData.gasPrice).toHexString();
@@ -142,7 +147,6 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
 
     let minGasPrice = BigNumber.from(signerGasPrice).mul(105).div(100);
     if (Object.keys(L2_GAS_ORACLE).includes(String(chainId))) {
-        const extraFee = await getL2ExtraFee(rpcService, chainId, userOp, entryPoint);
         const signerPaid = gasCost.add(5000).mul(signerGasPrice);
         minGasPrice = BigNumber.from(extraFee).add(signerPaid).div(gasCost);
     }
