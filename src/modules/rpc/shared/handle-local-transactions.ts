@@ -232,7 +232,11 @@ export async function getReceiptAndHandlePendingTransactions(
 
         latestTransaction =
             latestTransaction ??
-            (await rpcService.aaService.transactionService.getLatestTransaction(pendingTransaction.chainId, pendingTransaction.from));
+            (await rpcService.aaService.transactionService.getLatestTransaction(
+                pendingTransaction.chainId,
+                pendingTransaction.from,
+                TRANSACTION_STATUS.SUCCESS,
+            ));
 
         if (latestTransaction && latestTransaction.nonce + 1 === pendingTransaction.nonce) {
             await tryIncrTransactionGasPrice(pendingTransaction, mongodbConnection, provider, rpcService.aaService);

@@ -19,7 +19,11 @@ export class TransactionService {
         return await this.transactionModel.find({ status }).sort({ from: 1, nonce: 1 }).limit(limit);
     }
 
-    public async getLatestTransaction(chainId: number, sender: string): Promise<TransactionDocument> {
+    public async getLatestTransaction(chainId: number, sender: string, status?: TRANSACTION_STATUS): Promise<TransactionDocument> {
+        if (status) {
+            return await this.transactionModel.findOne({ chainId, from: sender, status }).sort({ nonce: -1 });
+        }
+
         return await this.transactionModel.findOne({ chainId, from: sender }).sort({ nonce: -1 });
     }
 

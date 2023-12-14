@@ -1,4 +1,4 @@
-import { isEmpty } from 'lodash';
+import { isEmpty, trimStart } from 'lodash';
 import { BigNumber } from '../../../common/bignumber';
 import { AbiCoder, BytesLike, JsonRpcProvider, Network, hexlify, keccak256 } from 'ethers';
 import { GAS_FEE_LEVEL } from '../../../common/common-types';
@@ -135,8 +135,8 @@ export function splitOriginNonce(originNonce: string) {
 
     let valueString = bn.toHexString();
     if (!key.eq(0)) {
-        valueString = bn.shl(192).toHexString();
-        valueString = `0x${valueString.slice(-48)}`;
+        valueString = valueString.slice(34);
+        valueString = `0x${valueString}`;
     }
 
     return { nonceKey: key.toHexString(), nonceValue: BigNumber.from(valueString).toHexString() };
