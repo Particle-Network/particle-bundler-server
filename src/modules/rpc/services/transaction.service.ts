@@ -36,7 +36,7 @@ export class TransactionService {
     }
 
     public async createTransaction(chainId: number, signedTx: any, userOperationHashes: string[], session: any): Promise<TransactionDocument> {
-        let tx: TypedTransaction = tryParseSignedTx(signedTx);
+        const tx: TypedTransaction = tryParseSignedTx(signedTx);
         const txHash = `0x${Buffer.from(tx.hash()).toString('hex')}`;
 
         const transaction = new this.transactionModel({

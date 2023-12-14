@@ -214,7 +214,7 @@ export class BigNumber implements Hexable {
     }
 
     toHexString(): string {
-        let hex = this._hex;
+        const hex = this._hex;
 
         // 0x0123 -> 0x123
         if (hex.startsWith('0x')) {

@@ -107,7 +107,7 @@ export class BiconomySmartAccount implements IContractAccount {
         return (await simpleAccount.executeCall.populateTransaction(to, value, data)).data;
     }
 
-    public async createInitCode(index: number = 0): Promise<string> {
+    public async createInitCode(index = 0): Promise<string> {
         return hexConcat([
             await this.smartAccountFactoryContract.getAddress(),
             (await this.smartAccountFactoryContract.deployCounterFactualAccount.populateTransaction(this.owner.address, index)).data,

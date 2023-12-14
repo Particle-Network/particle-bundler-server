@@ -49,10 +49,10 @@ export class TaskService {
         });
     }
 
-    private canRun: boolean = true;
-    private inSealingUserOps: boolean = false;
-    private inCheckingSignerBalance: boolean = false;
-    private inCheckingAndReleaseBlockSigners: boolean = false;
+    private canRun = true;
+    private inSealingUserOps = false;
+    private inCheckingSignerBalance = false;
+    private inCheckingAndReleaseBlockSigners = false;
 
     @Cron('* * * * * *')
     public async sealUserOps(userOpDoc?: any[]) {

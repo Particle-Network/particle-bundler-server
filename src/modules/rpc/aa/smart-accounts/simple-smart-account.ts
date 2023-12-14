@@ -1,5 +1,5 @@
 import { BigNumberish, Contract, Interface, JsonRpcProvider, Wallet, getAddress, resolveProperties } from 'ethers';
-import { getFeeDataFromParticle, hexConcat } from '../utils';
+import { hexConcat } from '../utils';
 import entryPointAbi from '../entry-point-abi';
 import { BigNumber } from '../../../../common/bignumber';
 import { calcPreVerificationGas } from '@account-abstraction/sdk';
@@ -27,7 +27,7 @@ export class SimpleSmartAccount implements IContractAccount {
         }
 
         // TODO generate address in local (use eth_create2)
-        let iface = new Interface(factoryAbi);
+        const iface = new Interface(factoryAbi);
         const callData = iface.encodeFunctionData('getAddress', [this.owner.address, 0]);
         const result = await this.provider.call({ to: await this.simpleAccountFactoryContract.getAddress(), data: callData });
 
@@ -113,7 +113,7 @@ export class SimpleSmartAccount implements IContractAccount {
         return (await simpleAccount.executeBatch.populateTransaction(targets, datas)).data;
     }
 
-    public async createInitCode(index: number = 0): Promise<string> {
+    public async createInitCode(index = 0): Promise<string> {
         const result = (await this.simpleAccountFactoryContract.createAccount.populateTransaction(this.owner.address, index)).data;
 
         return hexConcat([await this.simpleAccountFactoryContract.getAddress(), result]);

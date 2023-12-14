@@ -68,7 +68,7 @@ async function sealUserOps(
     }
 
     // chunk user operations into bundles by calc it's gas limit
-    let bundles = [];
+    const bundles = [];
     for (const entryPoint in bundlesMap) {
         const userOperationsToPack: UserOperationDocument[] = bundlesMap[entryPoint];
 
@@ -118,10 +118,10 @@ async function sealUserOps(
         return;
     }
 
-    let localLatestNonce = (latestTransaction ? latestTransaction.nonce : -1) + 1;
+    const localLatestNonce = (latestTransaction ? latestTransaction.nonce : -1) + 1;
     let finalizedNonce = localLatestNonce > latestNonce ? localLatestNonce : latestNonce;
 
-    let newFeeData: any = feeData;
+    const newFeeData: any = feeData;
     console.log('latestNonce', latestTransaction?.nonce, localLatestNonce, finalizedNonce);
     console.log('newFeeData', newFeeData);
 

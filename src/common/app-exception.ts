@@ -4,7 +4,7 @@ export class AppException extends Error {
     public readonly errorCode: number;
     public readonly extraData: any;
 
-    public constructor(errorCode: number, overrideMessage: string = '', extraData: any = null) {
+    public constructor(errorCode: number, overrideMessage = '', extraData: any = null) {
         let appExceptionMessage = AppExceptionMessages.get(errorCode);
         if (!isEmpty(overrideMessage)) {
             appExceptionMessage = overrideMessage;

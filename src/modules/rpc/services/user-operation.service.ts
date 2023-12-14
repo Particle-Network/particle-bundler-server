@@ -112,7 +112,7 @@ export class UserOperationService {
         });
     }
 
-    public async getLocalUserOperations(limit: number = 1000): Promise<UserOperationDocument[]> {
+    public async getLocalUserOperations(limit = 1000): Promise<UserOperationDocument[]> {
         return await this.userOperationModel
             .find({
                 status: USER_OPERATION_STATUS.LOCAL,
@@ -124,7 +124,7 @@ export class UserOperationService {
     public async getLocalUserOperationsByChainIdAndSortByCreatedAt(
         chainId: number,
         entryPoint: string,
-        limit: number = 100,
+        limit = 100,
     ): Promise<UserOperationDocument[]> {
         return await this.userOperationModel
             .find({ chainId, status: USER_OPERATION_STATUS.LOCAL, entryPoint })

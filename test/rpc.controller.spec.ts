@@ -177,7 +177,7 @@ async function sendUserOp(chainId: number, userOp: any) {
             params: [r3.result],
         };
 
-        let r4 = await rpcController.handleRpc(chainId, bodyReceipt);
+        const r4 = await rpcController.handleRpc(chainId, bodyReceipt);
         console.log(r4);
 
         if (!!r4.result) {

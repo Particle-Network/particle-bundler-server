@@ -23,7 +23,7 @@ export class Lock<T> {
         return new Promise((resolve, reject) => {
             if (key) {
                 if (this.waitingMap.has(key)) {
-                    let resolvers = this.waitingMap.get(key);
+                    const resolvers = this.waitingMap.get(key);
                     resolvers.push(resolve);
                     this.waitingMap.set(key, resolvers);
                 } else {
@@ -53,7 +53,7 @@ export class Lock<T> {
                 return;
             } else {
                 if (this.waitingMap.get(key)?.length > 0) {
-                    let resolve = this.waitingMap.get(key).shift();
+                    const resolve = this.waitingMap.get(key).shift();
                     this._setTimeout(key);
                     resolve();
                 } else {
@@ -70,7 +70,7 @@ export class Lock<T> {
                 return;
             } else {
                 if (this.waitingList.length > 0) {
-                    let resolve = this.waitingList.shift();
+                    const resolve = this.waitingList.shift();
                     this._setTimeout(key);
                     resolve();
                 } else {

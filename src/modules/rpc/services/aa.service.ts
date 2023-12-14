@@ -173,7 +173,7 @@ export class AAService {
         provider: JsonRpcProvider,
         chainId: number,
         address: string,
-        forceLatest: boolean = false,
+        forceLatest = false,
     ): Promise<number> {
         if (this.transactionCountCaches.has(`${chainId}-${address}`) && !forceLatest) {
             return this.transactionCountCaches.get(`${chainId}-${address}`);

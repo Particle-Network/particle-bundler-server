@@ -1,4 +1,4 @@
-import { isEmpty, trimStart } from 'lodash';
+import { isEmpty } from 'lodash';
 import { BigNumber } from '../../../common/bignumber';
 import { AbiCoder, BytesLike, JsonRpcProvider, Network, hexlify, keccak256 } from 'ethers';
 import { GAS_FEE_LEVEL } from '../../../common/common-types';
@@ -20,7 +20,7 @@ export function calcUserOpTotalGasLimit(userOp: any): BigNumber {
     return BigNumber.from(g1.lt(g2) ? g1 : g2); // return min(g1, g2)
 }
 
-export function isUserOpValid(userOp: any, requireSignature: boolean = true, requireGasParams: boolean = true): boolean {
+export function isUserOpValid(userOp: any, requireSignature = true, requireGasParams = true): boolean {
     if (isEmpty(userOp)) {
         return false;
     }
@@ -125,7 +125,7 @@ export async function getFeeDataFromParticle(chainId: number, level: string = GA
     return result;
 }
 
-export function calcUserOpGasPrice(feeData: any, baseFee: number = 0): number {
+export function calcUserOpGasPrice(feeData: any, baseFee = 0): number {
     return Math.min(BigNumber.from(feeData.maxFeePerGas).toNumber(), BigNumber.from(feeData.maxPriorityFeePerGas).toNumber() + baseFee);
 }
 

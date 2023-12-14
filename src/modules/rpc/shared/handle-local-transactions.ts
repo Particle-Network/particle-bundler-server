@@ -92,7 +92,7 @@ export async function trySendAndUpdateTransactionStatus(
     rpcService: RpcService,
     aaService: AAService,
     mongodbConnection: Connection,
-    skipCheck: boolean = false,
+    skipCheck = false,
 ) {
     const currentSignedTx = transaction.getCurrentSignedTx();
     const currentSignedTxHash = keccak256(currentSignedTx);

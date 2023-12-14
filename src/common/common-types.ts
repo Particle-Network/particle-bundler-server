@@ -3,7 +3,7 @@ export const IS_DEBUG = process.env.ENVIRONMENT === 'debug';
 export const IS_PRODUCTION = process.env.ENVIRONMENT === 'production';
 export const USE_MONOGODB_TRANSACTION = () => process.env.USE_MONOGODB_TRANSACTION === '1';
 
-export const BUNDLE_LIMIT: number = 100;
+export const BUNDLE_LIMIT = 100;
 
 export const PROVIDER_FETCH_TIMEOUT = 5000; // 5s
 export const PENDING_TRANSACTION_WAITING_TIME = 60;
