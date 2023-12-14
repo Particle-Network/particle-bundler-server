@@ -13,6 +13,7 @@ import { RpcService } from '../services/rpc.service';
 import { Alert } from '../../../common/alert';
 import { METHOD_SEND_RAW_TRANSACTION, SUPPORT_EIP_1559 } from '../../../configs/bundler-common';
 import { Logger } from '@nestjs/common';
+import { AppException } from '../../../common/app-exception';
 
 export async function createBundleTransaction(
     chainId: number,
@@ -62,6 +63,11 @@ export async function createBundleTransaction(
         // no need to await
         trySendAndUpdateTransactionStatus(localTransaction, provider, rpcService, aaService, mongodbConnection, true);
     } catch (error) {
+        if (error instanceof AppException) {
+            // nothing
+            return;
+        }
+
         console.error('Failed to create bundle transaction', error);
         Alert.sendMessage(`Failed to create bundle transaction: ${Helper.converErrorToString(error)}`);
 
