@@ -117,9 +117,13 @@ export async function tryIncrTransactionGasPrice(
         });
 
         const rTxHash = await provider.send(METHOD_SEND_RAW_TRANSACTION, [signedTx]);
+        if (!!rTxHash?.error) {
+            throw new Error(JSON.stringify(rTxHash.error));
+        }
+
         const txHash = typeof rTxHash === 'string' ? rTxHash : rTxHash.result;
 
-        Logger.log('New TxHash', txHash);
+        Logger.log('New TxHash', rTxHash);
         Logger.log('New SignedTxs', signedTx);
 
         if (!!txHash) {

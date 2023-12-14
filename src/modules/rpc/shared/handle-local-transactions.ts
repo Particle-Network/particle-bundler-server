@@ -175,9 +175,14 @@ async function tryGetReceiptAndHandlePendingTransactionsDirectly(
     rpcService: RpcService,
     mongodbConnection: Connection,
 ) {
+    const latestTransaction = await rpcService.aaService.transactionService.getLatestTransaction(
+        pendingTransaction.chainId,
+        pendingTransaction.from,
+    );
+
     for (let index = 0; index < 10; index++) {
         const [result] = await Promise.all([
-            getReceiptAndHandlePendingTransactions(pendingTransaction, rpcService, mongodbConnection),
+            getReceiptAndHandlePendingTransactions(pendingTransaction, rpcService, mongodbConnection, latestTransaction),
             new Promise((resolve) => setTimeout(resolve, 300)),
         ]);
 
@@ -191,6 +196,7 @@ export async function getReceiptAndHandlePendingTransactions(
     pendingTransaction: TransactionDocument,
     rpcService: RpcService,
     mongodbConnection: Connection,
+    latestTransaction?: TransactionDocument,
 ) {
     try {
         const provider = rpcService.getJsonRpcProvider(pendingTransaction.chainId);
@@ -224,7 +230,14 @@ export async function getReceiptAndHandlePendingTransactions(
             return false;
         }
 
-        await tryIncrTransactionGasPrice(pendingTransaction, mongodbConnection, provider, rpcService.aaService);
+        latestTransaction =
+            latestTransaction ??
+            (await rpcService.aaService.transactionService.getLatestTransaction(pendingTransaction.chainId, pendingTransaction.from));
+
+        if (latestTransaction && latestTransaction.nonce + 1 === pendingTransaction.nonce) {
+            await tryIncrTransactionGasPrice(pendingTransaction, mongodbConnection, provider, rpcService.aaService);
+        }
+
         return false;
     } catch (error) {
         Logger.error('getReceiptAndHandlePendingTransactions error', error);
