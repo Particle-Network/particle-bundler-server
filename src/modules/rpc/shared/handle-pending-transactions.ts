@@ -14,6 +14,7 @@ import { BigNumber } from '../../../common/bignumber';
 import { deepHexlify } from '../aa/utils';
 import { Alert } from '../../../common/alert';
 import { ProcessNotify } from '../../../common/process-notify';
+import { METHOD_SEND_RAW_TRANSACTION } from '../../../configs/bundler-common';
 
 export async function tryIncrTransactionGasPrice(
     transaction: TransactionDocument,
@@ -115,7 +116,7 @@ export async function tryIncrTransactionGasPrice(
             ...createTxGasData(transaction.chainId, txData),
         });
 
-        const rTxHash = await provider.broadcastTransaction(signedTx);
+        const rTxHash = await provider.send(METHOD_SEND_RAW_TRANSACTION, [signedTx]);
         const txHash = typeof rTxHash === 'string' ? rTxHash : rTxHash.hash;
 
         Logger.log('New TxHash', txHash);

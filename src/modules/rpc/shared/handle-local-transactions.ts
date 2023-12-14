@@ -11,7 +11,7 @@ import { handlePendingTransaction, tryIncrTransactionGasPrice } from './handle-p
 import { BigNumber } from '../../../common/bignumber';
 import { RpcService } from '../services/rpc.service';
 import { Alert } from '../../../common/alert';
-import { SUPPORT_EIP_1559 } from '../../../configs/bundler-common';
+import { METHOD_SEND_RAW_TRANSACTION, SUPPORT_EIP_1559 } from '../../../configs/bundler-common';
 import { Logger } from '@nestjs/common';
 
 export async function createBundleTransaction(
@@ -125,7 +125,7 @@ export async function trySendAndUpdateTransactionStatus(
     }
 
     try {
-        await provider.broadcastTransaction(currentSignedTx);
+        await provider.send(METHOD_SEND_RAW_TRANSACTION, [currentSignedTx]);
     } catch (error) {
         // insufficient funds for intrinsic transaction cost
         if (error?.message?.toLowerCase()?.includes('insufficient funds')) {
