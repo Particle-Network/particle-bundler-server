@@ -45,15 +45,19 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
     Helper.assertTrue(isUserOpValid(userOp), -32602, AppExceptionMessages.messageExtend(-32602, `Invalid userOp`));
 
     const provider = rpcService.getJsonRpcProvider(chainId);
-
-    const [{ callGasLimit, initGas }, { maxFeePerGas, maxPriorityFeePerGas, gasCostInContract, gasCostWholeTransaction }] = await Promise.all([
-        estimateGasLimit(provider, entryPoint, userOp),
-        calculateGasPrice(rpcService, chainId, userOp, entryPoint),
-    ]);
+    const { callGasLimit, initGas } = await estimateGasLimit(provider, entryPoint, userOp);
 
     userOp.verificationGasLimit = BigNumber.from(100000).add(initGas).toHexString();
     userOp.callGasLimit = BigNumber.from(callGasLimit).toHexString();
     userOp.preVerificationGas = BigNumber.from(calcPreVerificationGas(userOp)).add(5000).toHexString();
+
+    const { maxFeePerGas, maxPriorityFeePerGas, gasCostInContract, gasCostWholeTransaction } = await calculateGasPrice(
+        rpcService,
+        chainId,
+        userOp,
+        entryPoint,
+    );
+
     userOp.maxFeePerGas = maxFeePerGas;
     userOp.maxPriorityFeePerGas = maxPriorityFeePerGas;
     if (initGas > 0n && BigNumber.from(gasCostInContract).gt(initGas)) {
