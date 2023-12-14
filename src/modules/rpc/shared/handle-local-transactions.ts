@@ -131,7 +131,10 @@ export async function trySendAndUpdateTransactionStatus(
     }
 
     try {
-        await provider.send(METHOD_SEND_RAW_TRANSACTION, [currentSignedTx]);
+        const r = await provider.send(METHOD_SEND_RAW_TRANSACTION, [currentSignedTx]);
+        if (!!r?.error) {
+            throw r.error;
+        }
     } catch (error) {
         // insufficient funds for intrinsic transaction cost
         if (error?.message?.toLowerCase()?.includes('insufficient funds')) {
@@ -145,7 +148,9 @@ export async function trySendAndUpdateTransactionStatus(
         }
 
         console.error(`SendTransaction error: ${transaction.id}`, error);
-        Alert.sendMessage(`Send Transaction Error: ${Helper.converErrorToString(error)}`);
+        Alert.sendMessage(
+            `Send Transaction Error On Chain ${transaction.chainId} And Transaction ${transaction.id}: ${Helper.converErrorToString(error)}`,
+        );
 
         Lock.release(keyLock);
         return;
