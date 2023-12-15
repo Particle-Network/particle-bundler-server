@@ -167,6 +167,10 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
             EVM_CHAIN_ID.MANTLE_TESTNET,
             EVM_CHAIN_ID.SCROLL_MAINNET,
             EVM_CHAIN_ID.SCROLL_SEPOLIA,
+            EVM_CHAIN_ID.OPBNB_MAINNET,
+            EVM_CHAIN_ID.OPBNB_TESTNET,
+            EVM_CHAIN_ID.COMBO_MAINNET,
+            EVM_CHAIN_ID.COMBO_TESTNET,
         ].includes(chainId)
     ) {
         let ratio = 1.05;
@@ -179,19 +183,6 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
         }
 
         minGasPrice = minGasPrice.mul(Math.round(ratio * 100)).div(100);
-    }
-
-    // TODO HACK temporary not strict check for opBNB and Combo
-    // at least 0.5 Gwei
-    if ([EVM_CHAIN_ID.OPBNB_MAINNET, EVM_CHAIN_ID.OPBNB_TESTNET, EVM_CHAIN_ID.COMBO_MAINNET, EVM_CHAIN_ID.COMBO_TESTNET].includes(chainId)) {
-        const minUserOpGasPrice = 5 * 10 ** 8;
-        if (userOpGasPrice < minUserOpGasPrice) {
-            const diff = BigNumber.from(minUserOpGasPrice).sub(userOpGasPrice);
-            userOp.maxFeePerGas = BigNumber.from(userOp.maxFeePerGas).add(diff).toHexString();
-            userOp.maxPriorityFeePerGas = BigNumber.from(userOp.maxPriorityFeePerGas).add(diff).toHexString();
-
-            userOpGasPrice = minUserOpGasPrice;
-        }
     }
 
     if (BigNumber.from(userOpGasPrice).lt(minGasPrice)) {
