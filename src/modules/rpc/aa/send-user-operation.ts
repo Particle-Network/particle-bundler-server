@@ -162,23 +162,11 @@ function checkUserOpGasPriceIsSatisfied(chainId: number, userOp: any, gasCost: a
         : signerFeeData.gasPrice;
     const userOpGasPrice = calcUserOpGasPrice(userOp, signerFeeData.baseFee);
 
-    Helper.assertTrue(
-        BigNumber.from(userOpGasPrice).gte(signerGasPrice),
-        -32602,
-        `maxFeePerGas or maxPriorityFeePerGas is too low, userOpGasPrice can not be lower than ${signerGasPrice}`,
-    );
-
-    // TODO HACK temporary not strict check for opBNB and Combo
-    if (
-        chainId === EVM_CHAIN_ID.OPBNB_MAINNET ||
-        chainId === EVM_CHAIN_ID.OPBNB_TESTNET ||
-        chainId === EVM_CHAIN_ID.COMBO_MAINNET ||
-        chainId === EVM_CHAIN_ID.COMBO_TESTNET
-    ) {
-        const minUserOpGasPrice = 5 * 10 ** 8;
-        Helper.assertTrue(BigNumber.from(userOpGasPrice).gte(minUserOpGasPrice), -32602, `maxFeePerGas or maxPriorityFeePerGas is too low`);
-        return;
-    }
+    // Helper.assertTrue(
+    //     BigNumber.from(userOpGasPrice).gte(signerGasPrice),
+    //     -32602,
+    //     `maxFeePerGas or maxPriorityFeePerGas is too low, userOpGasPrice can not be lower than ${signerGasPrice}`,
+    // );
 
     const signerPaid = BigNumber.from(gasCost).add(1000).mul(signerGasPrice);
 
@@ -186,9 +174,22 @@ function checkUserOpGasPriceIsSatisfied(chainId: number, userOp: any, gasCost: a
     // signerPaid = gasCost * signerGasPrice
     // userOpPaid - signerPaid > extraFee (L1 Fee)
 
-    const diff = BigNumber.from(gasCost).mul(userOpGasPrice).sub(signerPaid);
-    Helper.assertTrue(
-        diff.gte(extraFee),
+    const userOpPaid = BigNumber.from(gasCost).mul(userOpGasPrice);
+
+    // userOpPaid >= signerPaid + extraFee
+    const diff = userOpPaid.sub(signerPaid).sub(extraFee);
+    if (diff.gte(0)) {
+        return;
+    }
+
+    // ((diff * 10000) / ((signerPaid + extraFee) * 10000))
+    const toleranceGap = diff.abs().mul(10000).div(signerPaid.add(extraFee));
+    // Fault tolerance 10%
+    if (toleranceGap.lte(1000)) {
+        return;
+    }
+
+    throw new AppException(
         -32602,
         `maxFeePerGas or maxPriorityFeePerGas is too low: ${JSON.stringify({
             signerGasPrice,
