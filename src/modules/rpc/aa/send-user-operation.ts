@@ -182,7 +182,7 @@ function checkUserOpGasPriceIsSatisfied(chainId: number, userOp: any, gasCost: a
         return;
     }
 
-    // ((diff * 10000) / ((signerPaid + extraFee) * 10000)) / 10000
+    // ((diff * 10000) / ((signerPaid + extraFee) * 10000))
     const toleranceGap = diff.abs().mul(10000).div(signerPaid.add(extraFee));
     // Fault tolerance 10%
     if (toleranceGap.lte(1000)) {
