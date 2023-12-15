@@ -174,12 +174,18 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
         ].includes(chainId)
     ) {
         let ratio = 1.05;
-        if ([EVM_CHAIN_ID.BASE_MAINNET, EVM_CHAIN_ID.BASE_TESTNET].includes(chainId)) {
-            ratio = 1.15;
-        } else if (
-            [EVM_CHAIN_ID.PGN_MAINNET, EVM_CHAIN_ID.PGN_TESTNET, EVM_CHAIN_ID.POLYGON_MAINNET, EVM_CHAIN_ID.POLYGON_TESTNET].includes(chainId)
+        
+        if (
+            [
+                EVM_CHAIN_ID.BASE_MAINNET,
+                EVM_CHAIN_ID.BASE_TESTNET,
+                EVM_CHAIN_ID.PGN_MAINNET,
+                EVM_CHAIN_ID.PGN_TESTNET,
+                EVM_CHAIN_ID.POLYGON_MAINNET,
+                EVM_CHAIN_ID.POLYGON_TESTNET,
+            ].includes(chainId)
         ) {
-            ratio = 1.25;
+            ratio = 1.15;
         }
 
         minGasPrice = minGasPrice.mul(Math.round(ratio * 100)).div(100);
