@@ -133,8 +133,12 @@ export async function simulateHandleOpAndGetGasCost(rpcService: RpcService, chai
     }
 
     const gasCostInContract = BigNumber.from(errorResult?.revert?.args[1]).toHexString();
+    let verificationGasLimit = BigNumber.from(errorResult?.revert?.args[0]).sub(userOp.preVerificationGas).mul(3).div(2);
+    if (verificationGasLimit.lt(100000)) {
+        verificationGasLimit = BigNumber.from(100000);
+    }
 
-    return { gasCostInContract, gasCostWholeTransaction };
+    return { gasCostInContract, gasCostWholeTransaction, verificationGasLimit: verificationGasLimit.toHexString() };
 }
 
 export async function getL2ExtraFee(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string) {
