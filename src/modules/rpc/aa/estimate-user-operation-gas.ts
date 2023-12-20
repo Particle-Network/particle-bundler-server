@@ -29,9 +29,9 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
     // Init default value
     userOp.maxFeePerGas = '0x1';
     userOp.maxPriorityFeePerGas = '0x1';
-    userOp.preVerificationGas = BigNumber.from(1000000).toHexString();
     userOp.verificationGasLimit = BigNumber.from(1000000).toHexString();
     userOp.callGasLimit = BigNumber.from(10000000).toHexString();
+    userOp.preVerificationGas = BigNumber.from(calcPreVerificationGas(userOp)).add(5000).toHexString();
 
     if (!userOp.signature || userOp.signature === '0x') {
         userOp.signature = DUMMY_SIGNATURE;
