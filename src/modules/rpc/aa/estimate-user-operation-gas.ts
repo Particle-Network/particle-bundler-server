@@ -26,6 +26,7 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
     const bundlerConfig = getBundlerConfig(chainId);
     Helper.assertTrue(bundlerConfig.SUPPORTED_ENTRYPOINTS.includes(entryPoint), -32003);
 
+    // Init default value
     userOp.maxFeePerGas = '0x1';
     userOp.maxPriorityFeePerGas = '0x1';
     userOp.preVerificationGas = BigNumber.from(1000000).toHexString();
@@ -44,23 +45,18 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
 
     Helper.assertTrue(isUserOpValid(userOp), -32602, AppExceptionMessages.messageExtend(-32602, `Invalid userOp`));
 
-    const provider = rpcService.getJsonRpcProvider(chainId);
-    const { callGasLimit, initGas } = await estimateGasLimit(provider, entryPoint, userOp);
+    const [{ callGasLimit, initGas }, { maxFeePerGas, maxPriorityFeePerGas, gasCostInContract, gasCostWholeTransaction, verificationGasLimit }] =
+        await Promise.all([
+            estimateGasLimit(rpcService.getJsonRpcProvider(chainId), entryPoint, userOp),
+            calculateGasPrice(rpcService, chainId, userOp, entryPoint),
+        ]);
 
-    userOp.verificationGasLimit = BigNumber.from(500000).add(initGas).toHexString();
-    userOp.callGasLimit = BigNumber.from(callGasLimit).toHexString();
     userOp.preVerificationGas = BigNumber.from(calcPreVerificationGas(userOp)).add(5000).toHexString();
-
-    const { maxFeePerGas, maxPriorityFeePerGas, gasCostInContract, gasCostWholeTransaction, verificationGasLimit } = await calculateGasPrice(
-        rpcService,
-        chainId,
-        userOp,
-        entryPoint,
-    );
-
     userOp.verificationGasLimit = verificationGasLimit;
+    userOp.callGasLimit = BigNumber.from(callGasLimit).toHexString();
     userOp.maxFeePerGas = maxFeePerGas;
     userOp.maxPriorityFeePerGas = maxPriorityFeePerGas;
+
     if (initGas > 0n && BigNumber.from(gasCostInContract).gt(initGas)) {
         userOp.callGasLimit = BigNumber.from(gasCostInContract).sub(initGas).toHexString();
     }
