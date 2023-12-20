@@ -47,7 +47,7 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
     const provider = rpcService.getJsonRpcProvider(chainId);
     const { callGasLimit, initGas } = await estimateGasLimit(provider, entryPoint, userOp);
 
-    userOp.verificationGasLimit = BigNumber.from(100000).add(initGas).toHexString();
+    userOp.verificationGasLimit = BigNumber.from(500000).add(initGas).toHexString();
     userOp.callGasLimit = BigNumber.from(callGasLimit).toHexString();
     userOp.preVerificationGas = BigNumber.from(calcPreVerificationGas(userOp)).add(5000).toHexString();
 
