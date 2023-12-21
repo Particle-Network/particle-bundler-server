@@ -82,11 +82,16 @@ export async function tryIncrTransactionGasPrice(
                 txData.maxPriorityFeePerGas = BigNumber.from(feeData.maxPriorityFeePerGas).toHexString();
             }
 
-            txData.maxFeePerGas = BigNumber.from(tx.maxFeePerGas)
+            const bnMaxPriorityFeePerGas = BigNumber.from(tx.maxPriorityFeePerGas);
+            if (bnMaxPriorityFeePerGas.eq(0)) {
+                bnMaxPriorityFeePerGas.add(0.01 * 10 ** 9);
+            }
+
+            txData.maxPriorityFeePerGas = bnMaxPriorityFeePerGas
                 .mul(coefficient * 10)
                 .div(10)
                 .toHexString();
-            txData.maxPriorityFeePerGas = BigNumber.from(tx.maxPriorityFeePerGas)
+            txData.maxFeePerGas = BigNumber.from(tx.maxFeePerGas)
                 .mul(coefficient * 10)
                 .div(10)
                 .toHexString();
