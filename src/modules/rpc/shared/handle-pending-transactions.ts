@@ -82,21 +82,27 @@ export async function tryIncrTransactionGasPrice(
                 txData.maxPriorityFeePerGas = BigNumber.from(feeData.maxPriorityFeePerGas).toHexString();
             }
 
-            const bnMaxPriorityFeePerGas = BigNumber.from(tx.maxPriorityFeePerGas);
+            let bnMaxPriorityFeePerGas = BigNumber.from(tx.maxPriorityFeePerGas);
+            let bnMaxFeePerGas = BigNumber.from(tx.maxFeePerGas);
             if (bnMaxPriorityFeePerGas.eq(0)) {
-                bnMaxPriorityFeePerGas.add(0.01 * 10 ** 9);
+                bnMaxPriorityFeePerGas = bnMaxPriorityFeePerGas.add(0.01 * 10 ** 9);
+                if (bnMaxPriorityFeePerGas.gte(bnMaxFeePerGas)) {
+                    bnMaxFeePerGas = bnMaxPriorityFeePerGas.add(1);
+                }
             }
 
             txData.maxPriorityFeePerGas = bnMaxPriorityFeePerGas
                 .mul(coefficient * 10)
                 .div(10)
                 .toHexString();
-            txData.maxFeePerGas = BigNumber.from(tx.maxFeePerGas)
+            txData.maxFeePerGas = bnMaxFeePerGas
                 .mul(coefficient * 10)
                 .div(10)
                 .toHexString();
 
-            Logger.log(`Replace Transaction, Old maxPriorityFeePerGas: ${tx.maxFeePerGas}, New maxPriorityFeePerGas: ${txData.maxFeePerGas}`);
+            Logger.log(
+                `Replace Transaction, Old maxPriorityFeePerGas: ${tx.maxPriorityFeePerGas}, New maxPriorityFeePerGas: ${txData.maxPriorityFeePerGas}`,
+            );
         }
 
         if (tx instanceof LegacyTransaction) {
