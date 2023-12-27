@@ -31,7 +31,9 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
     userOp.maxPriorityFeePerGas = '0x1';
     userOp.verificationGasLimit = BigNumber.from(1000000).toHexString();
     userOp.callGasLimit = BigNumber.from(10000000).toHexString();
-    userOp.preVerificationGas = BigNumber.from(calcPreVerificationGas(userOp)).add(5000).toHexString();
+    userOp.preVerificationGas = '0x0';
+    userOp.paymasterAndData = userOp.paymasterAndData ?? '0x';
+    userOp.signature = userOp.signature ?? '0x';
 
     if (!userOp.signature || userOp.signature === '0x') {
         userOp.signature = DUMMY_SIGNATURE;
@@ -43,6 +45,7 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
         userOp.paymasterAndData = hexConcat([paymasterAddress, abiCoder.encode(['uint48', 'uint48'], ['0x0', '0x0']), DUMMY_SIGNATURE]);
     }
 
+    userOp.preVerificationGas = BigNumber.from(calcPreVerificationGas(userOp)).add(5000).toHexString();
     Helper.assertTrue(isUserOpValid(userOp), -32602, AppExceptionMessages.messageExtend(-32602, `Invalid userOp`));
 
     const [{ callGasLimit, initGas }, { maxFeePerGas, maxPriorityFeePerGas, gasCostInContract, gasCostWholeTransaction, verificationGasLimit }] =
