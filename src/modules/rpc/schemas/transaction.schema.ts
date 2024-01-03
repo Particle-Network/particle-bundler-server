@@ -1,6 +1,6 @@
 import { Prop, Schema as NestSchema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema } from 'mongoose';
-import { PENDING_TRANSACTION_WAITING_TIME } from '../../../common/common-types';
+import { PENDING_TRANSACTION_EXPIRED_TIME, PENDING_TRANSACTION_WAITING_TIME } from '../../../common/common-types';
 
 export enum TRANSACTION_STATUS {
     LOCAL,
@@ -63,6 +63,7 @@ interface ITransactionDocument {
     isLocal(): boolean;
     isPending(): boolean;
     isDone(): boolean;
+    isOld(): boolean;
 }
 
 TransactionSchema.set('toJSON', {
@@ -75,6 +76,12 @@ TransactionSchema.set('toJSON', {
 TransactionSchema.methods.isPendingTimeout = function (): boolean {
     return (
         [TRANSACTION_STATUS.PENDING].includes(this.status) && Date.now() - this.latestSentAt.valueOf() > PENDING_TRANSACTION_WAITING_TIME * 1000
+    );
+};
+
+TransactionSchema.methods.isOld = function (): boolean {
+    return (
+        [TRANSACTION_STATUS.PENDING].includes(this.status) && Date.now() - this.latestSentAt.valueOf() > PENDING_TRANSACTION_EXPIRED_TIME * 1000
     );
 };
 

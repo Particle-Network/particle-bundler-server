@@ -280,6 +280,12 @@ export async function handlePendingTransaction(
     Lock.release(keyLock);
 }
 
+export async function handleOldPendingTransaction(transaction: TransactionDocument, aaService: AAService) {
+    await aaService.transactionService.updateTransactionStatus(transaction, TRANSACTION_STATUS.SUCCESS);
+    const userOpHashes = transaction.userOperationHashes;
+    await aaService.userOperationService.transactionSetUserOperationsAsDone(transaction.chainId, userOpHashes, '', 0, '', null);
+}
+
 // check is the userop is bundled by other tx(mev)
 export async function checkAndHandleFailedReceipt(receipt: any, provider: JsonRpcProvider, targetUserOpHashes: string[]) {
     try {

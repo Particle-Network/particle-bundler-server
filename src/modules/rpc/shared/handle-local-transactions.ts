@@ -7,7 +7,7 @@ import { TRANSACTION_STATUS, TransactionDocument } from '../schemas/transaction.
 import { UserOperationDocument } from '../schemas/user-operation.schema';
 import { AAService } from '../services/aa.service';
 import Lock from '../../../common/global-lock';
-import { handlePendingTransaction, tryIncrTransactionGasPrice } from './handle-pending-transactions';
+import { handleOldPendingTransaction, handlePendingTransaction, tryIncrTransactionGasPrice } from './handle-pending-transactions';
 import { BigNumber } from '../../../common/bignumber';
 import { RpcService } from '../services/rpc.service';
 import { Alert } from '../../../common/alert';
@@ -211,6 +211,12 @@ export async function getReceiptAndHandlePendingTransactions(
     latestTransaction?: TransactionDocument,
 ) {
     try {
+        // the pending transaction is too old, force to finish it
+        if (!!latestTransaction && latestTransaction.nonce > pendingTransaction.nonce && pendingTransaction.isOld()) {
+            await handleOldPendingTransaction(pendingTransaction, rpcService.aaService);
+            return true;
+        }
+
         const provider = rpcService.getJsonRpcProvider(pendingTransaction.chainId);
         const receiptPromises = pendingTransaction.txHashes.map((txHash) => rpcService.getTransactionReceipt(provider, txHash));
         const receipts = await Promise.all(receiptPromises);

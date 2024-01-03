@@ -17,7 +17,7 @@ export async function getUserOperationReceipt(rpcService: RpcService, chainId: n
     const transactionService = rpcService.aaService.transactionService;
 
     const userOperation = await userOperationService.getUserOperationByHash(chainId, body.params[0]);
-    if (!userOperation || userOperation.status === USER_OPERATION_STATUS.LOCAL) {
+    if (!userOperation || userOperation.status === USER_OPERATION_STATUS.LOCAL || userOperation.blockNumber <= 0) {
         return null;
     }
 

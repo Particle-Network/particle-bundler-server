@@ -155,7 +155,7 @@ export class UserOperationService {
         session: any,
     ) {
         return await this.userOperationModel.updateMany(
-            { chainId, userOpHash: { $in: userOpHashes } },
+            { chainId, userOpHash: { $in: userOpHashes }, status: USER_OPERATION_STATUS.PENDING },
             { $set: { status: USER_OPERATION_STATUS.DONE, txHash, blockNumber, blockHash } },
             { session },
         );
