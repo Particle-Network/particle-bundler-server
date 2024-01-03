@@ -256,6 +256,8 @@ export async function getReceiptAndHandlePendingTransactions(
     } catch (error) {
         Logger.error('getReceiptAndHandlePendingTransactions error', error);
 
-        Alert.sendMessage(`getReceiptAndHandlePendingTransactions Error: ${Helper.converErrorToString(error)}`);
+        Alert.sendMessage(
+            `getReceiptAndHandlePendingTransactions Error On Chain ${pendingTransaction.chainId} For ${pendingTransaction.id}: ${Helper.converErrorToString(error)}`,
+        );
     }
 }
