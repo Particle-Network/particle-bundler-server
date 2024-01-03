@@ -152,7 +152,7 @@ export class UserOperationService {
         txHash: string,
         blockNumber: number,
         blockHash: string,
-        session: any,
+        session: any = null,
     ) {
         return await this.userOperationModel.updateMany(
             { chainId, userOpHash: { $in: userOpHashes }, status: USER_OPERATION_STATUS.PENDING },

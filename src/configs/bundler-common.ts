@@ -10,6 +10,7 @@ export let BUNDLER_CONFIG: any = {};
 export let CHAIN_BALANCE_RANGE: any = {};
 export let CHAIN_SIGNER_MIN_BALANCE: any = {};
 export let METHOD_SEND_RAW_TRANSACTION: string;
+export let DEFAULT_ENTRY_POINT_ADDRESS: string;
 
 export async function initializeBundlerConfig() {
     let bc: any;
@@ -27,6 +28,7 @@ export async function initializeBundlerConfig() {
     PARTICLE_PAYMASTER_URL = bc.PARTICLE_PAYMASTER_URL;
     PARTICLE_PUBLIC_RPC_URL = bc.PARTICLE_PUBLIC_RPC_URL;
     METHOD_SEND_RAW_TRANSACTION = bc.METHOD_SEND_RAW_TRANSACTION ?? 'eth_sendRawTransaction';
+    DEFAULT_ENTRY_POINT_ADDRESS = bc.DEFAULT_ENTRY_POINT_ADDRESS;
 
     for (const item of bc.RPC_CONFIG) {
         RPC_CONFIG[String(item.chainId)] = item;

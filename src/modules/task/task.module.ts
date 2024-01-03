@@ -10,6 +10,7 @@ import { UserOperationEvent, UserOperationEventSchema } from '../rpc/schemas/use
 import { Transaction, TransactionSchema } from '../rpc/schemas/transaction.schema';
 import { TransactionService } from '../rpc/services/transaction.service';
 import { RpcService } from '../rpc/services/rpc.service';
+import { ListenerService } from './listener.service';
 
 @Module({
     imports: [
@@ -21,6 +22,6 @@ import { RpcService } from '../rpc/services/rpc.service';
             { name: UserOperationEvent.name, schema: UserOperationEventSchema },
         ]),
     ],
-    providers: [TaskService, AAService, UserOperationService, TransactionService, RpcService],
+    providers: [TaskService, ListenerService, AAService, UserOperationService, TransactionService, RpcService],
 })
 export class TaskModule {}
