@@ -1,5 +1,5 @@
 import * as pm2 from 'pm2';
-import { PROCESS_NOTIFY_TYPE } from './common-types';
+import { IS_DEVELOPMENT, PROCESS_NOTIFY_TYPE } from './common-types';
 
 const nodeIds = [];
 
@@ -14,21 +14,29 @@ pm2.connect(function () {
 });
 
 class ProcessNotifyClass {
-    private handlers: Function[] = [];
+    private handlerMap: Map<string, Function[]> = new Map();
 
     public constructor() {
-        process.on('message', (packet: any) => {
-            if (typeof packet !== 'object' || !packet?.type) {
-                return;
-            }
+        process.on('message', this.onMessage.bind(this));
+    }
 
-            for (const handler of this.handlers) {
-                handler(packet);
-            }
-        });
+    private onMessage(packet: any) {
+        if (typeof packet !== 'object' || !packet?.type || !this.handlerMap.has(packet.type)) {
+            return;
+        }
+
+        const handlers = this.handlerMap.get(packet.type);
+        for (const handler of handlers) {
+            handler(packet);
+        }
     }
 
     public sendMessages(type: PROCESS_NOTIFY_TYPE, data: any = null) {
+        if (IS_DEVELOPMENT) {
+            this.onMessage({ type, data });
+            return;
+        }
+
         for (const nodeId of nodeIds) {
             pm2.sendDataToProcessId(
                 nodeId,
@@ -44,8 +52,14 @@ class ProcessNotifyClass {
         }
     }
 
-    public registerHandler(handler: Function) {
-        this.handlers.push(handler);
+    public registerHandler(type: string, handler: Function) {
+        let handlers = [];
+        if (this.handlerMap.has(type)) {
+            handlers = this.handlerMap.get(type);
+        }
+
+        handlers.push(handler);
+        this.handlerMap.set(type, handlers);
     }
 }
 

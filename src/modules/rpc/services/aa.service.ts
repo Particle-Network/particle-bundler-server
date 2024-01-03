@@ -31,37 +31,9 @@ export class AAService {
         public readonly transactionService: TransactionService,
         public readonly configService: ConfigService,
     ) {
-        ProcessNotify.registerHandler((packet: any) => {
-            if (packet.type === PROCESS_NOTIFY_TYPE.GET_GAS_FEE) {
-                const { chainId, feeObj } = packet.data;
-                Logger.log(`Get Gas Fee On Chain ${chainId} From Particle: ${JSON.stringify(feeObj)}`);
-
-                if (!!chainId && !!feeObj) {
-                    this.setFeeData(chainId, feeObj);
-                }
-            }
-
-            if (packet.type === PROCESS_NOTIFY_TYPE.GET_TRANSACTION_COUNT) {
-                const { chainId, address, nonce } = packet.data;
-                Logger.log(`Get Transaction Count On Chain ${chainId} For ${address}: ${nonce}`);
-
-                if (!!chainId && !!address) {
-                    this.setTransactionCountLocalCache(chainId, address, nonce);
-                }
-            }
-
-            if (packet.type === PROCESS_NOTIFY_TYPE.SET_RECEIPT) {
-                const { chainId, userOpHashes, receipt } = packet.data;
-
-                console.log(`Set Receipt On Chain ${chainId} For ${userOpHashes}`, receipt);
-
-                if (!!chainId && !!userOpHashes && !!receipt) {
-                    for (const userOpHash of userOpHashes) {
-                        this.setUserOpHashReceipt(chainId, userOpHash, receipt);
-                    }
-                }
-            }
-        });
+        ProcessNotify.registerHandler(PROCESS_NOTIFY_TYPE.GET_GAS_FEE, this.onSetFeeData.bind(this));
+        ProcessNotify.registerHandler(PROCESS_NOTIFY_TYPE.GET_TRANSACTION_COUNT, this.onSetTransactionCountLocalCache.bind(this));
+        ProcessNotify.registerHandler(PROCESS_NOTIFY_TYPE.SET_RECEIPT, this.onSetUserOpHashReceipt.bind(this));
     }
 
     public getRandomSigners(chainId: number): Wallet[] {
@@ -165,6 +137,15 @@ export class AAService {
         return feeObj;
     }
 
+    private onSetFeeData(packet: any) {
+        const { chainId, feeObj } = packet.data;
+        Logger.log(`Get Gas Fee On Chain ${chainId} From Particle: ${JSON.stringify(feeObj)}`);
+
+        if (!!chainId && !!feeObj) {
+            this.setFeeData(chainId, feeObj);
+        }
+    }
+
     private setFeeData(chainId: number, feeObj: any) {
         this.feeCaches.set(chainId, { fee: feeObj, timestamp: Date.now() });
     }
@@ -186,6 +167,15 @@ export class AAService {
         return nonce;
     }
 
+    private onSetTransactionCountLocalCache(packet: any) {
+        const { chainId, address, nonce } = packet.data;
+        Logger.log(`Get Transaction Count On Chain ${chainId} For ${address}: ${nonce}`);
+
+        if (!!chainId && !!address) {
+            this.setTransactionCountLocalCache(chainId, address, nonce);
+        }
+    }
+
     // cache once is ok, because nonce will be used from database
     private setTransactionCountLocalCache(chainId: number, address: string, nonce: any) {
         this.transactionCountCaches.set(`${chainId}-${address}`, nonce);
@@ -198,6 +188,17 @@ export class AAService {
         }
 
         return null;
+    }
+
+    private onSetUserOpHashReceipt(packet: any) {
+        const { chainId, userOpHashes, receipt } = packet.data;
+        console.log(`Set Receipt On Chain ${chainId} For ${userOpHashes}`, receipt);
+
+        if (!!chainId && !!userOpHashes && !!receipt) {
+            for (const userOpHash of userOpHashes) {
+                this.setUserOpHashReceipt(chainId, userOpHash, receipt);
+            }
+        }
     }
 
     private setUserOpHashReceipt(chainId: number, userOpHash: string, receipt: any) {

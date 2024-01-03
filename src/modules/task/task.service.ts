@@ -39,20 +39,20 @@ export class TaskService {
         private readonly userOperationService: UserOperationService,
         @InjectConnection() private readonly connection: Connection,
     ) {
-        ProcessNotify.registerHandler((packet: any) => {
-            if (packet.type === PROCESS_NOTIFY_TYPE.CREATE_USER_OPERATION) {
-                const { chainId, userOpDoc } = packet.data;
-                if (!!chainId && !!userOpDoc) {
-                    this.sealUserOps([userOpDoc]);
-                }
-            }
-        });
+        ProcessNotify.registerHandler(PROCESS_NOTIFY_TYPE.CREATE_USER_OPERATION, this.onSealUserOps.bind(this));
     }
 
     private canRun = true;
     private inSealingUserOps = false;
     private inCheckingSignerBalance = false;
     private inCheckingAndReleaseBlockSigners = false;
+
+    private onSealUserOps(packet: any) {
+        const { chainId, userOpDoc } = packet.data;
+        if (!!chainId && !!userOpDoc) {
+            this.sealUserOps([userOpDoc]);
+        }
+    }
 
     @Cron('* * * * * *')
     public async sealUserOps(userOpDoc?: any[]) {
