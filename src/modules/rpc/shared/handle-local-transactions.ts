@@ -68,8 +68,7 @@ export async function createBundleTransaction(
         trySendAndUpdateTransactionStatus(localTransaction, provider, rpcService, aaService, mongodbConnection, true);
     } catch (error) {
         if (error instanceof AppException) {
-            // nothing
-            return;
+            throw error;
         }
 
         console.error('Failed to create bundle transaction', error);

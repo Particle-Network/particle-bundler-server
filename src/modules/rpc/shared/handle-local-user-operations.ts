@@ -11,6 +11,7 @@ import { Alert } from '../../../common/alert';
 import { getBundlerConfig } from '../../../configs/bundler-common';
 import { Logger } from '@nestjs/common';
 import { ListenerService } from '../../task/listener.service';
+import { AppException } from '../../../common/app-exception';
 
 export async function handleLocalUserOperations(
     chainId: number,
@@ -27,8 +28,10 @@ export async function handleLocalUserOperations(
         const provider = rpcService.getJsonRpcProvider(chainId);
         await sealUserOps(chainId, provider, signer, userOperations, mongodbConnection, rpcService, aaService, listenerService);
     } catch (error) {
-        Logger.error(`Handle Local Ops Error On Chain ${chainId}`, error);
-        Alert.sendMessage(`Handle Local Ops Error On Chain ${chainId}: ${Helper.converErrorToString(error)}`);
+        if (!(error instanceof AppException)) {
+            Logger.error(`Handle Local Ops Error On Chain ${chainId}`, error);
+            Alert.sendMessage(`Handle Local Ops Error On Chain ${chainId}: ${Helper.converErrorToString(error)}`);
+        }
     }
 
     Logger.log(`handleLocalUserOperations Finish release on chain ${chainId} with ${signer.address}`);
