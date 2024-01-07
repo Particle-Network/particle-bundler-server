@@ -29,8 +29,10 @@ export class UserOperationService {
         const userOpSender = getAddress(userOp.sender);
         const { nonceKey, nonceValue } = splitOriginNonce(userOp.nonce);
 
-        userOpDoc =
-            userOpDoc ?? (await this.getUserOperationByAddressNonce(chainId, userOpSender, nonceKey, BigNumber.from(nonceValue).toString()));
+        const nonceValueString = BigNumber.from(nonceValue).toString();
+        Helper.assertTrue(nonceValueString.length <= 30, -32608);
+
+        userOpDoc = userOpDoc ?? (await this.getUserOperationByAddressNonce(chainId, userOpSender, nonceKey, nonceValueString));
 
         // Allow to replace failed user operation, because the nonce of the user operation is not increased
         if (userOpDoc) {
@@ -50,7 +52,7 @@ export class UserOperationService {
             userOpHash,
             userOpSender: userOp.sender,
             userOpNonceKey: nonceKey,
-            userOpNonce: BigNumber.from(nonceValue).toString(),
+            userOpNonce: nonceValueString,
             chainId,
             entryPoint,
             origin: userOp,
