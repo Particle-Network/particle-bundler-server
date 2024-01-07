@@ -281,7 +281,7 @@ export async function handlePendingTransaction(
 }
 
 export async function handleOldPendingTransaction(transaction: TransactionDocument, aaService: AAService) {
-    await aaService.transactionService.updateTransactionStatus(transaction, TRANSACTION_STATUS.SUCCESS);
+    await aaService.transactionService.updateTransactionStatus(transaction, TRANSACTION_STATUS.FAILED);
     const userOpHashes = transaction.userOperationHashes;
     await aaService.userOperationService.transactionSetUserOperationsAsDone(transaction.chainId, userOpHashes, '', 0, '', null);
 }
