@@ -37,6 +37,7 @@ export class AppExceptionMessages {
         [-32605, 'Validate user operation failed'],
         [-32606, 'Simulate user operation failed'],
         [-32607, 'The user operation with same nonce is processing'],
+        [-32608, 'The nonce is too big'],
     ]);
 
     public static get(errorCode: number) {

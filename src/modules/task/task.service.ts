@@ -26,6 +26,7 @@ import { Alert } from '../../common/alert';
 import { isObject } from 'lodash';
 import { UserOperationDocument } from '../rpc/schemas/user-operation.schema';
 import { ProcessNotify } from '../../common/process-notify';
+import { ListenerService } from './listener.service';
 
 const FETCH_TRANSACTION_SIZE = 500;
 
@@ -33,6 +34,7 @@ const FETCH_TRANSACTION_SIZE = 500;
 export class TaskService {
     public constructor(
         private readonly configService: ConfigService,
+        private readonly listenerService: ListenerService,
         private readonly rpcService: RpcService,
         private readonly aaService: AAService,
         private readonly transactionService: TransactionService,
@@ -40,6 +42,10 @@ export class TaskService {
         @InjectConnection() private readonly connection: Connection,
     ) {
         ProcessNotify.registerHandler(PROCESS_NOTIFY_TYPE.CREATE_USER_OPERATION, this.onSealUserOps.bind(this));
+
+        if (this.canRunCron()) {
+            this.listenerService.initialize(this.handlePendingTransactionByEvent.bind(this));
+        }
     }
 
     private canRun = true;
@@ -100,7 +106,15 @@ export class TaskService {
             return;
         }
 
-        await handleLocalUserOperations(chainId, this.rpcService, this.aaService, targetSigner, userOperations, this.connection);
+        await handleLocalUserOperations(
+            chainId,
+            this.rpcService,
+            this.aaService,
+            this.listenerService,
+            targetSigner,
+            userOperations,
+            this.connection,
+        );
         Lock.release(keyLockSigner(chainId, targetSigner.address));
 
         await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -156,6 +170,25 @@ export class TaskService {
         }
 
         Lock.release(keyLock);
+    }
+
+    public handlePendingTransactionByEvent(event: any, transaction: TransactionDocument) {
+        const userOpHash = event[0];
+        const userOpEvent = event[7];
+        const receipt = { 
+            transactionHash: userOpEvent.log.transactionHash, 
+            blockHash: userOpEvent.log.blockHash, 
+            blockNumber: userOpEvent.log.blockNumber, 
+            status: '0x1', 
+            logs: [userOpEvent.log], 
+            isEvent: true 
+        };
+
+        ProcessNotify.sendMessages(PROCESS_NOTIFY_TYPE.SET_RECEIPT, {
+            chainId: transaction.chainId,
+            userOpHashes: [userOpHash],
+            receipt,
+        });
     }
 
     @Cron('* * * * * *')

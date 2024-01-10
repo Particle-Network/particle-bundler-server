@@ -32,7 +32,11 @@ export class TransactionService {
     }
 
     public async getPendingTransactionCountBySigner(chainId: number, signerAddress: string): Promise<number> {
-        return await this.transactionModel.countDocuments({ chainId, from: signerAddress, status: TRANSACTION_STATUS.PENDING });
+        return await this.transactionModel.countDocuments({
+            chainId,
+            from: signerAddress,
+            status: { $in: [TRANSACTION_STATUS.PENDING, TRANSACTION_STATUS.LOCAL] },
+        });
     }
 
     public async createTransaction(chainId: number, signedTx: any, userOperationHashes: string[], session: any): Promise<TransactionDocument> {

@@ -10,11 +10,14 @@ import { BigNumber } from '../../../common/bignumber';
 import { Alert } from '../../../common/alert';
 import { getBundlerConfig } from '../../../configs/bundler-common';
 import { Logger } from '@nestjs/common';
+import { ListenerService } from '../../task/listener.service';
+import { AppException } from '../../../common/app-exception';
 
 export async function handleLocalUserOperations(
     chainId: number,
     rpcService: RpcService,
     aaService: AAService,
+    listenerService: ListenerService,
     signer: Wallet,
     userOperations: UserOperationDocument[],
     mongodbConnection: Connection,
@@ -23,10 +26,12 @@ export async function handleLocalUserOperations(
         Logger.log(`Start Handling ${userOperations.length} user operations on chain ${chainId}`);
 
         const provider = rpcService.getJsonRpcProvider(chainId);
-        await sealUserOps(chainId, provider, signer, userOperations, mongodbConnection, rpcService, aaService);
+        await sealUserOps(chainId, provider, signer, userOperations, mongodbConnection, rpcService, aaService, listenerService);
     } catch (error) {
-        Logger.error(`Handle Local Ops Error On Chain ${chainId}`, error);
-        Alert.sendMessage(`Handle Local Ops Error On Chain ${chainId}: ${Helper.converErrorToString(error)}`);
+        if (!(error instanceof AppException)) {
+            Logger.error(`Handle Local Ops Error On Chain ${chainId}`, error);
+            Alert.sendMessage(`Handle Local Ops Error On Chain ${chainId}: ${Helper.converErrorToString(error)}`);
+        }
     }
 
     Logger.log(`handleLocalUserOperations Finish release on chain ${chainId} with ${signer.address}`);
@@ -40,6 +45,7 @@ async function sealUserOps(
     mongodbConnection: Connection,
     rpcService: RpcService,
     aaService: AAService,
+    listenerService: ListenerService,
 ) {
     if (userOperations.length === 0) {
         return;
@@ -114,7 +120,7 @@ async function sealUserOps(
 
         // retry after 1s
         await new Promise((resolve) => setTimeout(resolve, 1000));
-        await sealUserOps(chainId, provider, signer, userOperations, mongodbConnection, rpcService, aaService);
+        await sealUserOps(chainId, provider, signer, userOperations, mongodbConnection, rpcService, aaService, listenerService);
         return;
     }
 
@@ -132,6 +138,7 @@ async function sealUserOps(
             mongodbConnection,
             provider,
             rpcService,
+            listenerService,
             bundle.userOperations,
             bundle.gasLimit,
             signer,

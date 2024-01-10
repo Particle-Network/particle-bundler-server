@@ -11,9 +11,10 @@ import { handleOldPendingTransaction, handlePendingTransaction, tryIncrTransacti
 import { BigNumber } from '../../../common/bignumber';
 import { RpcService } from '../services/rpc.service';
 import { Alert } from '../../../common/alert';
-import { METHOD_SEND_RAW_TRANSACTION, SUPPORT_EIP_1559 } from '../../../configs/bundler-common';
+import { METHOD_SEND_RAW_TRANSACTION, RPC_CONFIG, SUPPORT_EIP_1559 } from '../../../configs/bundler-common';
 import { Logger } from '@nestjs/common';
 import { AppException } from '../../../common/app-exception';
+import { ListenerService } from '../../task/listener.service';
 
 export async function createBundleTransaction(
     chainId: number,
@@ -21,6 +22,7 @@ export async function createBundleTransaction(
     mongodbConnection: Connection,
     provider: JsonRpcProvider,
     rpcService: RpcService,
+    listenerService: ListenerService,
     userOperationDocuments: UserOperationDocument[],
     bundleGasLimit: string,
     signer: Wallet,
@@ -60,12 +62,13 @@ export async function createBundleTransaction(
             );
         });
 
+        listenerService.appendUserOpHashPendingTransactionMap(localTransaction);
+
         // no need to await
         trySendAndUpdateTransactionStatus(localTransaction, provider, rpcService, aaService, mongodbConnection, true);
     } catch (error) {
         if (error instanceof AppException) {
-            // nothing
-            return;
+            throw error;
         }
 
         console.error('Failed to create bundle transaction', error);
@@ -98,7 +101,7 @@ export async function trySendAndUpdateTransactionStatus(
     rpcService: RpcService,
     aaService: AAService,
     mongodbConnection: Connection,
-    skipCheck = false,
+    skipCheck: boolean = false,
 ) {
     const currentSignedTx = transaction.getCurrentSignedTx();
     const currentSignedTxHash = keccak256(currentSignedTx);
@@ -156,10 +159,7 @@ export async function trySendAndUpdateTransactionStatus(
         return;
     }
 
-    await Promise.all([
-        tryGetReceiptAndHandlePendingTransactionsDirectly(transaction, rpcService, mongodbConnection),
-        aaService.transactionService.updateTransactionStatus(transaction, TRANSACTION_STATUS.PENDING),
-    ]);
+    await aaService.transactionService.updateTransactionStatus(transaction, TRANSACTION_STATUS.PENDING);
 
     Logger.log(`trySendAndUpdateTransactionStatus release hash: ${currentSignedTxHash} On Chain ${transaction.chainId}`);
     Lock.release(keyLock);
@@ -181,29 +181,6 @@ export function createTxGasData(chainId: number, feeData: any) {
     };
 }
 
-async function tryGetReceiptAndHandlePendingTransactionsDirectly(
-    pendingTransaction: TransactionDocument,
-    rpcService: RpcService,
-    mongodbConnection: Connection,
-) {
-    const latestTransaction = await rpcService.aaService.transactionService.getLatestTransaction(
-        pendingTransaction.chainId,
-        pendingTransaction.from,
-        [TRANSACTION_STATUS.SUCCESS, TRANSACTION_STATUS.FAILED],
-    );
-
-    for (let index = 0; index < 10; index++) {
-        const [result] = await Promise.all([
-            getReceiptAndHandlePendingTransactions(pendingTransaction, rpcService, mongodbConnection, latestTransaction),
-            new Promise((resolve) => setTimeout(resolve, 300)),
-        ]);
-
-        if (result) {
-            return;
-        }
-    }
-}
-
 export async function getReceiptAndHandlePendingTransactions(
     pendingTransaction: TransactionDocument,
     rpcService: RpcService,
@@ -223,7 +200,7 @@ export async function getReceiptAndHandlePendingTransactions(
 
         Logger.log('getReceiptAndHandlePendingTransactions', receipts.length);
         if (receipts.some((r) => !!r)) {
-            Logger.log(
+            console.log(
                 'receipts',
                 receipts.map((r: any, index: number) => {
                     return {
@@ -257,7 +234,9 @@ export async function getReceiptAndHandlePendingTransactions(
         Logger.error('getReceiptAndHandlePendingTransactions error', error);
 
         Alert.sendMessage(
-            `getReceiptAndHandlePendingTransactions Error On Chain ${pendingTransaction.chainId} For ${pendingTransaction.id}: ${Helper.converErrorToString(error)}`,
+            `getReceiptAndHandlePendingTransactions Error On Chain ${pendingTransaction.chainId} For ${
+                pendingTransaction.id
+            }: ${Helper.converErrorToString(error)}`,
         );
     }
 }
