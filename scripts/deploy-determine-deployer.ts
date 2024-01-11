@@ -5,7 +5,7 @@ const contractAddress = '0x4e59b44847b379578588920ca78fbf26c0b4956c';
 const factoryDeployer = '0x3fab184622dc19b6109349b94811493bf2a45362';
 
 export const deployDetermineDeployer = async (chainId: number, signer: Wallet) => {
-    const rpcUrl = RPC_CONFIG[chainId].rpcUrl;
+    const rpcUrl = RPC_CONFIG[String(chainId)].rpcUrl;
     const provider = new JsonRpcProvider(rpcUrl);
     signer = signer.connect(provider);
 
