@@ -175,13 +175,13 @@ export class TaskService {
     public handlePendingTransactionByEvent(event: any, transaction: TransactionDocument) {
         const userOpHash = event[0];
         const userOpEvent = event[7];
-        const receipt = { 
-            transactionHash: userOpEvent.log.transactionHash, 
-            blockHash: userOpEvent.log.blockHash, 
-            blockNumber: userOpEvent.log.blockNumber, 
-            status: '0x1', 
-            logs: [userOpEvent.log], 
-            isEvent: true 
+        const receipt = {
+            transactionHash: userOpEvent.log.transactionHash,
+            blockHash: userOpEvent.log.blockHash,
+            blockNumber: userOpEvent.log.blockNumber,
+            status: '0x1',
+            logs: [userOpEvent.log],
+            isEvent: true,
         };
 
         ProcessNotify.sendMessages(PROCESS_NOTIFY_TYPE.SET_RECEIPT, {
