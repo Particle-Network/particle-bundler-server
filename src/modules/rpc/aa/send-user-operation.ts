@@ -146,6 +146,11 @@ export async function getL2ExtraFee(rpcService: RpcService, chainId: number, use
         return BigNumber.from(0).toHexString();
     }
 
+    // HACK Mantle use fixed 0.15 MNT
+    if (chainId === EVM_CHAIN_ID.MANTLE_MAINNET || chainId === EVM_CHAIN_ID.MANTLE_TESTNET) {
+        return BigNumber.from('150000000000000000').toHexString();
+    }
+
     const provider = rpcService.getJsonRpcProvider(chainId);
     const contractEntryPoint = new Contract(entryPoint, EntryPointAbi, provider);
     const l1GasPriceOracleContract = new Contract(L2_GAS_ORACLE[String(chainId)], l1GasPriceOracleAbi, provider);
