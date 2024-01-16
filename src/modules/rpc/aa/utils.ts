@@ -97,6 +97,15 @@ export async function getFeeDataFromParticle(chainId: number, level: string = GA
         };
     }
 
+    if ([EVM_CHAIN_ID.MERLIN_CHAIN_TESTNET].includes(chainId)) {
+        return {
+            maxPriorityFeePerGas: 100000000,
+            maxFeePerGas: 100000000,
+            gasPrice: 100000000,
+            baseFee: 0,
+        };
+    }
+
     if (EVM_CHAIN_ID.TAIKO_TESTNET === chainId) {
         particleFeeData.baseFee = 0.000000001; // 1 wei
     }
