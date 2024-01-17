@@ -138,7 +138,7 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
     userOp.maxPriorityFeePerGas = SUPPORT_EIP_1559.includes(chainId)
         ? BigNumber.from(userOpFeeData.maxPriorityFeePerGas).toHexString()
         : BigNumber.from(userOpFeeData.gasPrice).toHexString();
-    let userOpGasPrice = calcUserOpGasPrice(userOp, userOpFeeData.baseFee);
+    const userOpGasPrice = calcUserOpGasPrice(userOp, userOpFeeData.baseFee);
 
     const signerFeeData = userOpFeeData;
     const signerGasPrice = SUPPORT_EIP_1559.includes(chainId)
