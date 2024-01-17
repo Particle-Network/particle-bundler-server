@@ -106,7 +106,7 @@ export async function getFeeDataFromParticle(chainId: number, level: string = GA
         };
     }
 
-    if (EVM_CHAIN_ID.TAIKO_TESTNET === chainId) {
+    if (EVM_CHAIN_ID.TAIKO_TESTNET === chainId || EVM_CHAIN_ID.TAIKO_TESTNET_KATLA === chainId) {
         particleFeeData.baseFee = 0.000000001; // 1 wei
     }
 
