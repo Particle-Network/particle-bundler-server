@@ -11,7 +11,7 @@ import { handleOldPendingTransaction, handlePendingTransaction, tryIncrTransacti
 import { BigNumber } from '../../../common/bignumber';
 import { RpcService } from '../services/rpc.service';
 import { Alert } from '../../../common/alert';
-import { METHOD_SEND_RAW_TRANSACTION, RPC_CONFIG, SUPPORT_EIP_1559 } from '../../../configs/bundler-common';
+import { METHOD_SEND_RAW_TRANSACTION, SUPPORT_EIP_1559 } from '../../../configs/bundler-common';
 import { Logger } from '@nestjs/common';
 import { AppException } from '../../../common/app-exception';
 import { ListenerService } from '../../task/listener.service';
@@ -101,7 +101,7 @@ export async function trySendAndUpdateTransactionStatus(
     rpcService: RpcService,
     aaService: AAService,
     mongodbConnection: Connection,
-    skipCheck: boolean = false,
+    skipCheck = false,
 ) {
     const currentSignedTx = transaction.getCurrentSignedTx();
     const currentSignedTxHash = keccak256(currentSignedTx);
