@@ -121,6 +121,14 @@ export async function simulateHandleOpAndGetGasCost(rpcService: RpcService, chai
             const tx = await contractEntryPoint.simulateHandleOp.populateTransaction(userOp, '0x0000000000000000000000000000000000000000', '0x');
             errorResult = contractEntryPoint.interface.makeError(errorResult.value, tx);
         }
+        // Comptibility with BEVM
+        if ([EVM_CHAIN_ID.BEVM_TESTNET].includes(chainId) && !!errorResult?.info?.error?.data) {
+            if (!errorResult.info.error.data.startsWith('0x')) {
+                const tx = errorResult.transaction;
+                const data = '0x' + errorResult.info.error.data;
+                errorResult = contractEntryPoint.interface.makeError(data, tx);
+            }
+        }
     }
 
     Helper.assertTrue(!!errorResult?.revert, -32000, `Can not simulate the user op, No revert message`);
