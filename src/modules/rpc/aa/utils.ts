@@ -135,6 +135,10 @@ export async function getFeeDataFromParticle(chainId: number, level: string = GA
         baseFee: Math.ceil(Number(particleFeeData?.baseFee ?? 0) * 10 ** 9),
     };
 
+    if (chainId === EVM_CHAIN_ID.OPTIMISM_MAINNET && result.maxPriorityFeePerGas <= 0) {
+        result.maxPriorityFeePerGas = 1;
+    }
+
     if (MINIMUM_GAS_FEE[chainId]) {
         if (MINIMUM_GAS_FEE[chainId]?.gasPrice) {
             if (BigNumber.from(MINIMUM_GAS_FEE[chainId].gasPrice).gt(result.gasPrice)) {
