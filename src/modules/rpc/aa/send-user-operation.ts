@@ -122,7 +122,10 @@ export async function simulateHandleOpAndGetGasCost(rpcService: RpcService, chai
             errorResult = contractEntryPoint.interface.makeError(errorResult.value, tx);
         }
         // Comptibility with BEVM
-        if ([EVM_CHAIN_ID.BEVM_MAINNET, EVM_CHAIN_ID.BEVM_TESTNET].includes(chainId) && !!errorResult?.info?.error?.data) {
+        if (
+            [EVM_CHAIN_ID.BEVM_CANARY_MAINNET, EVM_CHAIN_ID.BEVM_CANARY_TESTNET, EVM_CHAIN_ID.BEVM_TESTNET].includes(chainId) &&
+            !!errorResult?.info?.error?.data
+        ) {
             if (!errorResult.info.error.data.startsWith('0x')) {
                 const tx = errorResult.transaction;
                 const data = '0x' + errorResult.info.error.data;
