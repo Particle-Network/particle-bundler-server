@@ -25,9 +25,9 @@ export const deployDetermineDeployer = async (chainId: number, signer: Wallet) =
     const feeData = await provider.getFeeData();
     console.log('feeData', feeData);
 
-    if (balance < parseEther('0.1') && ![169].includes(chainId)) {
-        const r = await signer.sendTransaction({ to: factoryDeployer, value: parseEther('0.1') });
-        console.log('send tx transfer 0.1 to', factoryDeployer, r.hash);
+    if (balance < parseEther('0.012') && ![169].includes(chainId)) {
+        const r = await signer.sendTransaction({ to: factoryDeployer, value: parseEther('0.011') });
+        console.log('send tx transfer 0.01 to', factoryDeployer, r.hash);
     }
 
     const rawTransaction =
