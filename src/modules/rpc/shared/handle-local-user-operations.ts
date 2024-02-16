@@ -8,7 +8,7 @@ import { createBundleTransaction } from './handle-local-transactions';
 import { Connection } from 'mongoose';
 import { BigNumber } from '../../../common/bignumber';
 import { Alert } from '../../../common/alert';
-import { getBundlerConfig } from '../../../configs/bundler-common';
+import { EVM_CHAIN_ID, getBundlerConfig } from '../../../configs/bundler-common';
 import { Logger } from '@nestjs/common';
 import { ListenerService } from '../../task/listener.service';
 import { AppException } from '../../../common/app-exception';
@@ -87,7 +87,7 @@ async function sealUserOps(
             const calcedGasLimit = calcUserOpTotalGasLimit(userOperation.origin);
             const newTotalGasLimit = totalGasLimit.add(calcedGasLimit);
             const bundlerConfig = getBundlerConfig(chainId);
-            if (newTotalGasLimit.gt(bundlerConfig.MAX_BUNDLE_GAS)) {
+            if (newTotalGasLimit.gt(bundlerConfig.MAX_BUNDLE_GAS) || ([EVM_CHAIN_ID.MERLIN_CHAIN_TESTNET, EVM_CHAIN_ID.MERLIN_CHAIN_MAINNET].includes(chainId) && bundle.length === 1)) {
                 bundles.push({ userOperations: bundle, gasLimit: totalGasLimit.toHexString() });
                 bundle = [];
                 totalGasLimit = BigNumber.from(0);
