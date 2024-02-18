@@ -38,6 +38,11 @@ export class UserOperationService {
         if (userOpDoc) {
             Helper.assertTrue(userOpDoc.status === USER_OPERATION_STATUS.DONE, -32607);
 
+            const transaction = await this.transactionModel.findOne({ chainId, txHash: userOpDoc.txHash });
+            if (!userOpDoc.isOld() && (!transaction || transaction.status !== TRANSACTION_STATUS.FAILED)) {
+                throw new AppException(-32004);
+            }
+
             return {
                 userOpDoc: await this.resetToLocal(userOpDoc, userOpHash, entryPoint, userOp),
             };

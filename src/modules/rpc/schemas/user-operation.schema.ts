@@ -46,9 +46,12 @@ export class UserOperation {
 
     @Prop({ required: false, type: Schema.Types.Date })
     public createdAt: Date;
+
+    @Prop({ required: false, type: Schema.Types.Date })
+    public updatedAt: Date;
 }
 
-export type UserOperationDocument = UserOperation & Document;
+export type UserOperationDocument = UserOperation & Document & IUserOperationSchema;
 export const UserOperationSchema = SchemaFactory.createForClass(UserOperation);
 
 UserOperationSchema.set('toJSON', {
@@ -58,6 +61,14 @@ UserOperationSchema.set('toJSON', {
         return ret;
     },
 });
+
+UserOperationSchema.methods.isOld = function (): boolean {
+    return this.updatedAt.getTime() < Date.now() - 1000 * 600;
+};
+
+export interface IUserOperationSchema {
+    isOld: () => boolean;
+}
 
 UserOperationSchema.index(
     {
