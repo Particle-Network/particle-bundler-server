@@ -19,7 +19,7 @@ import { handleLocalUserOperations } from '../rpc/shared/handle-local-user-opera
 import { Cron } from '@nestjs/schedule';
 import Lock from '../../common/global-lock';
 import { getReceiptAndHandlePendingTransactions, handleLocalTransaction } from '../rpc/shared/handle-local-transactions';
-import { CHAIN_BALANCE_RANGE, CHAIN_SIGNER_MIN_BALANCE } from '../../configs/bundler-common';
+import { CHAIN_BALANCE_RANGE, CHAIN_SIGNER_MIN_BALANCE, EVM_CHAIN_ID } from '../../configs/bundler-common';
 import { Wallet, parseEther } from 'ethers';
 import { BigNumber } from '../../common/bignumber';
 import { Alert } from '../../common/alert';
@@ -135,7 +135,12 @@ export class TaskService {
 
         if (targetSigner) {
             const targetSignerPendingTxCount = await this.transactionService.getPendingTransactionCountBySigner(chainId, targetSigner.address);
-            if (targetSignerPendingTxCount >= PENDING_TRANSACTION_SIGNER_HANDLE_LIMIT) {
+            let handleMaxCount = PENDING_TRANSACTION_SIGNER_HANDLE_LIMIT;
+            if ([EVM_CHAIN_ID.MERLIN_CHAIN_MAINNET, EVM_CHAIN_ID.MERLIN_CHAIN_TESTNET].includes(chainId)) {
+                handleMaxCount = 5;
+            }
+
+            if (targetSignerPendingTxCount >= handleMaxCount) {
                 Alert.sendMessage(`Signer ${targetSigner.address} is pending On Chain ${chainId}`);
                 Lock.release(keyLockSigner(chainId, targetSigner.address));
                 targetSigner = null;
