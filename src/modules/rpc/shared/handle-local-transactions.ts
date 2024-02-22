@@ -227,6 +227,19 @@ export async function getReceiptAndHandlePendingTransactions(
 
         if (latestTransaction && latestTransaction.nonce + 1 === pendingTransaction.nonce) {
             await tryIncrTransactionGasPrice(pendingTransaction, mongodbConnection, provider, rpcService.aaService);
+        } else {
+            if (pendingTransaction.isOld()) {
+                try {
+                    await provider.send(METHOD_SEND_RAW_TRANSACTION, [pendingTransaction.getCurrentSignedTx()]);
+                } catch (error) {
+                    console.error('trySendOldPendingTransaction error', error);
+                    Alert.sendMessage(
+                        `trySendOldPendingTransaction Error On Chain ${pendingTransaction.chainId} For ${
+                            pendingTransaction.id
+                        }: ${Helper.converErrorToString(error)}`,
+                    );
+                }
+            }
         }
 
         return false;
