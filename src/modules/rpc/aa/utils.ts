@@ -99,9 +99,9 @@ export async function getFeeDataFromParticle(chainId: number, level: string = GA
 
     if ([EVM_CHAIN_ID.MERLIN_CHAIN_MAINNET].includes(chainId)) {
         return {
-            maxPriorityFeePerGas: 5000000,
-            maxFeePerGas: 5000000,
-            gasPrice: 5000000,
+            maxPriorityFeePerGas: 100000000,
+            maxFeePerGas: 100000000,
+            gasPrice: 100000000,
             baseFee: 0,
         };
     }
