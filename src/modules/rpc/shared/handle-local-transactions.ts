@@ -11,7 +11,7 @@ import { handleOldPendingTransaction, handlePendingTransaction, tryIncrTransacti
 import { BigNumber } from '../../../common/bignumber';
 import { RpcService } from '../services/rpc.service';
 import { Alert } from '../../../common/alert';
-import { METHOD_SEND_RAW_TRANSACTION, SUPPORT_EIP_1559 } from '../../../configs/bundler-common';
+import { EVM_CHAIN_ID, METHOD_SEND_RAW_TRANSACTION, SUPPORT_EIP_1559 } from '../../../configs/bundler-common';
 import { Logger } from '@nestjs/common';
 import { AppException } from '../../../common/app-exception';
 import { ListenerService } from '../../task/listener.service';
@@ -225,7 +225,7 @@ export async function getReceiptAndHandlePendingTransactions(
             return false;
         }
 
-        if (latestTransaction && latestTransaction.nonce + 1 === pendingTransaction.nonce) {
+        if (latestTransaction && latestTransaction.chainId !== EVM_CHAIN_ID.MERLIN_CHAIN_MAINNET && latestTransaction.nonce + 1 === pendingTransaction.nonce) {
             await tryIncrTransactionGasPrice(pendingTransaction, mongodbConnection, provider, rpcService.aaService);
         } else {
             if (pendingTransaction.isOld()) {
