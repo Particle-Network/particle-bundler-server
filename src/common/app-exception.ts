@@ -36,7 +36,7 @@ export class AppExceptionMessages {
         [-32604, 'Send user operation failed'],
         [-32605, 'Validate user operation failed'],
         [-32606, 'Simulate user operation failed'],
-        [-32607, 'The user operation with same nonce is processing'],
+        [-32607, 'You have a transaction in pending status. Please try again later.'],
         [-32608, 'The nonce is too big'],
     ]);
 
