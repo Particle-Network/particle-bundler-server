@@ -18,11 +18,11 @@ import {
     USE_PROXY_CONTRACT_TO_ESTIMATE_GAS,
     getBundlerConfig,
 } from '../../../configs/bundler-common';
-import EntryPointAbi from './entry-point-abi';
+import EntryPointAbi from './abis/entry-point-abi';
 import { calcPreVerificationGas } from '@account-abstraction/sdk';
-import l1GasPriceOracleAbi from './l1-gas-price-oracle-abi';
+import l1GasPriceOracleAbi from './abis/l1-gas-price-oracle-abi';
 import { cloneDeep } from 'lodash';
-import MultiCall3Abi from './multi-call-3-abi';
+import MultiCall3Abi from './abis/multi-call-3-abi';
 import { ProcessNotify } from '../../../common/process-notify';
 
 export async function sendUserOperation(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {

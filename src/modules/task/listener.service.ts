@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DEFAULT_ENTRY_POINT_ADDRESS, RPC_CONFIG } from '../../configs/bundler-common';
 import { Contract, Network, WebSocketProvider } from 'ethers';
-import entryPointAbi from '../rpc/aa/entry-point-abi';
+import entryPointAbi from '../rpc/aa/abis/entry-point-abi';
 import { TransactionDocument } from '../rpc/schemas/transaction.schema';
 import { Alert } from '../../common/alert';
 import { Helper } from '../../common/helper';

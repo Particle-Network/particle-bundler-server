@@ -2,7 +2,7 @@ import { Wallet, Contract, JsonRpcProvider, keccak256 } from 'ethers';
 import { Connection } from 'mongoose';
 import { BLOCK_SIGNER_REASON, keyLockSendingTransaction } from '../../../common/common-types';
 import { Helper } from '../../../common/helper';
-import entryPointAbi from '../aa/entry-point-abi';
+import entryPointAbi from '../aa/abis/entry-point-abi';
 import { TRANSACTION_STATUS, TransactionDocument } from '../schemas/transaction.schema';
 import { UserOperationDocument } from '../schemas/user-operation.schema';
 import { AAService } from '../services/aa.service';

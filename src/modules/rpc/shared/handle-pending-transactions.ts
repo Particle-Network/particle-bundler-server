@@ -5,7 +5,7 @@ import { Helper } from '../../../common/helper';
 import { TRANSACTION_STATUS, TransactionDocument } from '../schemas/transaction.schema';
 import { AAService } from '../services/aa.service';
 import Lock from '../../../common/global-lock';
-import entryPointAbi from '../aa/entry-point-abi';
+import entryPointAbi from '../aa/abis/entry-point-abi';
 import { FeeMarketEIP1559Transaction, TypedTransaction, TransactionFactory, LegacyTransaction } from '@ethereumjs/tx';
 import { AppException } from '../../../common/app-exception';
 import { Logger } from '@nestjs/common';
