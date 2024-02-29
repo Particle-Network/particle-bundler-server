@@ -7,27 +7,33 @@ interface Itx {
     data: string;
 }
 
+const abis: { abi: any[]; batch: boolean }[] = [
+    { abi: ['function execute(address dest, uint256 value, bytes calldata func) external'], batch: false },
+    { abi: ['function execute(address to, uint256 value, bytes calldata data, uint8 operation) external'], batch: false },
+    { abi: ['function executeBatch(address[] calldata dest, bytes[] calldata func) external'], batch: true },
+    { abi: ['function executeBatch(address[] calldata dest, uint256[] calldata value, bytes[] calldata func) external'], batch: true },
+    { abi: ['function execute_ncC(address dest, uint256 value, bytes calldata func) public'], batch: false },
+    { abi: ['function executeBatch_y6U(address[] calldata dest, uint256[] calldata value, bytes[] calldata func) public'], batch: true },
+];
+
+const ifaces = abis.map((item) => {
+    return {
+        iface: new Interface(item.abi),
+        abi: item.abi,
+        batch: item.batch,
+    };
+});
+
 export function deserializeUserOpCalldata(callData: string): Itx[] {
     const txs: Itx[] = [];
 
-    const abis: { abi: any[]; batch: boolean }[] = [
-        { abi: ['function execute(address dest, uint256 value, bytes calldata func) external'], batch: false },
-        { abi: ['function execute(address to, uint256 value, bytes calldata data, uint8 operation) external'], batch: false },
-        { abi: ['function executeBatch(address[] calldata dest, bytes[] calldata func) external'], batch: true },
-        { abi: ['function executeBatch(address[] calldata dest, uint256[] calldata value, bytes[] calldata func) external'], batch: true },
-        { abi: ['function execute_ncC(address dest, uint256 value, bytes calldata func) public'], batch: false },
-        { abi: ['function executeBatch_y6U(address[] calldata dest, uint256[] calldata value, bytes[] calldata func) public'], batch: true },
-    ];
-
-    for (const item of abis) {
-        const iface = new Interface(item.abi);
-
-        const functionFragment = iface.getFunction(item.abi[0]);
+    for (const item of ifaces) {
+        const functionFragment = item.iface.getFunction(item.abi[0]);
         if (!callData.startsWith(functionFragment.selector)) {
             continue;
         }
 
-        const decoded = iface.decodeFunctionData(item.abi[0], callData);
+        const decoded = item.iface.decodeFunctionData(item.abi[0], callData);
         if (item.batch) {
             if (decoded.length === 2) {
                 const dests = decoded[0];
