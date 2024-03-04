@@ -159,7 +159,7 @@ export async function getL2ExtraFee(rpcService: RpcService, chainId: number, use
 
     // HACK Mantle use fixed 1 MNT
     if (chainId === EVM_CHAIN_ID.MANTLE_MAINNET || chainId === EVM_CHAIN_ID.MANTLE_TESTNET) {
-        return BigNumber.from('100000000000000000').toHexString();
+        return BigNumber.from('1000000000000000000').toHexString();
     }
 
     const provider = rpcService.getJsonRpcProvider(chainId);
