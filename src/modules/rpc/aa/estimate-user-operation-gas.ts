@@ -15,6 +15,7 @@ import { EVM_CHAIN_ID, L2_GAS_ORACLE, SUPPORT_EIP_1559, getBundlerConfig } from 
 import { Logger } from '@nestjs/common';
 import { DUMMY_SIGNATURE } from '../../../common/common-types';
 import { getL2ExtraFee, simulateHandleOpAndGetGasCost } from './send-user-operation';
+import { deserializeUserOpCalldata as deserializeUserOpCallData } from './deserialize-user-op';
 
 const abiCoder = AbiCoder.defaultAbiCoder();
 export async function estimateUserOperationGas(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
@@ -48,10 +49,12 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
     userOp.preVerificationGas = BigNumber.from(calcPreVerificationGas(userOp)).add(5000).toHexString();
     Helper.assertTrue(isUserOpValid(userOp), -32602, AppExceptionMessages.messageExtend(-32602, `Invalid userOp`));
 
+    const provider = rpcService.getJsonRpcProvider(chainId);
     const [{ callGasLimit, initGas }, { maxFeePerGas, maxPriorityFeePerGas, gasCostInContract, gasCostWholeTransaction, verificationGasLimit }] =
         await Promise.all([
-            estimateGasLimit(rpcService.getJsonRpcProvider(chainId), entryPoint, userOp),
+            estimateGasLimit(provider, entryPoint, userOp),
             calculateGasPrice(rpcService, chainId, userOp, entryPoint),
+            tryEstimateGasForFirstAccount(provider, userOp),
         ]);
 
     userOp.preVerificationGas = BigNumber.from(calcPreVerificationGas(userOp)).add(5000).toHexString();
@@ -114,11 +117,33 @@ async function estimateGasLimit(provider: JsonRpcProvider, entryPoint: string, u
             });
         }
     } catch (error) {
-        Logger.error('EstimateGasLimit Failed', error);
-        // nothing
+        throw new AppException(-32005, AppExceptionMessages.messageExtend(-32005, error?.shortMessage ?? error?.message));
     }
 
     return { callGasLimit, initGas };
+}
+
+async function tryEstimateGasForFirstAccount(provider: JsonRpcProvider, userOp: any) {
+    if (userOp.initCode?.length <= 2) {
+        return;
+    }
+
+    const txs = deserializeUserOpCallData(userOp.callData);
+
+    try {
+        await Promise.all(
+            txs.map((tx) => {
+                return provider.estimateGas({
+                    from: userOp.sender,
+                    to: tx.to,
+                    data: tx.data,
+                    value: tx.value,
+                });
+            }),
+        );
+    } catch (error) {
+        throw new AppException(-32005, AppExceptionMessages.messageExtend(-32005, error?.shortMessage ?? error?.message));
+    }
 }
 
 async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string) {

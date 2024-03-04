@@ -3,7 +3,7 @@ import { RpcService } from '../services/rpc.service';
 import { Helper } from '../../../common/helper';
 import { USER_OPERATION_STATUS, UserOperationDocument } from '../schemas/user-operation.schema';
 import { Contract } from 'ethers';
-import entryPointAbi from './entry-point-abi';
+import entryPointAbi from './abis/entry-point-abi';
 import { TRANSACTION_STATUS } from '../schemas/transaction.schema';
 import { BigNumber } from '../../../common/bignumber';
 import { deepHexlify } from './utils';

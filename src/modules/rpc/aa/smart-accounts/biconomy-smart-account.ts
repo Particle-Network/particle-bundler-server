@@ -1,6 +1,6 @@
 import { BigNumberish, Contract, JsonRpcProvider, Wallet, resolveProperties } from 'ethers';
 import { getFeeDataFromParticle, hexConcat } from '../utils';
-import entryPointAbi from '../entry-point-abi';
+import entryPointAbi from '../abis/entry-point-abi';
 import { BigNumber } from '../../../../common/bignumber';
 import { calcPreVerificationGas } from '@account-abstraction/sdk';
 import { arrayify } from '@ethersproject/bytes';

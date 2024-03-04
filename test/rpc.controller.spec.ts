@@ -15,6 +15,7 @@ import { BigNumber } from '../src/common/bignumber';
 import { ENTRY_POINT, gaslessSponsor } from './lib/common';
 import { SimpleSmartAccount } from '../src/modules/rpc/aa/smart-accounts/simple-smart-account';
 import { BiconomySmartAccount } from '../src/modules/rpc/aa/smart-accounts/biconomy-smart-account';
+import { deserializeUserOpCalldata } from '../src/modules/rpc/aa/deserialize-user-op';
 
 let rpcController: RpcController;
 let rpcService: RpcService;
@@ -48,7 +49,9 @@ describe('RpcController', () => {
             console.log('unsignedUserOp', deepHexlify(userOp));
 
             userOp = await estimateGas(chainId, userOp);
-            console.log('estimateGas', deepHexlify(userOp));
+            console.log('estimateGas', JSON.stringify(deepHexlify(userOp)));
+
+            return;
 
             userOp = await gaslessSponsor(chainId, userOp, rpcController);
             console.log('sponsoredOp', deepHexlify(userOp));
@@ -92,6 +95,13 @@ describe('RpcController', () => {
 
             // const r = await rpcController.handleRpc(chainId, body);
             // console.log('r', r);
+        }, 60000);
+
+        it('Decode callData', async () => {
+            const txs = deserializeUserOpCalldata(
+                '0xb61d27f600000000000000000000000028ad6b7dfd79153659cb44c2155cf7c0e1ceeccc00000000000000000000000000000000000000000000000002dfc714caeaf00000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000084c3685f4900000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000022314c57665a4a3653756e784748376353625a6f51364a655477456776593241435a6100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+            );
+            console.log('txs', txs);
         }, 60000);
     });
 });
