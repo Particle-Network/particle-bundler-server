@@ -51,8 +51,6 @@ describe('RpcController', () => {
             userOp = await estimateGas(chainId, userOp);
             console.log('estimateGas', JSON.stringify(deepHexlify(userOp)));
 
-            return;
-
             userOp = await gaslessSponsor(chainId, userOp, rpcController);
             console.log('sponsoredOp', deepHexlify(userOp));
 
@@ -108,7 +106,7 @@ describe('RpcController', () => {
 
 async function createSimpleAccount(chainId: number): Promise<IContractAccount> {
     const rpcUrl = RPC_CONFIG[Number(chainId)].rpcUrl;
-    const provider = new JsonRpcProvider(rpcUrl);
+    const provider = new JsonRpcProvider(rpcUrl, null, { batchMaxCount: 1 });
 
     const owner: Wallet = new Wallet(Wallet.createRandom().privateKey, provider);
     const factoryAddress = '0x9406cc6185a346906296840746125a0e44976454';
@@ -118,7 +116,7 @@ async function createSimpleAccount(chainId: number): Promise<IContractAccount> {
 
 async function createBiconomySmartAccount(chainId: number): Promise<IContractAccount> {
     const rpcUrl = RPC_CONFIG[Number(chainId)].rpcUrl;
-    const provider = new JsonRpcProvider(rpcUrl);
+    const provider = new JsonRpcProvider(rpcUrl, null, { batchMaxCount: 1 });
 
     const owner: Wallet = new Wallet(Wallet.createRandom().privateKey, provider);
     const smartAccountFactoryAddress = '0x000000F9eE1842Bb72F6BBDD75E6D3d4e3e9594C';
