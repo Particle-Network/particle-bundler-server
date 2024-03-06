@@ -157,14 +157,19 @@ export async function getL2ExtraFee(rpcService: RpcService, chainId: number, use
         return BigNumber.from(0).toHexString();
     }
 
-    // HACK Mantle use fixed 1 MNT
-    if (chainId === EVM_CHAIN_ID.MANTLE_MAINNET || chainId === EVM_CHAIN_ID.MANTLE_TESTNET) {
+    // HACK Mantle testnet use fixed 1 MNT
+    if (chainId === EVM_CHAIN_ID.MANTLE_TESTNET) {
         return BigNumber.from('1000000000000000000').toHexString();
     }
 
     const provider = rpcService.getJsonRpcProvider(chainId);
     const contractEntryPoint = new Contract(entryPoint, EntryPointAbi, provider);
     const l1GasPriceOracleContract = new Contract(L2_GAS_ORACLE[String(chainId)], l1GasPriceOracleAbi, provider);
+
+    if (chainId === EVM_CHAIN_ID.MANTLE_MAINNET) {
+        const l1BaseFee = await l1GasPriceOracleContract.l1BaseFee();
+        return BigNumber.from(l1BaseFee).mul(1860).toHexString();
+    }
 
     const fakeSigner = rpcService.aaService.getSigners(chainId)[0];
     const simulateTx = await contractEntryPoint.handleOps.populateTransaction([userOp], fakeSigner.address);
