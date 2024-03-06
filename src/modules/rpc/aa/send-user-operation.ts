@@ -168,7 +168,7 @@ export async function getL2ExtraFee(rpcService: RpcService, chainId: number, use
 
     if (chainId === EVM_CHAIN_ID.MANTLE_MAINNET) {
         const l1BaseFee = await l1GasPriceOracleContract.l1BaseFee();
-        return BigNumber.from(l1BaseFee).mul(1860).toHexString();
+        return BigNumber.from(l1BaseFee).mul(1900).toHexString();
     }
 
     const fakeSigner = rpcService.aaService.getSigners(chainId)[0];
