@@ -225,7 +225,11 @@ export async function getReceiptAndHandlePendingTransactions(
             return false;
         }
 
-        if (latestTransaction && latestTransaction.chainId !== EVM_CHAIN_ID.MERLIN_CHAIN_MAINNET && latestTransaction.nonce + 1 === pendingTransaction.nonce) {
+        if (
+            latestTransaction &&
+            latestTransaction.chainId !== EVM_CHAIN_ID.MERLIN_CHAIN_MAINNET &&
+            latestTransaction.nonce + 1 === pendingTransaction.nonce
+        ) {
             await tryIncrTransactionGasPrice(pendingTransaction, mongodbConnection, provider, rpcService.aaService);
         } else {
             if (pendingTransaction.isOld()) {
