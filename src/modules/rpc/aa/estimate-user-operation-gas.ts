@@ -54,7 +54,7 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
         await Promise.all([
             estimateGasLimit(provider, entryPoint, userOp),
             calculateGasPrice(rpcService, chainId, userOp, entryPoint),
-            tryEstimateGasForFirstAccount(provider, userOp),
+            tryEstimateGasForFirstAccount(chainId, provider, userOp),
         ]);
 
     userOp.preVerificationGas = BigNumber.from(calcPreVerificationGas(userOp)).add(5000).toHexString();
@@ -123,7 +123,7 @@ async function estimateGasLimit(provider: JsonRpcProvider, entryPoint: string, u
     return { callGasLimit, initGas };
 }
 
-async function tryEstimateGasForFirstAccount(provider: JsonRpcProvider, userOp: any) {
+async function tryEstimateGasForFirstAccount(chainId: number, provider: JsonRpcProvider, userOp: any) {
     if (userOp.initCode?.length <= 2) {
         return;
     }
@@ -134,7 +134,7 @@ async function tryEstimateGasForFirstAccount(provider: JsonRpcProvider, userOp: 
         await Promise.all(
             txs.map((tx) => {
                 return provider.estimateGas({
-                    from: userOp.sender,
+                    from: [EVM_CHAIN_ID.MANTLE_GOERLI_TESTNET].includes(chainId) ? null : userOp.sender,
                     to: tx.to,
                     data: tx.data,
                     value: tx.value,
@@ -190,7 +190,7 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
             EVM_CHAIN_ID.OPTIMISM_TESTNET,
             EVM_CHAIN_ID.OPTIMISM_TESTNET_SEPOLIA,
             EVM_CHAIN_ID.MANTLE_MAINNET,
-            EVM_CHAIN_ID.MANTLE_TESTNET,
+            EVM_CHAIN_ID.MANTLE_GOERLI_TESTNET,
             EVM_CHAIN_ID.SCROLL_MAINNET,
             EVM_CHAIN_ID.SCROLL_SEPOLIA,
             EVM_CHAIN_ID.OPBNB_MAINNET,
