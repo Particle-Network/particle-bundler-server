@@ -161,11 +161,6 @@ export async function getL2ExtraFee(rpcService: RpcService, chainId: number, use
     const contractEntryPoint = new Contract(entryPoint, EntryPointAbi, provider);
     const l1GasPriceOracleContract = new Contract(L2_GAS_ORACLE[String(chainId)], l1GasPriceOracleAbi, provider);
 
-    if (chainId === EVM_CHAIN_ID.MANTLE_MAINNET) {
-        const l1BaseFee = await l1GasPriceOracleContract.l1BaseFee();
-        return BigNumber.from(l1BaseFee).mul(1900).toHexString();
-    }
-
     const fakeSigner = rpcService.aaService.getSigners(chainId)[0];
     const simulateTx = await contractEntryPoint.handleOps.populateTransaction([userOp], fakeSigner.address);
     simulateTx.from = fakeSigner.address;
