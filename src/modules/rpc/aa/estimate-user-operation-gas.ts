@@ -54,7 +54,7 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
         await Promise.all([
             estimateGasLimit(provider, entryPoint, userOp),
             calculateGasPrice(rpcService, chainId, userOp, entryPoint),
-            tryEstimateGasForFirstAccount(provider, userOp),
+            tryEstimateGasForFirstAccount(chainId, provider, userOp),
         ]);
 
     userOp.preVerificationGas = BigNumber.from(calcPreVerificationGas(userOp)).add(5000).toHexString();
@@ -66,8 +66,16 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
     if (initGas > 0n && BigNumber.from(gasCostInContract).gt(initGas)) {
         userOp.callGasLimit = BigNumber.from(gasCostInContract).sub(initGas).toHexString();
     }
+
     if (gasCostWholeTransaction.gt(gasCostInContract)) {
         userOp.preVerificationGas = gasCostWholeTransaction.sub(gasCostInContract).toHexString();
+    }
+
+    // For mantle, because the gas estimation is including L1 extra fee, so we can not use it directly
+    // TODO recheck ARBITRUM
+    if ([EVM_CHAIN_ID.MANTLE_MAINNET, EVM_CHAIN_ID.MANTLE_GOERLI_TESTNET].includes(chainId)) {
+        userOp.callGasLimit = BigNumber.from(gasCostInContract).toHexString();
+        userOp.preVerificationGas = BigNumber.from(gasCostWholeTransaction).mul(initGas > 0n ? 2 : 1).toHexString();
     }
 
     Helper.assertTrue(
@@ -123,7 +131,7 @@ async function estimateGasLimit(provider: JsonRpcProvider, entryPoint: string, u
     return { callGasLimit, initGas };
 }
 
-async function tryEstimateGasForFirstAccount(provider: JsonRpcProvider, userOp: any) {
+async function tryEstimateGasForFirstAccount(chainId: number, provider: JsonRpcProvider, userOp: any) {
     if (userOp.initCode?.length <= 2) {
         return;
     }
@@ -134,7 +142,7 @@ async function tryEstimateGasForFirstAccount(provider: JsonRpcProvider, userOp: 
         await Promise.all(
             txs.map((tx) => {
                 return provider.estimateGas({
-                    from: userOp.sender,
+                    from: [EVM_CHAIN_ID.MANTLE_GOERLI_TESTNET, EVM_CHAIN_ID.MANTLE_MAINNET].includes(chainId) ? null : userOp.sender,
                     to: tx.to,
                     data: tx.data,
                     value: tx.value,
@@ -189,8 +197,8 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
             EVM_CHAIN_ID.OPTIMISM_MAINNET,
             EVM_CHAIN_ID.OPTIMISM_TESTNET,
             EVM_CHAIN_ID.OPTIMISM_TESTNET_SEPOLIA,
+            EVM_CHAIN_ID.MANTLE_GOERLI_TESTNET,
             EVM_CHAIN_ID.MANTLE_MAINNET,
-            EVM_CHAIN_ID.MANTLE_TESTNET,
             EVM_CHAIN_ID.SCROLL_MAINNET,
             EVM_CHAIN_ID.SCROLL_SEPOLIA,
             EVM_CHAIN_ID.OPBNB_MAINNET,
@@ -203,7 +211,10 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
             EVM_CHAIN_ID.BLAST_TESTNET_SEPOLIA,
         ].includes(chainId)
     ) {
-        const ratio = 1.05;
+        let ratio = 1.05;
+        if ([EVM_CHAIN_ID.MANTLE_MAINNET, EVM_CHAIN_ID.MANTLE_GOERLI_TESTNET].includes(chainId)) {
+            ratio = 1.6;
+        }
 
         minGasPrice = minGasPrice.mul(Math.round(ratio * 100)).div(100);
     }
