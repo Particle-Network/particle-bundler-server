@@ -34,10 +34,14 @@ export async function createBundleTransaction(
         const beneficiary = signer.address;
         const entryPointContract = new Contract(entryPoint, entryPointAbi, provider);
         const userOps = userOperationDocuments.map((userOperationDocument) => userOperationDocument.origin);
+        let gasLimit = BigNumber.from(bundleGasLimit).mul(15).div(10).toHexString();
+        if ([EVM_CHAIN_ID.MANTLE_MAINNET, EVM_CHAIN_ID.MANTLE_GOERLI_TESTNET].includes(chainId)) {
+            gasLimit = BigNumber.from(gasLimit).mul(4).toHexString();
+        }
 
         const finalizedTx = await entryPointContract.handleOps.populateTransaction(userOps, beneficiary, {
             nonce,
-            gasLimit: BigNumber.from(bundleGasLimit).mul(15).div(10).toHexString(),
+            gasLimit,
             ...createTxGasData(chainId, feeData),
         });
 

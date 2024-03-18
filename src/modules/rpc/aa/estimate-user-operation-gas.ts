@@ -75,7 +75,7 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
     // TODO recheck ARBITRUM
     if ([EVM_CHAIN_ID.MANTLE_MAINNET, EVM_CHAIN_ID.MANTLE_GOERLI_TESTNET].includes(chainId)) {
         userOp.callGasLimit = BigNumber.from(gasCostInContract).toHexString();
-        userOp.preVerificationGas = BigNumber.from(gasCostWholeTransaction).mul(4).toHexString();
+        userOp.preVerificationGas = BigNumber.from(gasCostWholeTransaction).mul(initGas > 0n ? 2 : 1).toHexString();
     }
 
     Helper.assertTrue(
@@ -197,6 +197,8 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
             EVM_CHAIN_ID.OPTIMISM_MAINNET,
             EVM_CHAIN_ID.OPTIMISM_TESTNET,
             EVM_CHAIN_ID.OPTIMISM_TESTNET_SEPOLIA,
+            EVM_CHAIN_ID.MANTLE_GOERLI_TESTNET,
+            EVM_CHAIN_ID.MANTLE_MAINNET,
             EVM_CHAIN_ID.SCROLL_MAINNET,
             EVM_CHAIN_ID.SCROLL_SEPOLIA,
             EVM_CHAIN_ID.OPBNB_MAINNET,
@@ -209,7 +211,10 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
             EVM_CHAIN_ID.BLAST_TESTNET_SEPOLIA,
         ].includes(chainId)
     ) {
-        const ratio = 1.05;
+        let ratio = 1.05;
+        if ([EVM_CHAIN_ID.MANTLE_MAINNET, EVM_CHAIN_ID.MANTLE_GOERLI_TESTNET].includes(chainId)) {
+            ratio = 1.6;
+        }
 
         minGasPrice = minGasPrice.mul(Math.round(ratio * 100)).div(100);
     }
