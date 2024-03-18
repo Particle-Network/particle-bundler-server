@@ -66,8 +66,16 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
     if (initGas > 0n && BigNumber.from(gasCostInContract).gt(initGas)) {
         userOp.callGasLimit = BigNumber.from(gasCostInContract).sub(initGas).toHexString();
     }
+
     if (gasCostWholeTransaction.gt(gasCostInContract)) {
         userOp.preVerificationGas = gasCostWholeTransaction.sub(gasCostInContract).toHexString();
+    }
+
+    // For mantle, because the gas estimation is including L1 extra fee, so we can not use it directly
+    // TODO recheck ARBITRUM
+    if ([EVM_CHAIN_ID.MANTLE_MAINNET, EVM_CHAIN_ID.MANTLE_GOERLI_TESTNET].includes(chainId)) {
+        userOp.callGasLimit = BigNumber.from(gasCostInContract).toHexString();
+        userOp.preVerificationGas = BigNumber.from(gasCostWholeTransaction).mul(4).toHexString();
     }
 
     Helper.assertTrue(
@@ -189,8 +197,6 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
             EVM_CHAIN_ID.OPTIMISM_MAINNET,
             EVM_CHAIN_ID.OPTIMISM_TESTNET,
             EVM_CHAIN_ID.OPTIMISM_TESTNET_SEPOLIA,
-            EVM_CHAIN_ID.MANTLE_MAINNET,
-            EVM_CHAIN_ID.MANTLE_GOERLI_TESTNET,
             EVM_CHAIN_ID.SCROLL_MAINNET,
             EVM_CHAIN_ID.SCROLL_SEPOLIA,
             EVM_CHAIN_ID.OPBNB_MAINNET,
