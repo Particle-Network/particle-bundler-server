@@ -35,7 +35,7 @@ export async function createBundleTransaction(
         const entryPointContract = new Contract(entryPoint, entryPointAbi, provider);
         const userOps = userOperationDocuments.map((userOperationDocument) => userOperationDocument.origin);
         let gasLimit = BigNumber.from(bundleGasLimit).mul(15).div(10).toHexString();
-        if ([EVM_CHAIN_ID.MANTLE_MAINNET, EVM_CHAIN_ID.MANTLE_GOERLI_TESTNET].includes(chainId)) {
+        if ([EVM_CHAIN_ID.MANTLE_MAINNET].includes(chainId)) {
             gasLimit = BigNumber.from(gasLimit).mul(4).toHexString();
         }
 
