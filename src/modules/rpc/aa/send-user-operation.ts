@@ -245,7 +245,18 @@ async function checkUserOpCanExecutedSucceed(rpcService: RpcService, chainId: nu
             console.error(error);
         }
 
-        throw new AppException(-32606, AppExceptionMessages.messageExtend(-32606, error?.revert?.args.at(-1)), error?.transaction);
+        // TODO: refactor
+        throw new AppException(
+            -32606,
+            AppExceptionMessages.messageExtend(
+                -32606,
+                error?.revert?.args.at(-1) ??
+                    (error?.info?.error?.code === 10001 ? 'Node RPC Error' : null) ??
+                    error?.shortMessage ??
+                    error?.message,
+            ),
+            error?.transaction,
+        );
     }
 }
 
