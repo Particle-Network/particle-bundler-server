@@ -227,6 +227,10 @@ export class TaskService {
     }
 
     private canRunCron() {
+        if (!!process.env.TEST_MODE) {
+            return false;
+        }
+
         if (IS_DEVELOPMENT) {
             return true;
         }

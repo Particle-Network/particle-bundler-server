@@ -222,8 +222,9 @@ async function checkUserOpCanExecutedSucceed(rpcService: RpcService, chainId: nu
     const contractEntryPoint = new Contract(entryPoint, EntryPointAbi, provider);
     const signer = rpcService.aaService.getSigners(chainId)[0];
 
-    const preTx = await contractEntryPoint.handleOps.populateTransaction([userOp], signer.address);
-    const promises = [provider.estimateGas(preTx)];
+    // const preTx = await contractEntryPoint.handleOps.populateTransaction([userOp], signer.address);
+    // const promises = [provider.estimateGas(preTx)];
+    const promises = [contractEntryPoint.handleOps.staticCall([userOp], signer.address)];
     const { nonceValue } = splitOriginNonce(userOp.nonce);
 
     // check account exists to replace check nonce??

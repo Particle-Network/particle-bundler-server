@@ -73,6 +73,13 @@ export class UserOperationService {
         });
     }
 
+    public async deleteUserOperationByUserOpHash(chainId: number, userOpHash: string) {
+        return await this.userOperationModel.deleteMany({
+            chainId,
+            userOpHash,
+        });
+    }
+
     public async getUserOperationByAddressNonce(
         chainId: number,
         userOpSender: string,
