@@ -202,7 +202,7 @@ export async function getReceiptAndHandlePendingTransactions(
         const receiptPromises = pendingTransaction.txHashes.map((txHash) => rpcService.getTransactionReceipt(provider, txHash));
         const receipts = await Promise.all(receiptPromises);
 
-        Logger.log('getReceiptAndHandlePendingTransactions', receipts.length);
+        console.log('getReceiptAndHandlePendingTransactions', receipts.length);
         if (receipts.some((r) => !!r)) {
             console.log(
                 'receipts',

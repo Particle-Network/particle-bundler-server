@@ -37,6 +37,24 @@ async function bootstrap() {
             console.log('delete pendingTransaction: ', pendingTransaction.id);
             await pendingTransaction.delete();
         }
+    } else if (command === 'delete-transaction') {
+        const transactionId = process.argv[3];
+
+        if (!transactionId) {
+            console.error('transactionId are required');
+            return;
+        }
+
+        const transactionService = app.get(TransactionService);
+        const transaction = await transactionService.getTransactionById(transactionId);
+        const userOperationService = app.get(UserOperationService);
+        for (const userOperationHash of transaction.userOperationHashes) {
+            const deleted = await userOperationService.deleteUserOperationByUserOpHash(transaction.chainId, userOperationHash);
+            console.log(`Deleted userOperation: ${userOperationHash}, deleted`, deleted);
+        }
+
+        console.log('delete pendingTransaction: ', transaction.id);
+        await transaction.delete();
     } else {
         console.log('Command not found');
     }

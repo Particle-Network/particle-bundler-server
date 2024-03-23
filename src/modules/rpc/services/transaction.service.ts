@@ -6,6 +6,7 @@ import { TypedTransaction } from '@ethereumjs/tx';
 import { tryParseSignedTx } from '../shared/handle-pending-transactions';
 import { getAddress } from 'ethers';
 import { BigNumber } from '../../../common/bignumber';
+import { EVM_CHAIN_ID } from '../../../configs/bundler-common';
 
 @Injectable()
 export class TransactionService {
@@ -16,7 +17,14 @@ export class TransactionService {
     }
 
     public async getTransactionsByStatus(status: TRANSACTION_STATUS, limit: number): Promise<TransactionDocument[]> {
-        return await this.transactionModel.find({ status }).sort({ from: 1, nonce: 1 }).limit(limit);
+        return await this.transactionModel
+            .find({ status, chainId: { $ne: EVM_CHAIN_ID.MERLIN_CHAIN_MAINNET } })
+            .sort({ from: 1, nonce: 1 })
+            .limit(limit);
+    }
+
+    public async getMerlinTransactionsByStatus(status: TRANSACTION_STATUS, limit: number): Promise<TransactionDocument[]> {
+        return await this.transactionModel.find({ status, chainId: EVM_CHAIN_ID.MERLIN_CHAIN_MAINNET }).sort({ from: 1, nonce: 1 }).limit(limit);
     }
 
     public async getLatestTransaction(chainId: number, sender: string, statuses?: TRANSACTION_STATUS[]): Promise<TransactionDocument> {
