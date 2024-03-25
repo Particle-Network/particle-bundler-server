@@ -4,7 +4,7 @@ import { JsonRPCRequestDto, JsonRPCResponse } from './dtos/json-rpc-request.dto'
 import { FastifyReply } from 'fastify';
 import { isArray, isPlainObject } from 'lodash';
 import { Helper } from '../../common/helper';
-import { EVM_CHAIN_ID, RPC_CONFIG } from '../../configs/bundler-common';
+import { RPC_CONFIG } from '../../configs/bundler-common';
 import { AppException } from '../../common/app-exception';
 import { Alert } from '../../common/alert';
 
@@ -37,7 +37,6 @@ export class RpcController {
                 }
             }
 
-            Helper.assertTrue(chainId !== EVM_CHAIN_ID.LUMOZ_ZKEVM_TESTNET, -32001, `Unsupported chainId: ${query.chainId}`);
             Helper.assertTrue(!!RPC_CONFIG[chainId], -32001, `Unsupported chainId: ${query.chainId}`);
 
             result = await this.handleRpc(chainId, body);
