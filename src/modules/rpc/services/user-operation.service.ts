@@ -73,6 +73,13 @@ export class UserOperationService {
         });
     }
 
+    public async getPendingUserOperationCount(chainId: number): Promise<number> {
+        return await this.userOperationModel.count({
+            chainId,
+            status: { $in: [USER_OPERATION_STATUS.LOCAL, USER_OPERATION_STATUS.TO_BE_REPLACE, USER_OPERATION_STATUS.PENDING] },
+        });
+    }
+
     public async deleteUserOperationByUserOpHash(chainId: number, userOpHash: string) {
         return await this.userOperationModel.deleteMany({
             chainId,

@@ -54,6 +54,7 @@ export enum AA_METHODS {
     ESTIMATE_USER_OPERATION_GAS = 'eth_estimateUserOperationGas',
     GET_USER_OPERATION_RECEIPT = 'eth_getUserOperationReceipt',
     SUPPORTED_ENTRYPOINTS = 'eth_supportedEntryPoints',
+    PEINDING_COUND = 'bundler_pendingUserOpCount',
     DEBUG_BUNDLER_CLEAR_STATE = 'debug_bundler_clearState',
     DEBUG_BUNDLER_DUMP_MEMPOOL = 'debug_bundler_dumpMempool',
     DEBUG_BUNDLER_SEND_BUNDLE_NOW = 'debug_bundler_sendBundleNow',
