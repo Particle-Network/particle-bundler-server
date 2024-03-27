@@ -98,7 +98,13 @@ async function sealUserOps(
             const newTotalGasLimit = totalGasLimit.add(calcedGasLimit);
             if (
                 newTotalGasLimit.gt(bundlerConfig.MAX_BUNDLE_GAS) ||
-                ([EVM_CHAIN_ID.MERLIN_CHAIN_TESTNET, EVM_CHAIN_ID.MERLIN_CHAIN_MAINNET, EVM_CHAIN_ID.MANTLE_MAINNET].includes(chainId) && bundle.length === 1)
+                ([
+                    EVM_CHAIN_ID.MERLIN_CHAIN_TESTNET,
+                    EVM_CHAIN_ID.MERLIN_CHAIN_MAINNET,
+                    EVM_CHAIN_ID.MANTLE_MAINNET,
+                    EVM_CHAIN_ID.MANTLE_SEPOLIA_TESTNET,
+                ].includes(chainId) &&
+                    bundle.length === 1)
             ) {
                 bundles.push({ userOperations: bundle, gasLimit: totalGasLimit.toHexString() });
                 bundle = [];
