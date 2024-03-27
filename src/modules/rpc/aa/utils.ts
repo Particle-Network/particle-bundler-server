@@ -114,14 +114,14 @@ export async function getFeeDataFromParticle(chainId: number, level: string = GA
         };
     }
 
-    // if ([EVM_CHAIN_ID.MERLIN_CHAIN_TESTNET].includes(chainId)) {
-    //     return {
-    //         maxPriorityFeePerGas: 5000000,
-    //         maxFeePerGas: 5000000,
-    //         gasPrice: 5000000,
-    //         baseFee: 0,
-    //     };
-    // }
+    if ([EVM_CHAIN_ID.MERLIN_CHAIN_DEVNET].includes(chainId)) {
+        return {
+            maxPriorityFeePerGas: 1500000000,
+            maxFeePerGas: 1500000000,
+            gasPrice: 1500000000,
+            baseFee: 0,
+        };
+    }
 
     if ([EVM_CHAIN_ID.BEVM_CANARY_MAINNET, EVM_CHAIN_ID.BEVM_CANARY_TESTNET, EVM_CHAIN_ID.BEVM_TESTNET].includes(chainId)) {
         return {
