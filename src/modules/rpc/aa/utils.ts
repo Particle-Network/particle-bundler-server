@@ -88,7 +88,15 @@ export async function getFeeDataFromParticle(chainId: number, level: string = GA
 
     const particleFeeData = await provider.send('particle_suggestedGasFees', []);
 
-    if ([EVM_CHAIN_ID.COMBO_MAINNET, EVM_CHAIN_ID.COMBO_TESTNET, EVM_CHAIN_ID.OPBNB_MAINNET, EVM_CHAIN_ID.OPBNB_TESTNET].includes(chainId)) {
+    if (
+        [
+            EVM_CHAIN_ID.COMBO_MAINNET,
+            EVM_CHAIN_ID.COMBO_TESTNET,
+            EVM_CHAIN_ID.OPBNB_MAINNET,
+            EVM_CHAIN_ID.OPBNB_TESTNET,
+            EVM_CHAIN_ID.XTERIO_TESTNET,
+        ].includes(chainId)
+    ) {
         return {
             maxPriorityFeePerGas: 1001,
             maxFeePerGas: 1001,

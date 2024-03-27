@@ -160,10 +160,7 @@ export class TaskService {
         await Lock.acquire(keyLock);
 
         try {
-            const localMerlinTransactions = await this.transactionService.getMerlinTransactionsByStatus(
-                TRANSACTION_STATUS.LOCAL,
-                1000,
-            );
+            const localMerlinTransactions = await this.transactionService.getMerlinTransactionsByStatus(TRANSACTION_STATUS.LOCAL, 1000);
             const localNonMerlinTransactions = await this.transactionService.getTransactionsByStatus(
                 TRANSACTION_STATUS.LOCAL,
                 FETCH_TRANSACTION_SIZE,
