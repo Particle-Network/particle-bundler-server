@@ -94,6 +94,7 @@ export async function getFeeDataFromParticle(chainId: number, level: string = GA
             EVM_CHAIN_ID.COMBO_TESTNET,
             EVM_CHAIN_ID.OPBNB_MAINNET,
             EVM_CHAIN_ID.OPBNB_TESTNET,
+            EVM_CHAIN_ID.XTERIO_MAINNET,
             EVM_CHAIN_ID.XTERIO_TESTNET,
         ].includes(chainId)
     ) {
@@ -113,15 +114,6 @@ export async function getFeeDataFromParticle(chainId: number, level: string = GA
             baseFee: 0,
         };
     }
-
-    // if ([EVM_CHAIN_ID.MERLIN_CHAIN_TESTNET].includes(chainId)) {
-    //     return {
-    //         maxPriorityFeePerGas: 5000000,
-    //         maxFeePerGas: 5000000,
-    //         gasPrice: 5000000,
-    //         baseFee: 0,
-    //     };
-    // }
 
     if ([EVM_CHAIN_ID.BEVM_CANARY_MAINNET, EVM_CHAIN_ID.BEVM_CANARY_TESTNET, EVM_CHAIN_ID.BEVM_TESTNET].includes(chainId)) {
         return {
