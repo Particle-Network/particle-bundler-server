@@ -213,6 +213,7 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
             EVM_CHAIN_ID.BLAST_TESTNET_SEPOLIA,
             EVM_CHAIN_ID.ANCIENT8_MAINNET,
             EVM_CHAIN_ID.ANCIENT8_TESTNET,
+            EVM_CHAIN_ID.XTERIO_MAINNET,
             EVM_CHAIN_ID.XTERIO_TESTNET,
             EVM_CHAIN_ID.GMNETWORK_TESTNET,
             EVM_CHAIN_ID.AINN_TESTNET,
