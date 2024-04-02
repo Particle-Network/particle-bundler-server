@@ -48,6 +48,12 @@ export function getBundlerConfig(chainId: number) {
     return config;
 }
 
+export function getSendTransactionMethod(chainId: number) {
+    const config = RPC_CONFIG[String(chainId)];
+
+    return config['methodSendRawTransaction'] ?? METHOD_SEND_RAW_TRANSACTION;
+}
+
 export enum AA_METHODS {
     SEND_USER_OPERATION = 'eth_sendUserOperation',
     GET_USER_OPERATION_BY_HASH = 'eth_getUserOperationByHash',
