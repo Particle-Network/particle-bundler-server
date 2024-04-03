@@ -22,10 +22,10 @@ export async function tryIncrTransactionGasPrice(
     provider: JsonRpcProvider,
     aaService: AAService,
 ) {
-    Logger.log('tryIncrTransactionGasPrice', transaction.id);
+    console.log('tryIncrTransactionGasPrice Start', transaction.id);
     const keyLock = keyLockPendingTransaction(transaction.id);
     if (Lock.isAcquired(keyLock)) {
-        Logger.log('tryIncrTransactionGasPrice already acquired', transaction.id);
+        console.log('tryIncrTransactionGasPrice already acquired', transaction.id);
         return;
     }
 
@@ -33,7 +33,7 @@ export async function tryIncrTransactionGasPrice(
     try {
         const remoteNonce = await aaService.getTransactionCountLocalCache(provider, transaction.chainId, transaction.from, true);
         if (remoteNonce != transaction.nonce) {
-            Logger.log('tryIncrTransactionGasPrice release', 'remoteNonce != transaction.nonce', remoteNonce, transaction.nonce);
+            console.log('tryIncrTransactionGasPrice release', 'remoteNonce != transaction.nonce', remoteNonce, transaction.nonce);
             Lock.release(keyLock);
             return;
         }
@@ -63,7 +63,7 @@ export async function tryIncrTransactionGasPrice(
         return;
     }
 
-    Logger.log('Try Replace Transaction', transaction.txHash);
+    console.log('Try Replace Transaction', transaction.id, transaction.txHash);
 
     try {
         const coefficient = 1.1;
@@ -134,8 +134,8 @@ export async function tryIncrTransactionGasPrice(
 
         const txHash = typeof rTxHash === 'string' ? rTxHash : rTxHash.result;
 
-        Logger.log('New TxHash', rTxHash);
-        Logger.log('New SignedTxs', signedTx);
+        console.log('New TxHash', transaction.id, rTxHash);
+        console.log('New SignedTxs', transaction.id, signedTx);
 
         if (!!txHash) {
             // should update user ops tx hash ???
@@ -144,7 +144,7 @@ export async function tryIncrTransactionGasPrice(
             });
         }
     } catch (error) {
-        Logger.error(`Replace Transaction error on chain ${transaction.chainId}`, error, transaction);
+        console.error(`Replace Transaction ${transaction.id} error on chain ${transaction.chainId}`, error, transaction);
 
         error.transaction = transaction.toJSON();
         Alert.sendMessage(
