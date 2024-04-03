@@ -11,7 +11,7 @@ import { AppException } from '../../../common/app-exception';
 import { Logger } from '@nestjs/common';
 import { createTxGasData } from './handle-local-transactions';
 import { BigNumber } from '../../../common/bignumber';
-import { deepHexlify } from '../aa/utils';
+import { deepHexlify, getFeeDataFromParticle } from '../aa/utils';
 import { Alert } from '../../../common/alert';
 import { ProcessNotify } from '../../../common/process-notify';
 import { getSendTransactionMethod } from '../../../configs/bundler-common';
@@ -73,6 +73,7 @@ export async function tryIncrTransactionGasPrice(
         const txData: any = tx.toJSON();
 
         const feeData = await aaService.getFeeData(transaction.chainId);
+        const feeDataFromParticle = await getFeeDataFromParticle(transaction.chainId);
 
         if (tx instanceof FeeMarketEIP1559Transaction) {
             if (BigNumber.from(feeData.maxFeePerGas).gt(tx.maxFeePerGas)) {
@@ -100,7 +101,15 @@ export async function tryIncrTransactionGasPrice(
                 .div(10)
                 .toHexString();
 
-            Logger.log(
+            if (
+                BigNumber.from(txData.maxFeePerGas).lt(feeDataFromParticle.maxFeePerGas) &&
+                BigNumber.from(txData.maxPriorityFeePerGas).lt(feeDataFromParticle.maxPriorityFeePerGas)
+            ) {
+                txData.maxFeePerGas = BigNumber.from(feeDataFromParticle.maxFeePerGas).toHexString();
+                txData.maxPriorityFeePerGas = BigNumber.from(feeDataFromParticle.maxPriorityFeePerGas).toHexString();
+            }
+
+            console.log(
                 `Replace Transaction, Old maxPriorityFeePerGas: ${tx.maxPriorityFeePerGas}, New maxPriorityFeePerGas: ${txData.maxPriorityFeePerGas}`,
             );
         }
@@ -115,7 +124,11 @@ export async function tryIncrTransactionGasPrice(
                 .div(10)
                 .toHexString();
 
-            Logger.log(`Replace Transaction, Old gasPrice: ${tx.gasPrice}, New gasPrice: ${txData.gasPrice}`);
+            if (BigNumber.from(txData.gasPrice).lt(feeDataFromParticle.gasPrice)) {
+                txData.gasPrice = BigNumber.from(feeDataFromParticle.gasPrice).toHexString();
+            }
+
+            console.log(`Replace Transaction, Old gasPrice: ${tx.gasPrice}, New gasPrice: ${txData.gasPrice}`);
         }
 
         const signedTx = await signer.signTransaction({
