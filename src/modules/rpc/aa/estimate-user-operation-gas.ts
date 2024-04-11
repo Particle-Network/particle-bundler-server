@@ -190,6 +190,7 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
         [
             EVM_CHAIN_ID.POLYGON_MAINNET,
             EVM_CHAIN_ID.POLYGON_TESTNET,
+            EVM_CHAIN_ID.POLYGON_AMOY_TESTNET,
             EVM_CHAIN_ID.BASE_MAINNET,
             EVM_CHAIN_ID.BASE_TESTNET_SEPOLIA,
             EVM_CHAIN_ID.PGN_MAINNET,
