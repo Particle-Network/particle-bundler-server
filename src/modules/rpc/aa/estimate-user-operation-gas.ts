@@ -190,6 +190,7 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
         [
             EVM_CHAIN_ID.POLYGON_MAINNET,
             EVM_CHAIN_ID.POLYGON_TESTNET,
+            EVM_CHAIN_ID.POLYGON_AMOY_TESTNET,
             EVM_CHAIN_ID.BASE_MAINNET,
             EVM_CHAIN_ID.BASE_TESTNET_SEPOLIA,
             EVM_CHAIN_ID.PGN_MAINNET,
@@ -217,6 +218,11 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
             EVM_CHAIN_ID.XTERIO_TESTNET,
             EVM_CHAIN_ID.GMNETWORK_TESTNET,
             EVM_CHAIN_ID.AINN_TESTNET,
+            EVM_CHAIN_ID.ASTAR_ZKEVM_MAINNET,
+            EVM_CHAIN_ID.ASTAR_ZKEVM_TESTNET_ZKYOTO,
+            EVM_CHAIN_ID.IMMUTABLE_ZKEVM_MAINNET,
+            EVM_CHAIN_ID.IMMUTABLE_ZKEVM_TESTNET,
+            EVM_CHAIN_ID.BOB_TESTNET,
         ].includes(chainId)
     ) {
         let ratio = 1.05;
