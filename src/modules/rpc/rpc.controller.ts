@@ -4,9 +4,10 @@ import { JsonRPCRequestDto, JsonRPCResponse } from './dtos/json-rpc-request.dto'
 import { FastifyReply } from 'fastify';
 import { isArray, isPlainObject } from 'lodash';
 import { Helper } from '../../common/helper';
-import { RPC_CONFIG } from '../../configs/bundler-common';
+import { EVM_CHAIN_ID, RPC_CONFIG } from '../../configs/bundler-common';
 import { AppException } from '../../common/app-exception';
 import { Alert } from '../../common/alert';
+import { IS_PRODUCTION } from '../../common/common-types';
 
 @Controller()
 export class RpcController {
@@ -37,7 +38,8 @@ export class RpcController {
                 }
             }
 
-            Helper.assertTrue(!!RPC_CONFIG[chainId], -32001, `Unsupported chainId: ${query.chainId}`);
+            Helper.assertTrue(!!RPC_CONFIG[chainId], -32001, `Unsupported chainId: ${chainId}`);
+            Helper.assertTrue(!IS_PRODUCTION || chainId !== EVM_CHAIN_ID.PARTICLE_PANGU_TESTNET, -32001, `Unsupported chainId: ${chainId}`);
 
             result = await this.handleRpc(chainId, body);
         } catch (error) {
