@@ -144,7 +144,7 @@ async function tryEstimateGasForFirstAccount(chainId: number, provider: JsonRpcP
         await Promise.all(
             txs.map((tx) => {
                 return provider.estimateGas({
-                    from: [EVM_CHAIN_ID.MANTLE_MAINNET, EVM_CHAIN_ID.MANTLE_SEPOLIA_TESTNET].includes(chainId) ? null : userOp.sender,
+                    from: userOp.sender,
                     to: tx.to,
                     data: tx.data,
                     value: tx.value,
