@@ -133,6 +133,16 @@ export async function getFeeDataFromParticle(chainId: number, level: string = GA
         };
     }
 
+    // B^2 Mainnet: 0.001 Gwei
+    if ([EVM_CHAIN_ID.BSQUARED_MAINNET].includes(chainId)) {
+        return {
+            maxPriorityFeePerGas: 1000000,
+            maxFeePerGas: 1000000,
+            gasPrice: 1000000,
+            baseFee: 0,
+        };
+    }
+
     if (EVM_CHAIN_ID.TAIKO_TESTNET_KATLA === chainId) {
         particleFeeData.baseFee = 0.000000001; // 1 wei
     }
