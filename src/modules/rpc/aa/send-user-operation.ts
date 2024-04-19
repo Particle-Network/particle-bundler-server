@@ -1,4 +1,4 @@
-import { Contract, JsonRpcProvider, getAddress, isAddress } from 'ethers';
+import { Contract, JsonRpcProvider, ZeroAddress, getAddress, isAddress } from 'ethers';
 import { JsonRPCRequestDto } from '../dtos/json-rpc-request.dto';
 import { RpcService } from '../services/rpc.service';
 import { Helper } from '../../../common/helper';
@@ -104,9 +104,10 @@ export async function simulateHandleOpAndGetGasCost(rpcService: RpcService, chai
     const provider = rpcService.getJsonRpcProvider(chainId);
     const contractEntryPoint = new Contract(entryPoint, EntryPointAbi, provider);
 
+    const signers = rpcService.aaService.getSigners(chainId);
     let [errorResult, gasCostWholeTransaction] = await Promise.all([
-        contractEntryPoint.simulateHandleOp.staticCall(userOp, '0x0000000000000000000000000000000000000000', '0x').catch((e) => e),
-        tryGetGasCostWholeTransaction(chainId, provider, contractEntryPoint, entryPoint, userOp),
+        contractEntryPoint.simulateHandleOp.staticCall(userOp, ZeroAddress, '0x', { from: signers[0].address }).catch((e) => e),
+        tryGetGasCostWholeTransaction(chainId, rpcService, contractEntryPoint, entryPoint, userOp),
     ]);
 
     if (!errorResult?.revert) {
@@ -222,9 +223,7 @@ async function checkUserOpCanExecutedSucceed(rpcService: RpcService, chainId: nu
     const contractEntryPoint = new Contract(entryPoint, EntryPointAbi, provider);
     const signer = rpcService.aaService.getSigners(chainId)[0];
 
-    // const preTx = await contractEntryPoint.handleOps.populateTransaction([userOp], signer.address);
-    // const promises = [provider.estimateGas(preTx)];
-    const promises = [contractEntryPoint.handleOps.staticCall([userOp], signer.address)];
+    const promises = [contractEntryPoint.handleOps.staticCall([userOp], signer.address, { from: signer.address })];
     const { nonceValue } = splitOriginNonce(userOp.nonce);
 
     // check account exists to replace check nonce??
@@ -263,27 +262,25 @@ async function checkUserOpCanExecutedSucceed(rpcService: RpcService, chainId: nu
 
 async function tryGetGasCostWholeTransaction(
     chainId: number,
-    provider: JsonRpcProvider,
+    rpcService: RpcService,
     contractEntryPoint: Contract,
     entryPoint: string,
     userOp: any,
 ) {
+    const provider = rpcService.getJsonRpcProvider(chainId);
     let gasCostWholeTransaction = '0x0';
 
     if (USE_PROXY_CONTRACT_TO_ESTIMATE_GAS.includes(chainId)) {
-        const simulateHandleOpTx = await contractEntryPoint.simulateHandleOp.populateTransaction(
-            userOp,
-            '0x0000000000000000000000000000000000000000',
-            '0x',
-        );
-
+        const simulateHandleOpTx = await contractEntryPoint.simulateHandleOp.populateTransaction(userOp, ZeroAddress, '0x');
         const multiCallContract = new Contract(MULTI_CALL_3_ADDRESS, MultiCall3Abi, provider);
+        const signer = rpcService.aaService.getSigners(chainId)[0];
         const toEstimatedTx = await multiCallContract.tryAggregate.populateTransaction(false, [
             {
                 target: entryPoint,
                 callData: simulateHandleOpTx.data,
             },
         ]);
+        toEstimatedTx.from = signer.address;
         gasCostWholeTransaction = BigNumber.from(await provider.estimateGas(toEstimatedTx)).toHexString();
     }
 
