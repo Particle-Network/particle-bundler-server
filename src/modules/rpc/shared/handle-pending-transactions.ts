@@ -11,10 +11,10 @@ import { AppException } from '../../../common/app-exception';
 import { Logger } from '@nestjs/common';
 import { createTxGasData } from './handle-local-transactions';
 import { BigNumber } from '../../../common/bignumber';
-import { deepHexlify } from '../aa/utils';
+import { deepHexlify, getFeeDataFromParticle } from '../aa/utils';
 import { Alert } from '../../../common/alert';
 import { ProcessNotify } from '../../../common/process-notify';
-import { METHOD_SEND_RAW_TRANSACTION } from '../../../configs/bundler-common';
+import { getSendTransactionMethod } from '../../../configs/bundler-common';
 
 export async function tryIncrTransactionGasPrice(
     transaction: TransactionDocument,
@@ -22,10 +22,10 @@ export async function tryIncrTransactionGasPrice(
     provider: JsonRpcProvider,
     aaService: AAService,
 ) {
-    Logger.log('tryIncrTransactionGasPrice', transaction.id);
+    console.log('tryIncrTransactionGasPrice Start', transaction.id);
     const keyLock = keyLockPendingTransaction(transaction.id);
     if (Lock.isAcquired(keyLock)) {
-        Logger.log('tryIncrTransactionGasPrice already acquired', transaction.id);
+        console.log('tryIncrTransactionGasPrice already acquired', transaction.id);
         return;
     }
 
@@ -33,7 +33,7 @@ export async function tryIncrTransactionGasPrice(
     try {
         const remoteNonce = await aaService.getTransactionCountLocalCache(provider, transaction.chainId, transaction.from, true);
         if (remoteNonce != transaction.nonce) {
-            Logger.log('tryIncrTransactionGasPrice release', 'remoteNonce != transaction.nonce', remoteNonce, transaction.nonce);
+            console.log('tryIncrTransactionGasPrice release', 'remoteNonce != transaction.nonce', remoteNonce, transaction.nonce);
             Lock.release(keyLock);
             return;
         }
@@ -63,7 +63,7 @@ export async function tryIncrTransactionGasPrice(
         return;
     }
 
-    Logger.log('Try Replace Transaction', transaction.txHash);
+    console.log('Try Replace Transaction', transaction.id, transaction.txHash);
 
     try {
         const coefficient = 1.1;
@@ -73,6 +73,7 @@ export async function tryIncrTransactionGasPrice(
         const txData: any = tx.toJSON();
 
         const feeData = await aaService.getFeeData(transaction.chainId);
+        const feeDataFromParticle = await getFeeDataFromParticle(transaction.chainId);
 
         if (tx instanceof FeeMarketEIP1559Transaction) {
             if (BigNumber.from(feeData.maxFeePerGas).gt(tx.maxFeePerGas)) {
@@ -100,7 +101,15 @@ export async function tryIncrTransactionGasPrice(
                 .div(10)
                 .toHexString();
 
-            Logger.log(
+            if (
+                BigNumber.from(txData.maxFeePerGas).lt(feeDataFromParticle.maxFeePerGas) &&
+                BigNumber.from(txData.maxPriorityFeePerGas).lt(feeDataFromParticle.maxPriorityFeePerGas)
+            ) {
+                txData.maxFeePerGas = BigNumber.from(feeDataFromParticle.maxFeePerGas).toHexString();
+                txData.maxPriorityFeePerGas = BigNumber.from(feeDataFromParticle.maxPriorityFeePerGas).toHexString();
+            }
+
+            console.log(
                 `Replace Transaction, Old maxPriorityFeePerGas: ${tx.maxPriorityFeePerGas}, New maxPriorityFeePerGas: ${txData.maxPriorityFeePerGas}`,
             );
         }
@@ -115,7 +124,11 @@ export async function tryIncrTransactionGasPrice(
                 .div(10)
                 .toHexString();
 
-            Logger.log(`Replace Transaction, Old gasPrice: ${tx.gasPrice}, New gasPrice: ${txData.gasPrice}`);
+            if (BigNumber.from(txData.gasPrice).lt(feeDataFromParticle.gasPrice)) {
+                txData.gasPrice = BigNumber.from(feeDataFromParticle.gasPrice).toHexString();
+            }
+
+            console.log(`Replace Transaction, Old gasPrice: ${tx.gasPrice}, New gasPrice: ${txData.gasPrice}`);
         }
 
         const signedTx = await signer.signTransaction({
@@ -127,15 +140,15 @@ export async function tryIncrTransactionGasPrice(
             ...createTxGasData(transaction.chainId, txData),
         });
 
-        const rTxHash = await provider.send(METHOD_SEND_RAW_TRANSACTION, [signedTx]);
+        const rTxHash = await provider.send(getSendTransactionMethod(transaction.chainId), [signedTx]);
         if (!!rTxHash?.error) {
             throw rTxHash.error;
         }
 
         const txHash = typeof rTxHash === 'string' ? rTxHash : rTxHash.result;
 
-        Logger.log('New TxHash', rTxHash);
-        Logger.log('New SignedTxs', signedTx);
+        console.log('New TxHash', transaction.id, rTxHash);
+        console.log('New SignedTxs', transaction.id, signedTx);
 
         if (!!txHash) {
             // should update user ops tx hash ???
@@ -144,7 +157,7 @@ export async function tryIncrTransactionGasPrice(
             });
         }
     } catch (error) {
-        Logger.error(`Replace Transaction error on chain ${transaction.chainId}`, error, transaction);
+        console.error(`Replace Transaction ${transaction.id} error on chain ${transaction.chainId}`, error, transaction);
 
         error.transaction = transaction.toJSON();
         Alert.sendMessage(

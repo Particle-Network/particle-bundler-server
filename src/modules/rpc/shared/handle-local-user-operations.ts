@@ -82,14 +82,29 @@ async function sealUserOps(
         let totalGasLimit: BigNumber = BigNumber.from(0);
         for (let index = 0; index < userOperationsToPack.length; index++) {
             const userOperation = userOperationsToPack[index];
+            const bundlerConfig = getBundlerConfig(chainId);
 
             // if bundle is full, push it to bundles array
             const calcedGasLimit = calcUserOpTotalGasLimit(userOperation.origin);
+            // TODO: refactor
+            if ([EVM_CHAIN_ID.MERLIN_CHAIN_TESTNET, EVM_CHAIN_ID.MERLIN_CHAIN_MAINNET].includes(chainId)) {
+                if (calcedGasLimit.gt(bundlerConfig.MAX_BUNDLE_GAS)) {
+                    await userOperation.delete();
+                    console.log('delete userOperation', userOperation.chainId, userOperation.userOpHash, calcedGasLimit.toString());
+                    continue;
+                }
+            }
+
             const newTotalGasLimit = totalGasLimit.add(calcedGasLimit);
-            const bundlerConfig = getBundlerConfig(chainId);
             if (
                 newTotalGasLimit.gt(bundlerConfig.MAX_BUNDLE_GAS) ||
-                ([EVM_CHAIN_ID.MERLIN_CHAIN_TESTNET, EVM_CHAIN_ID.MERLIN_CHAIN_MAINNET].includes(chainId) && bundle.length === 1)
+                ([
+                    EVM_CHAIN_ID.MERLIN_CHAIN_TESTNET,
+                    EVM_CHAIN_ID.MERLIN_CHAIN_MAINNET,
+                    EVM_CHAIN_ID.MANTLE_MAINNET,
+                    EVM_CHAIN_ID.MANTLE_SEPOLIA_TESTNET,
+                ].includes(chainId) &&
+                    bundle.length === 1)
             ) {
                 bundles.push({ userOperations: bundle, gasLimit: totalGasLimit.toHexString() });
                 bundle = [];

@@ -11,7 +11,7 @@ import { handleOldPendingTransaction, handlePendingTransaction, tryIncrTransacti
 import { BigNumber } from '../../../common/bignumber';
 import { RpcService } from '../services/rpc.service';
 import { Alert } from '../../../common/alert';
-import { EVM_CHAIN_ID, METHOD_SEND_RAW_TRANSACTION, SUPPORT_EIP_1559 } from '../../../configs/bundler-common';
+import { EVM_CHAIN_ID, getSendTransactionMethod, SUPPORT_EIP_1559 } from '../../../configs/bundler-common';
 import { Logger } from '@nestjs/common';
 import { AppException } from '../../../common/app-exception';
 import { ListenerService } from '../../task/listener.service';
@@ -35,7 +35,7 @@ export async function createBundleTransaction(
         const entryPointContract = new Contract(entryPoint, entryPointAbi, provider);
         const userOps = userOperationDocuments.map((userOperationDocument) => userOperationDocument.origin);
         let gasLimit = BigNumber.from(bundleGasLimit).mul(15).div(10).toHexString();
-        if ([EVM_CHAIN_ID.MANTLE_MAINNET].includes(chainId)) {
+        if ([EVM_CHAIN_ID.MANTLE_MAINNET, EVM_CHAIN_ID.MANTLE_SEPOLIA_TESTNET].includes(chainId)) {
             gasLimit = BigNumber.from(gasLimit).mul(4).toHexString();
         }
 
@@ -138,7 +138,7 @@ export async function trySendAndUpdateTransactionStatus(
     }
 
     try {
-        const r = await provider.send(METHOD_SEND_RAW_TRANSACTION, [currentSignedTx]);
+        const r = await provider.send(getSendTransactionMethod(transaction.chainId), [currentSignedTx]);
         if (!!r?.error) {
             throw r.error;
         }
@@ -202,7 +202,7 @@ export async function getReceiptAndHandlePendingTransactions(
         const receiptPromises = pendingTransaction.txHashes.map((txHash) => rpcService.getTransactionReceipt(provider, txHash));
         const receipts = await Promise.all(receiptPromises);
 
-        Logger.log('getReceiptAndHandlePendingTransactions', receipts.length);
+        console.log('getReceiptAndHandlePendingTransactions', receipts.length);
         if (receipts.some((r) => !!r)) {
             console.log(
                 'receipts',
@@ -238,7 +238,7 @@ export async function getReceiptAndHandlePendingTransactions(
         } else {
             if (pendingTransaction.isOld()) {
                 try {
-                    await provider.send(METHOD_SEND_RAW_TRANSACTION, [pendingTransaction.getCurrentSignedTx()]);
+                    await provider.send(getSendTransactionMethod(pendingTransaction.chainId), [pendingTransaction.getCurrentSignedTx()]);
                 } catch (error) {
                     console.error('trySendOldPendingTransaction error', error);
                     Alert.sendMessage(

@@ -99,18 +99,9 @@ export async function getFeeDataFromParticle(chainId: number, level: string = GA
 
     if ([EVM_CHAIN_ID.MERLIN_CHAIN_MAINNET].includes(chainId)) {
         return {
-            maxPriorityFeePerGas: 15000000,
-            maxFeePerGas: 15000000,
-            gasPrice: 15000000,
-            baseFee: 0,
-        };
-    }
-
-    if ([EVM_CHAIN_ID.MERLIN_CHAIN_TESTNET].includes(chainId)) {
-        return {
-            maxPriorityFeePerGas: 5000000,
-            maxFeePerGas: 5000000,
-            gasPrice: 5000000,
+            maxPriorityFeePerGas: 0.06 * 1000000000,
+            maxFeePerGas: 0.06 * 1000000000,
+            gasPrice: 0.06 * 1000000000,
             baseFee: 0,
         };
     }
@@ -124,11 +115,12 @@ export async function getFeeDataFromParticle(chainId: number, level: string = GA
         };
     }
 
-    if ([EVM_CHAIN_ID.BSQUARED_TESTNET].includes(chainId)) {
+    // B^2 Mainnet: 0.001 Gwei
+    if ([EVM_CHAIN_ID.BSQUARED_MAINNET].includes(chainId)) {
         return {
-            maxPriorityFeePerGas: 10000000,
-            maxFeePerGas: 10000000,
-            gasPrice: 10000000,
+            maxPriorityFeePerGas: 1000000,
+            maxFeePerGas: 1000000,
+            gasPrice: 1000000,
             baseFee: 0,
         };
     }

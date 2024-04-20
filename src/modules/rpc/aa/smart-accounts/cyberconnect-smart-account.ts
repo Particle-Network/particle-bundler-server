@@ -9,7 +9,7 @@ import { EVM_CHAIN_ID } from '../../../../configs/bundler-common';
 import { CyberFactory } from '@cyberlab/cyber-account';
 
 const SUPPORTED_MAINNET = [EVM_CHAIN_ID.POLYGON_MAINNET];
-const SUPPORTED_TESTNET = [EVM_CHAIN_ID.BNB_TESTNET, EVM_CHAIN_ID.LINEA_TESTNET, EVM_CHAIN_ID.POLYGON_TESTNET];
+const SUPPORTED_TESTNET = [EVM_CHAIN_ID.BNB_TESTNET, EVM_CHAIN_ID.LINEA_TESTNET];
 
 export class CyberConnectSmartAccount implements IContractAccount {
     private accountAddress: string;

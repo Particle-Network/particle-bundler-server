@@ -23,7 +23,7 @@ import { CHAIN_BALANCE_RANGE, CHAIN_SIGNER_MIN_BALANCE, EVM_CHAIN_ID } from '../
 import { Wallet, parseEther } from 'ethers';
 import { BigNumber } from '../../common/bignumber';
 import { Alert } from '../../common/alert';
-import { isObject } from 'lodash';
+import { isObject, random } from 'lodash';
 import { UserOperationDocument } from '../rpc/schemas/user-operation.schema';
 import { ProcessNotify } from '../../common/process-notify';
 import { ListenerService } from './listener.service';
@@ -160,7 +160,12 @@ export class TaskService {
         await Lock.acquire(keyLock);
 
         try {
-            const localTransactions = await this.transactionService.getTransactionsByStatus(TRANSACTION_STATUS.LOCAL, FETCH_TRANSACTION_SIZE);
+            const localMerlinTransactions = await this.transactionService.getMerlinTransactionsByStatus(TRANSACTION_STATUS.LOCAL, 1000);
+            const localNonMerlinTransactions = await this.transactionService.getTransactionsByStatus(
+                TRANSACTION_STATUS.LOCAL,
+                FETCH_TRANSACTION_SIZE,
+            );
+            const localTransactions = [...localMerlinTransactions, ...localNonMerlinTransactions];
 
             const promises = [];
             for (const localTransaction of localTransactions) {
@@ -207,7 +212,23 @@ export class TaskService {
     }
 
     private async handlePendingTransactionsAction() {
-        const pendingTransactions = await this.transactionService.getTransactionsByStatus(TRANSACTION_STATUS.PENDING, FETCH_TRANSACTION_SIZE);
+        const pendingMerlinTransactions = await this.transactionService.getMerlinTransactionsByStatus(
+            TRANSACTION_STATUS.PENDING,
+            FETCH_TRANSACTION_SIZE,
+        );
+        const pendingNonMerlinTransactions = await this.transactionService.getTransactionsByStatus(
+            TRANSACTION_STATUS.PENDING,
+            FETCH_TRANSACTION_SIZE,
+        );
+        let pendingTransactions = [...pendingMerlinTransactions, ...pendingNonMerlinTransactions];
+
+        // limit for merlin chain
+        if (random(0, 2) !== 0) {
+            pendingTransactions = pendingTransactions.filter(
+                (pendingTransaction) =>
+                    ![EVM_CHAIN_ID.MERLIN_CHAIN_MAINNET, EVM_CHAIN_ID.MERLIN_CHAIN_TESTNET].includes(pendingTransaction.chainId),
+            );
+        }
 
         const chainIdSignerLatestDoneTransaction: Map<string, TransactionDocument> = new Map();
         for (const pendingTransaction of pendingTransactions) {
@@ -227,6 +248,10 @@ export class TaskService {
     }
 
     private canRunCron() {
+        if (!!process.env.TEST_MODE) {
+            return false;
+        }
+
         if (IS_DEVELOPMENT) {
             return true;
         }

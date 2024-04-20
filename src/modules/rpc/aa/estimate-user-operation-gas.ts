@@ -73,9 +73,11 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
 
     // For mantle, because the gas estimation is including L1 extra fee, so we can not use it directly
     // TODO recheck ARBITRUM
-    if ([EVM_CHAIN_ID.MANTLE_MAINNET].includes(chainId)) {
+    if ([EVM_CHAIN_ID.MANTLE_MAINNET, EVM_CHAIN_ID.MANTLE_SEPOLIA_TESTNET].includes(chainId)) {
         userOp.callGasLimit = BigNumber.from(gasCostInContract).toHexString();
-        userOp.preVerificationGas = BigNumber.from(gasCostWholeTransaction).mul(initGas > 0n ? 2 : 1).toHexString();
+        userOp.preVerificationGas = BigNumber.from(gasCostWholeTransaction)
+            .mul(initGas > 0n ? 2 : 1)
+            .toHexString();
     }
 
     Helper.assertTrue(
@@ -142,7 +144,7 @@ async function tryEstimateGasForFirstAccount(chainId: number, provider: JsonRpcP
         await Promise.all(
             txs.map((tx) => {
                 return provider.estimateGas({
-                    from: [EVM_CHAIN_ID.MANTLE_MAINNET].includes(chainId) ? null : userOp.sender,
+                    from: userOp.sender,
                     to: tx.to,
                     data: tx.data,
                     value: tx.value,
@@ -187,7 +189,7 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
     if (
         [
             EVM_CHAIN_ID.POLYGON_MAINNET,
-            EVM_CHAIN_ID.POLYGON_TESTNET,
+            EVM_CHAIN_ID.POLYGON_AMOY_TESTNET,
             EVM_CHAIN_ID.BASE_MAINNET,
             EVM_CHAIN_ID.BASE_TESTNET_SEPOLIA,
             EVM_CHAIN_ID.PGN_MAINNET,
@@ -198,6 +200,7 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
             EVM_CHAIN_ID.OPTIMISM_TESTNET,
             EVM_CHAIN_ID.OPTIMISM_TESTNET_SEPOLIA,
             EVM_CHAIN_ID.MANTLE_MAINNET,
+            EVM_CHAIN_ID.MANTLE_SEPOLIA_TESTNET,
             EVM_CHAIN_ID.SCROLL_MAINNET,
             EVM_CHAIN_ID.SCROLL_SEPOLIA,
             EVM_CHAIN_ID.OPBNB_MAINNET,
@@ -208,10 +211,23 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
             EVM_CHAIN_ID.MODE_TESTNET,
             EVM_CHAIN_ID.BLAST_MAINNET,
             EVM_CHAIN_ID.BLAST_TESTNET_SEPOLIA,
+            EVM_CHAIN_ID.ANCIENT8_MAINNET,
+            EVM_CHAIN_ID.ANCIENT8_TESTNET,
+            EVM_CHAIN_ID.XTERIO_MAINNET,
+            EVM_CHAIN_ID.XTERIO_TESTNET,
+            EVM_CHAIN_ID.GMNETWORK_TESTNET,
+            EVM_CHAIN_ID.AINN_TESTNET,
+            EVM_CHAIN_ID.ASTAR_ZKEVM_MAINNET,
+            EVM_CHAIN_ID.ASTAR_ZKEVM_TESTNET_ZKYOTO,
+            EVM_CHAIN_ID.IMMUTABLE_ZKEVM_MAINNET,
+            EVM_CHAIN_ID.IMMUTABLE_ZKEVM_TESTNET,
+            EVM_CHAIN_ID.BOB_TESTNET,
+            EVM_CHAIN_ID.PEQA_KREST_MAINNET,
+            EVM_CHAIN_ID.PEQA_AGUNG_TESTNET,
         ].includes(chainId)
     ) {
         let ratio = 1.05;
-        if ([EVM_CHAIN_ID.MANTLE_MAINNET].includes(chainId)) {
+        if ([EVM_CHAIN_ID.MANTLE_MAINNET, EVM_CHAIN_ID.MANTLE_SEPOLIA_TESTNET].includes(chainId)) {
             ratio = 1.6;
         }
 

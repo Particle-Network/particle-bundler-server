@@ -46,6 +46,14 @@ export class RpcService {
             }
         }
 
+        if (body.method.startsWith('bundler_')) {
+            const method = body.method.slice(8);
+            if (AA[method]) {
+                const result = await AA[method](this, chainId, body);
+                return JsonRPCResponse.createSuccessResponse(body, result);
+            }
+        }
+
         if (body.method.startsWith('debug_') && IS_DEVELOPMENT) {
             const method = body.method.slice(6);
             if (DEBUG[method]) {
