@@ -5,10 +5,12 @@ import { TransactionService } from './transaction.service';
 import {
     BLOCK_SIGNER_REASON,
     CACHE_GAS_FEE_TIMEOUT,
+    CACHE_TRANSACTION_COUINT_TIMEOUT,
     GAS_FEE_LEVEL,
     IS_DEVELOPMENT,
     PROCESS_EVENT_TYPE,
     keyCacheChainFeeData,
+    keyCacheChainSignerTransactionCount,
 } from '../../../common/common-types';
 import { ConfigService } from '@nestjs/config';
 import { UserOperationDocument } from '../schemas/user-operation.schema';
@@ -42,8 +44,7 @@ export class AAService {
         // ProcessNotify.registerHandler(PROCESS_NOTIFY_TYPE.SET_RECEIPT, this.onSetUserOpHashReceipt.bind(this));
     }
 
-    // TODO refactor name
-    public getRandomSigners(chainId: number): Wallet[] {
+    public getRandomValidSigners(chainId: number): Wallet[] {
         const signers = this.getSigners(chainId);
 
         return signers.sort(() => Math.random() - 0.5).filter((signer: Wallet) => !this.blockedSigners.has(`${chainId}-${signer.address}`));
@@ -142,29 +143,32 @@ export class AAService {
         address: string,
         forceLatest = false,
     ): Promise<number> {
-        if (this.transactionCountCaches.has(`${chainId}-${address}`) && !forceLatest) {
-            return this.transactionCountCaches.get(`${chainId}-${address}`);
+        const cacheKey = keyCacheChainSignerTransactionCount(chainId, address);
+        if (!forceLatest && P2PCache.has(cacheKey)) {
+            const nonceObj = P2PCache.get(cacheKey);
+            if (Date.now() - nonceObj.timestamp <= CACHE_TRANSACTION_COUINT_TIMEOUT) {
+                return nonceObj.nonce;
+            }
         }
 
         const nonce = await provider.getTransactionCount(address, 'latest');
-        this.setTransactionCountLocalCache(chainId, address, nonce);
-        // ProcessNotify.sendMessages(PROCESS_NOTIFY_TYPE.GET_TRANSACTION_COUNT, { chainId, address, nonce });
+        P2PCache.set(cacheKey, { nonce, timestamp: Date.now() });
 
         return nonce;
     }
 
-    private onSetTransactionCountLocalCache(packet: any) {
-        const { chainId, address, nonce } = packet.data;
-        Logger.log(`Get Transaction Count On Chain ${chainId} For ${address}: ${nonce}`);
+    public trySetTransactionCountLocalCache(chainId: number, address: string, nonce: number) {
+        const cacheKey = keyCacheChainSignerTransactionCount(chainId, address);
 
-        if (!!chainId && !!address) {
-            this.setTransactionCountLocalCache(chainId, address, nonce);
+        let currentNonce: number = -1;
+        if (P2PCache.has(cacheKey)) {
+            const nonceObj = P2PCache.get(cacheKey);
+            currentNonce = nonceObj.nonce;
         }
-    }
 
-    // cache once is ok, because nonce will be used from database
-    private setTransactionCountLocalCache(chainId: number, address: string, nonce: any) {
-        this.transactionCountCaches.set(`${chainId}-${address}`, nonce);
+        if (nonce > currentNonce) {
+            P2PCache.set(cacheKey, { nonce, timestamp: Date.now() });
+        }
     }
 
     public getUserOpHashReceipts(chainId: number, userOpHash: string): any {

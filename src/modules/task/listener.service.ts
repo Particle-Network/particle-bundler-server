@@ -5,6 +5,7 @@
 // import { TransactionDocument } from '../rpc/schemas/transaction.schema';
 // import { Alert } from '../../common/alert';
 // import { Helper } from '../../common/helper';
+// import { LarkService } from '../common/services/lark.service';
 
 // const WEBSOCKET_PING_INTERVAL = 5000;
 // const WEBSOCKET_PONG_TIMEOUT = 3000;
@@ -12,6 +13,8 @@
 
 // @Injectable()
 // export class ListenerService {
+//     public constructor(private readonly larkService: LarkService) {}
+
 //     private readonly wsProviders: Map<number, WebSocketProvider> = new Map();
 //     private userOpHashPendingTransactionMap: Map<string, TransactionDocument> = new Map();
 //     private eventHandler: (event: any, transaction: TransactionDocument) => {};

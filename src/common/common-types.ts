@@ -1,7 +1,6 @@
 export const IS_DEVELOPMENT = process.env.ENVIRONMENT === 'dev' || !process.env.ENVIRONMENT;
 export const IS_DEBUG = process.env.ENVIRONMENT === 'debug';
 export const IS_PRODUCTION = process.env.ENVIRONMENT === 'production';
-export const USE_MONOGODB_TRANSACTION = () => process.env.USE_MONOGODB_TRANSACTION === '1';
 
 export const BUNDLE_LIMIT = 100;
 
@@ -10,6 +9,7 @@ export const PENDING_TRANSACTION_WAITING_TIME = 60;
 export const PENDING_TRANSACTION_EXPIRED_TIME = 600; // 10 mins
 export const PENDING_TRANSACTION_SIGNER_HANDLE_LIMIT = 10;
 export const CACHE_GAS_FEE_TIMEOUT = 5000; // 5s
+export const CACHE_TRANSACTION_COUINT_TIMEOUT = 60000; // 60s
 export const SERVER_NAME = 'particle-bundler-server';
 export const MULTI_CALL_3_ADDRESS = '0xcA11bde05977b3631167028862bE2a173976CA11';
 
@@ -21,6 +21,8 @@ export interface IBundlerChainConfig {
     maxBundleGas?: number;
     signerBalanceRange?: number;
     minSignerBalance?: number;
+    pendingTransactionSignerHandleLimit?: number;
+    maxUserOpPackCount?: number;
     minGasFee?: {
         gasPrice?: string;
         maxFeePerGas?: string;
@@ -56,15 +58,19 @@ export enum PROCESS_EVENT_TYPE {
 }
 
 export function keyCacheChainFeeData(chainId: number): string {
-    return `chain_fee_data: ${chainId}`;
+    return `chain_fee_data:${chainId}`;
+}
+
+export function keyCacheChainSignerTransactionCount(chainId: number, address: string): string {
+    return `chain_signer_transaction_count:${chainId}:${address.toLocaleLowerCase()}`;
 }
 
 export function keyLockPendingTransaction(id: string) {
     return `bundler:lock:pending_transaction:${id}`;
 }
 
-export function keyLockSendingTransaction(chainId: number, signedTx: string) {
-    return `bundler:lock:sending_transaction:${chainId}:${signedTx}`;
+export function keyLockSendingTransaction(chainId: number, txHash: string) {
+    return `bundler:lock:sending_transaction:${chainId}:${txHash}`;
 }
 
 export function keyLockSigner(chainId: number, signer: string) {

@@ -1,12 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { TRANSACTION_STATUS, Transaction, TransactionDocument } from '../schemas/transaction.schema';
+import { TRANSACTION_STATUS, TRANSACTION_TYPE, Transaction, TransactionDocument } from '../schemas/transaction.schema';
 import { TypedTransaction } from '@ethereumjs/tx';
 // import { tryParseSignedTx } from '../shared/handle-pending-transactions';
 import { getAddress } from 'ethers';
 import { BigNumber } from '../../../common/bignumber';
 import { EVM_CHAIN_ID } from '../../../configs/bundler-common';
+import { tryParseSignedTx } from '../aa/utils';
 
 @Injectable()
 export class TransactionService {
@@ -17,10 +18,7 @@ export class TransactionService {
     }
 
     public async getTransactionsByStatus(status: TRANSACTION_STATUS, limit: number): Promise<TransactionDocument[]> {
-        return await this.transactionModel
-            .find({ status, chainId: { $ne: EVM_CHAIN_ID.MERLIN_CHAIN_MAINNET } })
-            .sort({ from: 1, nonce: 1 })
-            .limit(limit);
+        return await this.transactionModel.find({ status }).sort({ _id: 1 }).limit(limit);
     }
 
     public async getMerlinTransactionsByStatus(status: TRANSACTION_STATUS, limit: number): Promise<TransactionDocument[]> {
@@ -55,24 +53,22 @@ export class TransactionService {
         });
     }
 
-    public async createTransaction(chainId: number, signedTx: any, userOperationHashes: string[], session: any): Promise<TransactionDocument> {
-        // const tx: TypedTransaction = tryParseSignedTx(signedTx);
-        const tx: any = {}; // TODO delete it
-
-
+    public async createTransaction(chainId: number, signedTx: any, combinationHash: string, session: any): Promise<TransactionDocument> {
+        const tx: TypedTransaction = tryParseSignedTx(signedTx);
         const txHash = `0x${Buffer.from(tx.hash()).toString('hex')}`;
 
         const transaction = new this.transactionModel({
             chainId,
+            type: TRANSACTION_TYPE.NORMAL,
+            combinationHash,
             from: getAddress(tx.getSenderAddress().toString()),
             to: getAddress(tx.to.toString()),
-            nonce: BigNumber.from(tx.nonce).toNumber(),
-            userOperationHashes,
-            inner: { [txHash]: tx.toJSON() },
-            signedTxs: { [txHash]: signedTx },
+            nonce: Number(tx.nonce),
+            inner: tx.toJSON(),
+            signedTx: signedTx,
             status: TRANSACTION_STATUS.LOCAL,
             txHash, // calculate tx hash in advance
-            txHashes: [txHash],
+            confirmations: 0,
             latestSentAt: new Date(),
         });
 
@@ -115,12 +111,9 @@ export class TransactionService {
     public async replaceTransactionTxHash(transaction: TransactionDocument, newTxHash: string, newSignedTx: string, txData: any, session?: any) {
         // const newSignedTxs = transaction.signedTxs;
         // newSignedTxs[newTxHash] = newSignedTx;
-
         // const newInner = transaction.inner;
         // newInner[newTxHash] = txData;
-
         // const newTxHashes = transaction.txHashes.concat(newTxHash);
-
         // return await this.transactionModel.updateOne(
         //     { _id: transaction.id, status: TRANSACTION_STATUS.PENDING },
         //     {

@@ -9,13 +9,18 @@ export enum TRANSACTION_STATUS {
     FAILED,
 }
 
+export enum TRANSACTION_TYPE {
+    NORMAL,
+    REPLACED,
+}
+
 @NestSchema({ versionKey: false, collection: 'transactions', timestamps: true })
 export class Transaction {
     @Prop({ required: true, type: Schema.Types.Number })
     public chainId: number;
 
     @Prop({ required: true, type: Schema.Types.Number })
-    public type: number;
+    public type: TRANSACTION_TYPE;
 
     @Prop({ required: true, type: Schema.Types.String })
     public combinationHash: string;
@@ -86,10 +91,6 @@ TransactionSchema.methods.isOld = function (): boolean {
     return (
         [TRANSACTION_STATUS.PENDING].includes(this.status) && Date.now() - this.latestSentAt.valueOf() > PENDING_TRANSACTION_EXPIRED_TIME * 1000
     );
-};
-
-TransactionSchema.methods.getCurrentSignedTx = function (): string {
-    return this.signedTxs[this.txHash];
 };
 
 TransactionSchema.methods.isDone = function (): boolean {

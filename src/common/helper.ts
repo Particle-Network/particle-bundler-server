@@ -1,6 +1,5 @@
 import { AppException } from './app-exception';
 import { Connection } from 'mongoose';
-import { USE_MONOGODB_TRANSACTION } from './common-types';
 
 export class Helper {
     public static assertTrue(condition: any, failedExceptionCode: number, overrideMessage: any = '') {
@@ -10,7 +9,7 @@ export class Helper {
     }
 
     public static async startMongoTransaction(connection: Connection, callback: (session: any) => Promise<void>) {
-        if (!USE_MONOGODB_TRANSACTION()) {
+        if (process.env.USE_MONOGODB_TRANSACTION !== '1') {
             await callback(null);
             return;
         }

@@ -3,6 +3,8 @@ import { BigNumber } from '../../../common/bignumber';
 import { AbiCoder, BytesLike, JsonRpcProvider, Network, hexlify, keccak256, toBeHex } from 'ethers';
 import { GAS_FEE_LEVEL } from '../../../common/common-types';
 import { EVM_CHAIN_ID, MINIMUM_GAS_FEE, PARTICLE_PUBLIC_RPC_URL } from '../../../configs/bundler-common';
+import { TransactionFactory, TypedTransaction } from '@ethereumjs/tx';
+import { AppException } from '../../../common/app-exception';
 
 export function calcUserOpTotalGasLimit(userOp: any): bigint {
     const mul = 3n;
@@ -213,4 +215,19 @@ export function packUserOp(userOp: any, forSignature = true): string {
             ],
         );
     }
+}
+
+export async function waitSeconds(seconds: number) {
+    await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
+}
+
+export function tryParseSignedTx(signedTx: string): TypedTransaction {
+    let tx: TypedTransaction;
+    try {
+        tx = TransactionFactory.fromSerializedData(Buffer.from(signedTx.substring(2), 'hex'));
+    } catch (error) {
+        throw new AppException(10002, `Invalid transaction: ${error.message}`);
+    }
+
+    return tx;
 }

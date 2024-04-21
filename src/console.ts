@@ -6,9 +6,9 @@
 // import { UserOperationService } from './modules/rpc/services/user-operation.service';
 
 // // Execute In Pod
-// // TEST_MODE=true ENVIRONMENT=dev node dist/console.js delete-transactions-by-signer chainId signerAddress
+// // DISABLE_TASK=true ENVIRONMENT=dev node dist/console.js delete-transactions-by-signer chainId signerAddress
 // async function bootstrap() {
-//     process.env.TEST_MODE = 'true';
+//     process.env.DISABLE_TASK = 'true';
 //     process.env.EXECUTE_MODE = 'console';
 
 //     const fastifyAdapter = new FastifyAdapter({ ignoreTrailingSlash: true });

@@ -126,12 +126,8 @@ export class UserOperationService {
         });
     }
 
-    public async getLocalUserOperations(limit = 1000): Promise<UserOperationDocument[]> {
-        return await this.userOperationModel
-            .find({
-                status: USER_OPERATION_STATUS.LOCAL,
-            })
-            .limit(limit);
+    public async getLocalUserOperations(limit: number = 1000): Promise<UserOperationDocument[]> {
+        return await this.userOperationModel.find({ status: USER_OPERATION_STATUS.LOCAL }).limit(limit);
     }
 
     // Ensure nonce is sorted by asc
@@ -148,14 +144,22 @@ export class UserOperationService {
 
     public async transactionSetSpecialLocalUserOperationsAsPending(
         userOperationDocument: UserOperationDocument[],
-        txHash: string,
+        combinationHash: string,
         session: any,
     ) {
         const ids = userOperationDocument.map((u) => u._id);
 
         return await this.userOperationModel.updateMany(
             { _id: { $in: ids }, status: USER_OPERATION_STATUS.LOCAL },
-            { $set: { status: USER_OPERATION_STATUS.PENDING, txHash } },
+            { $set: { status: USER_OPERATION_STATUS.PENDING, combinationHash } },
+            { session },
+        );
+    }
+
+    public async setPendingUserOperationsToLocalByCombinationHash(combinationHash: string, session: any) {
+        return await this.userOperationModel.updateMany(
+            { combinationHash, status: USER_OPERATION_STATUS.PENDING },
+            { $set: { status: USER_OPERATION_STATUS.LOCAL, combinationHash: null } },
             { session },
         );
     }

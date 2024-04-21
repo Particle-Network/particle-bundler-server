@@ -248,7 +248,7 @@
 //     }
 
 //     private canRunCron() {
-//         if (!!process.env.TEST_MODE) {
+//         if (!!process.env.DISABLE_TASK) {
 //             return false;
 //         }
 

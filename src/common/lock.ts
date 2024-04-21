@@ -1,4 +1,4 @@
-export class ProcessLock<T> {
+export class MemoryLock<T> {
     private _isAcquired = false;
     private _acquiredMap: Map<T, boolean> = new Map<T, boolean>();
     private _timeoutMap: Map<T, NodeJS.Timeout> = new Map<T, NodeJS.Timeout>();
@@ -102,5 +102,5 @@ export class ProcessLock<T> {
     }
 }
 
-const Lock = new ProcessLock();
+const Lock = new MemoryLock();
 export default Lock;
