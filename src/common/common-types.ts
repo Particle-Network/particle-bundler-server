@@ -5,19 +5,42 @@ export const USE_MONOGODB_TRANSACTION = () => process.env.USE_MONOGODB_TRANSACTI
 
 export const BUNDLE_LIMIT = 100;
 
-export const PROVIDER_FETCH_TIMEOUT = 5000; // 5s
+export const PROVIDER_FETCH_TIMEOUT = 12000; // 12s
 export const PENDING_TRANSACTION_WAITING_TIME = 60;
 export const PENDING_TRANSACTION_EXPIRED_TIME = 600; // 10 mins
 export const PENDING_TRANSACTION_SIGNER_HANDLE_LIMIT = 10;
+export const CACHE_GAS_FEE_TIMEOUT = 5000; // 5s
+export const SERVER_NAME = 'particle-bundler-server';
+export const MULTI_CALL_3_ADDRESS = '0xcA11bde05977b3631167028862bE2a173976CA11';
+
+export type BundlerConfig = {
+    [key: string]: IBundlerChainConfig;
+};
+
+export interface IBundlerChainConfig {
+    maxBundleGas?: number;
+    signerBalanceRange?: number;
+    minSignerBalance?: number;
+    minGasFee?: {
+        gasPrice?: string;
+        maxFeePerGas?: string;
+        maxPriorityFeePerGas?: string;
+        baseFee?: string;
+    };
+    maxGasFee?: {
+        gasPrice?: string;
+        maxFeePerGas?: string;
+        maxPriorityFeePerGas?: string;
+        baseFee?: string;
+    };
+    rpcUrl?: string;
+    methodSendRawTransaction?: string;
+    wsUrl?: string;
+}
 
 export enum BLOCK_SIGNER_REASON {
     UNKNOWN,
     INSUFFICIENT_BALANCE,
-}
-
-export enum BUNDLING_MODE {
-    MANUAL,
-    AUTO,
 }
 
 export enum GAS_FEE_LEVEL {
@@ -25,11 +48,15 @@ export enum GAS_FEE_LEVEL {
     HIGH = 'high', // Not used
 }
 
-export enum PROCESS_NOTIFY_TYPE {
+export enum PROCESS_EVENT_TYPE {
     CREATE_USER_OPERATION = 'create_user_operation',
     GET_GAS_FEE = 'get_gas_fee',
     GET_TRANSACTION_COUNT = 'get_transaction_count',
     SET_RECEIPT = 'set_receipt',
+}
+
+export function keyCacheChainFeeData(chainId: number): string {
+    return `chain_fee_data: ${chainId}`;
 }
 
 export function keyLockPendingTransaction(id: string) {
@@ -49,5 +76,3 @@ export const EVENT_ENTRY_POINT_USER_OPERATION = '0x49628fd1471006c1482da88028e9c
 
 export const DUMMY_SIGNATURE =
     '0x3054659b5e29460a8f3ac9afc3d5fcbe4b76f92aed454b944e9b29e55d80fde807716530b739540e95cfa4880d69f710a9d45910f2951a227675dc1fb0fdf2c71c';
-
-export const MULTI_CALL_3_ADDRESS = '0xcA11bde05977b3631167028862bE2a173976CA11';

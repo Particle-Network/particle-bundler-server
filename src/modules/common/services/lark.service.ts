@@ -1,14 +1,15 @@
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { Helper } from '../../../common/helper';
 import Axios from 'axios';
-import { Helper } from './helper';
-import { IAlert } from './alert';
 
-export class AlertLarkService implements IAlert {
-    public constructor(private readonly larkUrl: string) {}
+@Injectable()
+export class LarkService {
+    private readonly larkTitle = 'Particle Bundler Server';
+    private readonly larkUrl: string;
 
-    private larkTitle = 'Particle Bundler Server';
-
-    public setLarkTitle(title: string) {
-        this.larkTitle = title;
+    public constructor(private readonly configService: ConfigService) {
+        this.larkUrl = this.configService.get('LARK_URL');
     }
 
     public async sendMessage(content: string, title?: string): Promise<any> {

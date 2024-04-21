@@ -1,23 +1,15 @@
 import { isEmpty } from 'lodash';
 import { BigNumber } from '../../../common/bignumber';
-import { AbiCoder, BytesLike, JsonRpcProvider, Network, hexlify, keccak256 } from 'ethers';
+import { AbiCoder, BytesLike, JsonRpcProvider, Network, hexlify, keccak256, toBeHex } from 'ethers';
 import { GAS_FEE_LEVEL } from '../../../common/common-types';
 import { EVM_CHAIN_ID, MINIMUM_GAS_FEE, PARTICLE_PUBLIC_RPC_URL } from '../../../configs/bundler-common';
 
-export function calcUserOpTotalGasLimit(userOp: any): BigNumber {
-    const mul = 3;
-    const g1 = BigNumber.from(userOp.callGasLimit)
-        .add(BigNumber.from(userOp.verificationGasLimit))
-        .mul(mul) // (callGasLimit + verificationGasLimit) * mul
-        .add(BigNumber.from(userOp.preVerificationGas))
-        .add(BigNumber.from(5000));
+export function calcUserOpTotalGasLimit(userOp: any): bigint {
+    const mul = 3n;
+    const g1 = (BigInt(userOp.callGasLimit) + BigInt(userOp.verificationGasLimit)) * mul + BigInt(userOp.preVerificationGas) + 5000n;
+    const g2 = BigInt(userOp.callGasLimit) + BigInt(userOp.verificationGasLimit) + BigInt(userOp.preVerificationGas) + 1000000n;
 
-    const g2 = BigNumber.from(userOp.callGasLimit)
-        .add(BigNumber.from(userOp.verificationGasLimit))
-        .add(BigNumber.from(userOp.preVerificationGas))
-        .add(BigNumber.from(1000000));
-
-    return BigNumber.from(g1.lt(g2) ? g1 : g2); // return min(g1, g2)
+    return g1 < g2 ? g1 : g2; // return min(g1, g2)
 }
 
 export function isUserOpValid(userOp: any, requireSignature = true, requireGasParams = true): boolean {
@@ -88,6 +80,7 @@ export async function getFeeDataFromParticle(chainId: number, level: string = GA
 
     const particleFeeData = await provider.send('particle_suggestedGasFees', []);
 
+    // TODO refactor
     if ([EVM_CHAIN_ID.COMBO_MAINNET, EVM_CHAIN_ID.COMBO_TESTNET, EVM_CHAIN_ID.OPBNB_MAINNET, EVM_CHAIN_ID.OPBNB_TESTNET].includes(chainId)) {
         return {
             maxPriorityFeePerGas: 1001,
@@ -157,21 +150,22 @@ export async function getFeeDataFromParticle(chainId: number, level: string = GA
     return result;
 }
 
-export function calcUserOpGasPrice(feeData: any, baseFee = 0): number {
-    return Math.min(BigNumber.from(feeData.maxFeePerGas).toNumber(), BigNumber.from(feeData.maxPriorityFeePerGas).toNumber() + baseFee);
+export function calcUserOpGasPrice(feeData: any, baseFee: number = 0): number {
+    return Math.min(Number(BigInt(feeData.maxFeePerGas)), Number(BigInt(feeData.maxPriorityFeePerGas)) + baseFee);
 }
 
+// TODO need to test
 export function splitOriginNonce(originNonce: string) {
-    const bn = BigNumber.from(originNonce);
-    const key = bn.shr(64);
+    const bn = BigInt(originNonce);
+    const key = bn << 64n;
 
-    let valueString = bn.toHexString();
-    if (!key.eq(0)) {
+    let valueString = toBeHex(bn);
+    if (key !== 0n) {
         valueString = valueString.slice(34);
         valueString = `0x${valueString}`;
     }
 
-    return { nonceKey: key.toHexString(), nonceValue: BigNumber.from(valueString).toHexString() };
+    return { nonceKey: toBeHex(key), nonceValue: toBeHex(valueString) };
 }
 
 export function getUserOpHash(chainId: number, userOp: any, entryPoint: string) {

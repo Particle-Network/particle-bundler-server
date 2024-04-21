@@ -3,7 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { TRANSACTION_STATUS, Transaction, TransactionDocument } from '../schemas/transaction.schema';
 import { TypedTransaction } from '@ethereumjs/tx';
-import { tryParseSignedTx } from '../shared/handle-pending-transactions';
+// import { tryParseSignedTx } from '../shared/handle-pending-transactions';
 import { getAddress } from 'ethers';
 import { BigNumber } from '../../../common/bignumber';
 import { EVM_CHAIN_ID } from '../../../configs/bundler-common';
@@ -56,7 +56,10 @@ export class TransactionService {
     }
 
     public async createTransaction(chainId: number, signedTx: any, userOperationHashes: string[], session: any): Promise<TransactionDocument> {
-        const tx: TypedTransaction = tryParseSignedTx(signedTx);
+        // const tx: TypedTransaction = tryParseSignedTx(signedTx);
+        const tx: any = {}; // TODO delete it
+
+
         const txHash = `0x${Buffer.from(tx.hash()).toString('hex')}`;
 
         const transaction = new this.transactionModel({
@@ -110,27 +113,27 @@ export class TransactionService {
     }
 
     public async replaceTransactionTxHash(transaction: TransactionDocument, newTxHash: string, newSignedTx: string, txData: any, session?: any) {
-        const newSignedTxs = transaction.signedTxs;
-        newSignedTxs[newTxHash] = newSignedTx;
+        // const newSignedTxs = transaction.signedTxs;
+        // newSignedTxs[newTxHash] = newSignedTx;
 
-        const newInner = transaction.inner;
-        newInner[newTxHash] = txData;
+        // const newInner = transaction.inner;
+        // newInner[newTxHash] = txData;
 
-        const newTxHashes = transaction.txHashes.concat(newTxHash);
+        // const newTxHashes = transaction.txHashes.concat(newTxHash);
 
-        return await this.transactionModel.updateOne(
-            { _id: transaction.id, status: TRANSACTION_STATUS.PENDING },
-            {
-                $set: {
-                    txHash: newTxHash,
-                    txHashes: newTxHashes,
-                    signedTx: newSignedTx,
-                    signedTxs: newSignedTxs,
-                    inner: newInner,
-                    latestSentAt: new Date(),
-                },
-            },
-            { session },
-        );
+        // return await this.transactionModel.updateOne(
+        //     { _id: transaction.id, status: TRANSACTION_STATUS.PENDING },
+        //     {
+        //         $set: {
+        //             txHash: newTxHash,
+        //             txHashes: newTxHashes,
+        //             signedTx: newSignedTx,
+        //             signedTxs: newSignedTxs,
+        //             inner: newInner,
+        //             latestSentAt: new Date(),
+        //         },
+        //     },
+        //     { session },
+        // );
     }
 }

@@ -8,9 +8,12 @@ import { UserOperation, UserOperationSchema } from './schemas/user-operation.sch
 import { Transaction, TransactionSchema } from './schemas/transaction.schema';
 import { UserOperationEvent, UserOperationEventSchema } from './schemas/user-operation-event.schema';
 import { TransactionService } from './services/transaction.service';
+import { CommonModule } from '../common/common.module';
+import { LarkService } from '../common/services/lark.service';
 
 @Module({
     imports: [
+        CommonModule,
         MongooseModule.forFeature([
             { name: UserOperation.name, schema: UserOperationSchema },
             { name: Transaction.name, schema: TransactionSchema },
@@ -18,6 +21,6 @@ import { TransactionService } from './services/transaction.service';
         ]),
     ],
     controllers: [RpcController],
-    providers: [RpcService, AAService, UserOperationService, TransactionService],
+    providers: [RpcService, AAService, UserOperationService, TransactionService, LarkService],
 })
 export class RpcModule {}

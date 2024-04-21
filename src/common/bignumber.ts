@@ -9,7 +9,7 @@ import { trimStart } from 'lodash';
 import { Bytes, Hexable, hexlify, isBytes, isHexString } from '@ethersproject/bytes';
 
 import { Logger } from '@ethersproject/logger';
-const logger = new Logger('ethers 6.7.1');
+const logger = new Logger('ethers 6.11.1');
 
 const _constructorGuard = {};
 

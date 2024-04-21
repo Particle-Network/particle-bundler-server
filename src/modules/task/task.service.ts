@@ -1,368 +1,368 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { AAService } from '../rpc/services/aa.service';
-import { InjectConnection } from '@nestjs/mongoose';
-import { Connection } from 'mongoose';
-import { RpcService } from '../rpc/services/rpc.service';
-import { TransactionService } from '../rpc/services/transaction.service';
-import {
-    BLOCK_SIGNER_REASON,
-    IS_DEVELOPMENT,
-    PENDING_TRANSACTION_SIGNER_HANDLE_LIMIT,
-    PROCESS_NOTIFY_TYPE,
-    keyLockSigner,
-} from '../../common/common-types';
-import { TRANSACTION_STATUS, TransactionDocument } from '../rpc/schemas/transaction.schema';
-import { Helper } from '../../common/helper';
-import { UserOperationService } from '../rpc/services/user-operation.service';
-import { handleLocalUserOperations } from '../rpc/shared/handle-local-user-operations';
-import { Cron } from '@nestjs/schedule';
-import Lock from '../../common/global-lock';
-import { getReceiptAndHandlePendingTransactions, handleLocalTransaction } from '../rpc/shared/handle-local-transactions';
-import { CHAIN_BALANCE_RANGE, CHAIN_SIGNER_MIN_BALANCE, EVM_CHAIN_ID } from '../../configs/bundler-common';
-import { Wallet, parseEther } from 'ethers';
-import { BigNumber } from '../../common/bignumber';
-import { Alert } from '../../common/alert';
-import { isObject, random } from 'lodash';
-import { UserOperationDocument } from '../rpc/schemas/user-operation.schema';
-import { ProcessNotify } from '../../common/process-notify';
-import { ListenerService } from './listener.service';
+// import { Injectable, Logger } from '@nestjs/common';
+// import { ConfigService } from '@nestjs/config';
+// import { AAService } from '../rpc/services/aa.service';
+// import { InjectConnection } from '@nestjs/mongoose';
+// import { Connection } from 'mongoose';
+// import { RpcService } from '../rpc/services/rpc.service';
+// import { TransactionService } from '../rpc/services/transaction.service';
+// import {
+//     BLOCK_SIGNER_REASON,
+//     IS_DEVELOPMENT,
+//     PENDING_TRANSACTION_SIGNER_HANDLE_LIMIT,
+//     PROCESS_NOTIFY_TYPE,
+//     keyLockSigner,
+// } from '../../common/common-types';
+// import { TRANSACTION_STATUS, TransactionDocument } from '../rpc/schemas/transaction.schema';
+// import { Helper } from '../../common/helper';
+// import { UserOperationService } from '../rpc/services/user-operation.service';
+// import { handleLocalUserOperations } from '../rpc/shared/handle-local-user-operations';
+// import { Cron } from '@nestjs/schedule';
+// import LockDe from '../../common/global-lock';
+// import { getReceiptAndHandlePendingTransactions, handleLocalTransaction } from '../rpc/shared/handle-local-transactions';
+// import { CHAIN_BALANCE_RANGE, CHAIN_SIGNER_MIN_BALANCE, EVM_CHAIN_ID } from '../../configs/bundler-common';
+// import { Wallet, parseEther } from 'ethers';
+// import { BigNumber } from '../../common/bignumber';
+// import { Alert } from '../../common/alert';
+// import { isObject, random } from 'lodash';
+// import { UserOperationDocument } from '../rpc/schemas/user-operation.schema';
+// import { ProcessNotify } from '../../common/process-notify';
+// import { ListenerService } from './listener.service';
 
-const FETCH_TRANSACTION_SIZE = 500;
+// const FETCH_TRANSACTION_SIZE = 500;
 
-@Injectable()
-export class TaskService {
-    public constructor(
-        private readonly configService: ConfigService,
-        private readonly listenerService: ListenerService,
-        private readonly rpcService: RpcService,
-        private readonly aaService: AAService,
-        private readonly transactionService: TransactionService,
-        private readonly userOperationService: UserOperationService,
-        @InjectConnection() private readonly connection: Connection,
-    ) {
-        ProcessNotify.registerHandler(PROCESS_NOTIFY_TYPE.CREATE_USER_OPERATION, this.onSealUserOps.bind(this));
+// @Injectable()
+// export class TaskService {
+//     public constructor(
+//         private readonly configService: ConfigService,
+//         private readonly listenerService: ListenerService,
+//         private readonly rpcService: RpcService,
+//         private readonly aaService: AAService,
+//         private readonly transactionService: TransactionService,
+//         private readonly userOperationService: UserOperationService,
+//         @InjectConnection() private readonly connection: Connection,
+//     ) {
+//         ProcessNotify.registerHandler(PROCESS_NOTIFY_TYPE.CREATE_USER_OPERATION, this.onSealUserOps.bind(this));
 
-        if (this.canRunCron()) {
-            this.listenerService.initialize(this.handlePendingTransactionByEvent.bind(this));
-        }
-    }
+//         if (this.canRunCron()) {
+//             this.listenerService.initialize(this.handlePendingTransactionByEvent.bind(this));
+//         }
+//     }
 
-    private canRun = true;
-    private inSealingUserOps = false;
-    private inCheckingSignerBalance = false;
-    private inCheckingAndReleaseBlockSigners = false;
+//     private canRun = true;
+//     private inSealingUserOps = false;
+//     private inCheckingSignerBalance = false;
+//     private inCheckingAndReleaseBlockSigners = false;
 
-    private onSealUserOps(packet: any) {
-        const { chainId, userOpDoc } = packet.data;
-        if (!!chainId && !!userOpDoc) {
-            this.sealUserOps([userOpDoc]);
-        }
-    }
+//     private onSealUserOps(packet: any) {
+//         const { chainId, userOpDoc } = packet.data;
+//         if (!!chainId && !!userOpDoc) {
+//             this.sealUserOps([userOpDoc]);
+//         }
+//     }
 
-    @Cron('* * * * * *')
-    public async sealUserOps(userOpDoc?: any[]) {
-        if (!this.canRunCron() || this.inSealingUserOps) {
-            return;
-        }
+//     @Cron('* * * * * *')
+//     public async sealUserOps(userOpDoc?: any[]) {
+//         if (!this.canRunCron() || this.inSealingUserOps) {
+//             return;
+//         }
 
-        this.inSealingUserOps = true;
+//         this.inSealingUserOps = true;
 
-        try {
-            let userOperations = userOpDoc ?? (await this.userOperationService.getLocalUserOperations());
-            userOperations = this.aaService.tryLockUserOperationsAndGetUnuseds(userOperations);
-            if (userOperations.length <= 0) {
-                this.inSealingUserOps = false;
-                return;
-            }
+//         try {
+//             let userOperations = userOpDoc ?? (await this.userOperationService.getLocalUserOperations());
+//             userOperations = this.aaService.tryLockUserOperationsAndGetUnuseds(userOperations);
+//             if (userOperations.length <= 0) {
+//                 this.inSealingUserOps = false;
+//                 return;
+//             }
 
-            Logger.log(`[SealUserOps] UserOpLength: ${userOperations.length}`);
-            const userOperationsByChainId: any = {};
-            for (const userOperation of userOperations) {
-                if (!userOperationsByChainId[userOperation.chainId]) {
-                    userOperationsByChainId[userOperation.chainId] = [];
-                }
+//             Logger.log(`[SealUserOps] UserOpLength: ${userOperations.length}`);
+//             const userOperationsByChainId: any = {};
+//             for (const userOperation of userOperations) {
+//                 if (!userOperationsByChainId[userOperation.chainId]) {
+//                     userOperationsByChainId[userOperation.chainId] = [];
+//                 }
 
-                userOperationsByChainId[userOperation.chainId].push(userOperation);
-            }
+//                 userOperationsByChainId[userOperation.chainId].push(userOperation);
+//             }
 
-            const chainIds = Object.keys(userOperationsByChainId);
-            for (const chainId of chainIds) {
-                this.assignSignerAndSealUserOps(Number(chainId), userOperationsByChainId[chainId]);
-            }
-        } catch (error) {
-            Logger.error(`Seal User Ops Error`, error);
-            Alert.sendMessage(`Seal User Ops Error: ${Helper.converErrorToString(error)}`);
-        }
+//             const chainIds = Object.keys(userOperationsByChainId);
+//             for (const chainId of chainIds) {
+//                 this.assignSignerAndSealUserOps(Number(chainId), userOperationsByChainId[chainId]);
+//             }
+//         } catch (error) {
+//             Logger.error(`Seal User Ops Error`, error);
+//             Alert.sendMessage(`Seal User Ops Error: ${Helper.converErrorToString(error)}`);
+//         }
 
-        this.inSealingUserOps = false;
-    }
+//         this.inSealingUserOps = false;
+//     }
 
-    private async assignSignerAndSealUserOps(chainId: number, userOperations: UserOperationDocument[]) {
-        const targetSigner: Wallet = await this.waitForASigner(chainId);
-        if (!targetSigner) {
-            Logger.warn(`No signer available on ${chainId}`);
-            this.aaService.unlockUserOperations(userOperations);
-            return;
-        }
+//     private async assignSignerAndSealUserOps(chainId: number, userOperations: UserOperationDocument[]) {
+//         const targetSigner: Wallet = await this.waitForASigner(chainId);
+//         if (!targetSigner) {
+//             Logger.warn(`No signer available on ${chainId}`);
+//             this.aaService.unlockUserOperations(userOperations);
+//             return;
+//         }
 
-        await handleLocalUserOperations(
-            chainId,
-            this.rpcService,
-            this.aaService,
-            this.listenerService,
-            targetSigner,
-            userOperations,
-            this.connection,
-        );
-        Lock.release(keyLockSigner(chainId, targetSigner.address));
+//         await handleLocalUserOperations(
+//             chainId,
+//             this.rpcService,
+//             this.aaService,
+//             this.listenerService,
+//             targetSigner,
+//             userOperations,
+//             this.connection,
+//         );
+//         LockDe.release(keyLockSigner(chainId, targetSigner.address));
 
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        this.aaService.unlockUserOperations(userOperations);
-    }
+//         await new Promise((resolve) => setTimeout(resolve, 2000));
+//         this.aaService.unlockUserOperations(userOperations);
+//     }
 
-    private async waitForASigner(chainId: number): Promise<Wallet> {
-        let targetSigner: Wallet;
-        const randomSigners = this.aaService.getRandomSigners(chainId);
-        for (let index = 0; index < randomSigners.length; index++) {
-            const signer = randomSigners[index];
-            if (!Lock.isAcquired(keyLockSigner(chainId, signer.address))) {
-                await Lock.acquire(keyLockSigner(chainId, signer.address));
-                targetSigner = signer;
-                break;
-            }
-        }
+//     private async waitForASigner(chainId: number): Promise<Wallet> {
+//         let targetSigner: Wallet;
+//         const randomSigners = this.aaService.getRandomSigners(chainId);
+//         for (let index = 0; index < randomSigners.length; index++) {
+//             const signer = randomSigners[index];
+//             if (!LockDe.isAcquired(keyLockSigner(chainId, signer.address))) {
+//                 await LockDe.acquire(keyLockSigner(chainId, signer.address));
+//                 targetSigner = signer;
+//                 break;
+//             }
+//         }
 
-        if (targetSigner) {
-            const targetSignerPendingTxCount = await this.transactionService.getPendingTransactionCountBySigner(chainId, targetSigner.address);
-            let handleMaxCount = PENDING_TRANSACTION_SIGNER_HANDLE_LIMIT;
-            if ([EVM_CHAIN_ID.MERLIN_CHAIN_MAINNET, EVM_CHAIN_ID.MERLIN_CHAIN_TESTNET].includes(chainId)) {
-                handleMaxCount = 5;
-            }
+//         if (targetSigner) {
+//             const targetSignerPendingTxCount = await this.transactionService.getPendingTransactionCountBySigner(chainId, targetSigner.address);
+//             let handleMaxCount = PENDING_TRANSACTION_SIGNER_HANDLE_LIMIT;
+//             if ([EVM_CHAIN_ID.MERLIN_CHAIN_MAINNET, EVM_CHAIN_ID.MERLIN_CHAIN_TESTNET].includes(chainId)) {
+//                 handleMaxCount = 5;
+//             }
 
-            if (targetSignerPendingTxCount >= handleMaxCount) {
-                Alert.sendMessage(`Signer ${targetSigner.address} is pending On Chain ${chainId}`);
-                Lock.release(keyLockSigner(chainId, targetSigner.address));
-                targetSigner = null;
-            }
-        }
+//             if (targetSignerPendingTxCount >= handleMaxCount) {
+//                 Alert.sendMessage(`Signer ${targetSigner.address} is pending On Chain ${chainId}`);
+//                 LockDe.release(keyLockSigner(chainId, targetSigner.address));
+//                 targetSigner = null;
+//             }
+//         }
 
-        return targetSigner;
-    }
+//         return targetSigner;
+//     }
 
-    @Cron('* * * * * *')
-    public async handleLocalTransactions() {
-        const keyLock = 'keylock-task-handleLocalTransactions';
-        if (!this.canRunCron() || Lock.isAcquired(keyLock)) {
-            return;
-        }
+//     @Cron('* * * * * *')
+//     public async handleLocalTransactions() {
+//         const keyLock = 'keylock-task-handleLocalTransactions';
+//         if (!this.canRunCron() || LockDe.isAcquired(keyLock)) {
+//             return;
+//         }
 
-        await Lock.acquire(keyLock);
+//         await LockDe.acquire(keyLock);
 
-        try {
-            const localMerlinTransactions = await this.transactionService.getMerlinTransactionsByStatus(TRANSACTION_STATUS.LOCAL, 1000);
-            const localNonMerlinTransactions = await this.transactionService.getTransactionsByStatus(
-                TRANSACTION_STATUS.LOCAL,
-                FETCH_TRANSACTION_SIZE,
-            );
-            const localTransactions = [...localMerlinTransactions, ...localNonMerlinTransactions];
+//         try {
+//             const localMerlinTransactions = await this.transactionService.getMerlinTransactionsByStatus(TRANSACTION_STATUS.LOCAL, 1000);
+//             const localNonMerlinTransactions = await this.transactionService.getTransactionsByStatus(
+//                 TRANSACTION_STATUS.LOCAL,
+//                 FETCH_TRANSACTION_SIZE,
+//             );
+//             const localTransactions = [...localMerlinTransactions, ...localNonMerlinTransactions];
 
-            const promises = [];
-            for (const localTransaction of localTransactions) {
-                const provider = this.rpcService.getJsonRpcProvider(localTransaction.chainId);
-                promises.push(handleLocalTransaction(this.connection, localTransaction, provider, this.rpcService, this.aaService));
-            }
+//             const promises = [];
+//             for (const localTransaction of localTransactions) {
+//                 const provider = this.rpcService.getJsonRpcProvider(localTransaction.chainId);
+//                 promises.push(handleLocalTransaction(this.connection, localTransaction, provider, this.rpcService, this.aaService));
+//             }
 
-            await Promise.all(promises);
-        } catch (error) {
-            Logger.error(error);
-            Alert.sendMessage(`Handle Local Transactions Error: ${Helper.converErrorToString(error)}`);
-        }
+//             await Promise.all(promises);
+//         } catch (error) {
+//             Logger.error(error);
+//             Alert.sendMessage(`Handle Local Transactions Error: ${Helper.converErrorToString(error)}`);
+//         }
 
-        Lock.release(keyLock);
-    }
+//         LockDe.release(keyLock);
+//     }
 
-    public handlePendingTransactionByEvent(event: any, transaction: TransactionDocument) {
-        const userOpHash = event[0];
-        const userOpEvent = event[7];
-        const receipt = {
-            transactionHash: userOpEvent.log.transactionHash,
-            blockHash: userOpEvent.log.blockHash,
-            blockNumber: userOpEvent.log.blockNumber,
-            status: '0x1',
-            logs: [userOpEvent.log],
-            isEvent: true,
-        };
+//     public handlePendingTransactionByEvent(event: any, transaction: TransactionDocument) {
+//         const userOpHash = event[0];
+//         const userOpEvent = event[7];
+//         const receipt = {
+//             transactionHash: userOpEvent.log.transactionHash,
+//             blockHash: userOpEvent.log.blockHash,
+//             blockNumber: userOpEvent.log.blockNumber,
+//             status: '0x1',
+//             logs: [userOpEvent.log],
+//             isEvent: true,
+//         };
 
-        ProcessNotify.sendMessages(PROCESS_NOTIFY_TYPE.SET_RECEIPT, {
-            chainId: transaction.chainId,
-            userOpHashes: [userOpHash],
-            receipt,
-        });
-    }
+//         ProcessNotify.sendMessages(PROCESS_NOTIFY_TYPE.SET_RECEIPT, {
+//             chainId: transaction.chainId,
+//             userOpHashes: [userOpHash],
+//             receipt,
+//         });
+//     }
 
-    @Cron('* * * * * *')
-    public handlePendingTransactions() {
-        if (!this.canRunCron()) {
-            return;
-        }
+//     @Cron('* * * * * *')
+//     public handlePendingTransactions() {
+//         if (!this.canRunCron()) {
+//             return;
+//         }
 
-        // async execute, no need to wait
-        this.handlePendingTransactionsAction();
-    }
+//         // async execute, no need to wait
+//         this.handlePendingTransactionsAction();
+//     }
 
-    private async handlePendingTransactionsAction() {
-        const pendingMerlinTransactions = await this.transactionService.getMerlinTransactionsByStatus(
-            TRANSACTION_STATUS.PENDING,
-            FETCH_TRANSACTION_SIZE,
-        );
-        const pendingNonMerlinTransactions = await this.transactionService.getTransactionsByStatus(
-            TRANSACTION_STATUS.PENDING,
-            FETCH_TRANSACTION_SIZE,
-        );
-        let pendingTransactions = [...pendingMerlinTransactions, ...pendingNonMerlinTransactions];
+//     private async handlePendingTransactionsAction() {
+//         const pendingMerlinTransactions = await this.transactionService.getMerlinTransactionsByStatus(
+//             TRANSACTION_STATUS.PENDING,
+//             FETCH_TRANSACTION_SIZE,
+//         );
+//         const pendingNonMerlinTransactions = await this.transactionService.getTransactionsByStatus(
+//             TRANSACTION_STATUS.PENDING,
+//             FETCH_TRANSACTION_SIZE,
+//         );
+//         let pendingTransactions = [...pendingMerlinTransactions, ...pendingNonMerlinTransactions];
 
-        // limit for merlin chain
-        if (random(0, 2) !== 0) {
-            pendingTransactions = pendingTransactions.filter(
-                (pendingTransaction) =>
-                    ![EVM_CHAIN_ID.MERLIN_CHAIN_MAINNET, EVM_CHAIN_ID.MERLIN_CHAIN_TESTNET].includes(pendingTransaction.chainId),
-            );
-        }
+//         // limit for merlin chain
+//         if (random(0, 2) !== 0) {
+//             pendingTransactions = pendingTransactions.filter(
+//                 (pendingTransaction) =>
+//                     ![EVM_CHAIN_ID.MERLIN_CHAIN_MAINNET, EVM_CHAIN_ID.MERLIN_CHAIN_TESTNET].includes(pendingTransaction.chainId),
+//             );
+//         }
 
-        const chainIdSignerLatestDoneTransaction: Map<string, TransactionDocument> = new Map();
-        for (const pendingTransaction of pendingTransactions) {
-            const key = `${pendingTransaction.chainId}-${pendingTransaction.from}`;
-            let latestTransaction = chainIdSignerLatestDoneTransaction.get(key);
-            if (!latestTransaction) {
-                latestTransaction = await this.transactionService.getLatestTransaction(pendingTransaction.chainId, pendingTransaction.from, [
-                    TRANSACTION_STATUS.SUCCESS,
-                    TRANSACTION_STATUS.FAILED,
-                ]);
+//         const chainIdSignerLatestDoneTransaction: Map<string, TransactionDocument> = new Map();
+//         for (const pendingTransaction of pendingTransactions) {
+//             const key = `${pendingTransaction.chainId}-${pendingTransaction.from}`;
+//             let latestTransaction = chainIdSignerLatestDoneTransaction.get(key);
+//             if (!latestTransaction) {
+//                 latestTransaction = await this.transactionService.getLatestTransaction(pendingTransaction.chainId, pendingTransaction.from, [
+//                     TRANSACTION_STATUS.SUCCESS,
+//                     TRANSACTION_STATUS.FAILED,
+//                 ]);
 
-                chainIdSignerLatestDoneTransaction.set(key, latestTransaction);
-            }
+//                 chainIdSignerLatestDoneTransaction.set(key, latestTransaction);
+//             }
 
-            getReceiptAndHandlePendingTransactions(pendingTransaction, this.rpcService, this.connection, latestTransaction);
-        }
-    }
+//             getReceiptAndHandlePendingTransactions(pendingTransaction, this.rpcService, this.connection, latestTransaction);
+//         }
+//     }
 
-    private canRunCron() {
-        if (!!process.env.TEST_MODE) {
-            return false;
-        }
+//     private canRunCron() {
+//         if (!!process.env.TEST_MODE) {
+//             return false;
+//         }
 
-        if (IS_DEVELOPMENT) {
-            return true;
-        }
+//         if (IS_DEVELOPMENT) {
+//             return true;
+//         }
 
-        return this.canRun && this.configService.get('NODE_APP_INSTANCE') === '0';
-    }
+//         return this.canRun && this.configService.get('NODE_APP_INSTANCE') === '0';
+//     }
 
-    @Cron('0 * * * * *')
-    public async checkAndFillSignerBalance() {
-        if (!this.canRunCron() || this.inCheckingSignerBalance || !isObject(CHAIN_SIGNER_MIN_BALANCE) || !process.env.PAYMENT_SIGNER) {
-            return;
-        }
+//     @Cron('0 * * * * *')
+//     public async checkAndFillSignerBalance() {
+//         if (!this.canRunCron() || this.inCheckingSignerBalance || !isObject(CHAIN_SIGNER_MIN_BALANCE) || !process.env.PAYMENT_SIGNER) {
+//             return;
+//         }
 
-        this.inCheckingSignerBalance = true;
+//         this.inCheckingSignerBalance = true;
 
-        let currentChainId: any;
-        let currentAddress: any;
+//         let currentChainId: any;
+//         let currentAddress: any;
 
-        for (const chainId in CHAIN_SIGNER_MIN_BALANCE) {
-            try {
-                currentChainId = chainId;
-                const provider = this.rpcService.getJsonRpcProvider(Number(chainId));
+//         for (const chainId in CHAIN_SIGNER_MIN_BALANCE) {
+//             try {
+//                 currentChainId = chainId;
+//                 const provider = this.rpcService.getJsonRpcProvider(Number(chainId));
 
-                const minEtherBalance = CHAIN_SIGNER_MIN_BALANCE[chainId];
-                const signers = this.aaService.getSigners(Number(chainId));
-                for (const signer of signers) {
-                    const address = signer.address;
-                    currentAddress = address;
+//                 const minEtherBalance = CHAIN_SIGNER_MIN_BALANCE[chainId];
+//                 const signers = this.aaService.getSigners(Number(chainId));
+//                 for (const signer of signers) {
+//                     const address = signer.address;
+//                     currentAddress = address;
 
-                    const balance = await provider.getBalance(address);
-                    const balanceEther = BigNumber.from(balance).div(1e9).toNumber() / 1e9;
-                    Logger.log(`[Check signer balance] chainId=${chainId}, address=${address}, balance=${balanceEther}`);
+//                     const balance = await provider.getBalance(address);
+//                     const balanceEther = BigNumber.from(balance).div(1e9).toNumber() / 1e9;
+//                     Logger.log(`[Check signer balance] chainId=${chainId}, address=${address}, balance=${balanceEther}`);
 
-                    if (balanceEther < minEtherBalance) {
-                        const etherToSend = (minEtherBalance - balanceEther).toFixed(10);
-                        Logger.log(`[Send ether to signer] chainId=${chainId}, address=${address}, etherToSend=${etherToSend}`);
-                        const signerToPay = new Wallet(process.env.PAYMENT_SIGNER, provider);
-                        const feeData: any = await this.aaService.getFeeData(Number(chainId));
+//                     if (balanceEther < minEtherBalance) {
+//                         const etherToSend = (minEtherBalance - balanceEther).toFixed(10);
+//                         Logger.log(`[Send ether to signer] chainId=${chainId}, address=${address}, etherToSend=${etherToSend}`);
+//                         const signerToPay = new Wallet(process.env.PAYMENT_SIGNER, provider);
+//                         const feeData: any = await this.aaService.getFeeData(Number(chainId));
 
-                        // force use gas price
-                        const tx = await signerToPay.sendTransaction({
-                            type: 0,
-                            to: address,
-                            value: parseEther(etherToSend.toString()) + parseEther(String(CHAIN_BALANCE_RANGE[chainId.toString()] ?? '0.1')),
-                            gasPrice: feeData.gasPrice,
-                        });
+//                         // force use gas price
+//                         const tx = await signerToPay.sendTransaction({
+//                             type: 0,
+//                             to: address,
+//                             value: parseEther(etherToSend.toString()) + parseEther(String(CHAIN_BALANCE_RANGE[chainId.toString()] ?? '0.1')),
+//                             gasPrice: feeData.gasPrice,
+//                         });
 
-                        Logger.log(`[Sent Tx] ${chainId}, ${tx.hash}`);
-                        await tx.wait();
-                        const balanceAfter = await provider.getBalance(address);
-                        const balanceEtherAfter = BigNumber.from(balanceAfter).div(1e9).toNumber() / 1e9;
-                        Logger.log('After send', chainId, address, balanceEtherAfter);
+//                         Logger.log(`[Sent Tx] ${chainId}, ${tx.hash}`);
+//                         await tx.wait();
+//                         const balanceAfter = await provider.getBalance(address);
+//                         const balanceEtherAfter = BigNumber.from(balanceAfter).div(1e9).toNumber() / 1e9;
+//                         Logger.log('After send', chainId, address, balanceEtherAfter);
 
-                        Alert.sendMessage(
-                            `Fill Signer For ${currentAddress} On ChainId ${currentChainId}, Current Balance: ${balanceAfter}`,
-                            `Fill Signer Success`,
-                        );
-                    } else {
-                        this.aaService.UnblockedSigner(Number(chainId), address);
-                    }
-                }
-            } catch (error) {
-                console.error(`Error on chain ${currentChainId}`, error);
+//                         Alert.sendMessage(
+//                             `Fill Signer For ${currentAddress} On ChainId ${currentChainId}, Current Balance: ${balanceAfter}`,
+//                             `Fill Signer Success`,
+//                         );
+//                     } else {
+//                         this.aaService.UnblockedSigner(Number(chainId), address);
+//                     }
+//                 }
+//             } catch (error) {
+//                 console.error(`Error on chain ${currentChainId}`, error);
 
-                Alert.sendMessage(
-                    `Fill Signer Failed For ${currentAddress} On ChainId ${currentChainId}\n${Helper.converErrorToString(error)}`,
-                    `Fill Signer Error`,
-                );
-            }
-        }
+//                 Alert.sendMessage(
+//                     `Fill Signer Failed For ${currentAddress} On ChainId ${currentChainId}\n${Helper.converErrorToString(error)}`,
+//                     `Fill Signer Error`,
+//                 );
+//             }
+//         }
 
-        this.inCheckingSignerBalance = false;
-    }
+//         this.inCheckingSignerBalance = false;
+//     }
 
-    @Cron('* * * * * *')
-    public async checkAndReleaseBlockSigners() {
-        if (!this.canRunCron() || this.inCheckingAndReleaseBlockSigners) {
-            return;
-        }
+//     @Cron('* * * * * *')
+//     public async checkAndReleaseBlockSigners() {
+//         if (!this.canRunCron() || this.inCheckingAndReleaseBlockSigners) {
+//             return;
+//         }
 
-        this.inCheckingAndReleaseBlockSigners = true;
-        const blockedSigners = this.aaService.getAllBlockedSigners();
-        if (blockedSigners.length <= 0) {
-            this.inCheckingAndReleaseBlockSigners = false;
-            return;
-        }
+//         this.inCheckingAndReleaseBlockSigners = true;
+//         const blockedSigners = this.aaService.getAllBlockedSigners();
+//         if (blockedSigners.length <= 0) {
+//             this.inCheckingAndReleaseBlockSigners = false;
+//             return;
+//         }
 
-        for (const blockedSigner of blockedSigners) {
-            if (blockedSigner.info.reason === BLOCK_SIGNER_REASON.INSUFFICIENT_BALANCE) {
-                const provider = this.rpcService.getJsonRpcProvider(blockedSigner.chainId);
-                const balance = await provider.getBalance(blockedSigner.signerAddress);
+//         for (const blockedSigner of blockedSigners) {
+//             if (blockedSigner.info.reason === BLOCK_SIGNER_REASON.INSUFFICIENT_BALANCE) {
+//                 const provider = this.rpcService.getJsonRpcProvider(blockedSigner.chainId);
+//                 const balance = await provider.getBalance(blockedSigner.signerAddress);
 
-                if (!CHAIN_SIGNER_MIN_BALANCE[blockedSigner.chainId]) {
-                    continue;
-                }
+//                 if (!CHAIN_SIGNER_MIN_BALANCE[blockedSigner.chainId]) {
+//                     continue;
+//                 }
 
-                const minEtherBalance = parseEther(String(CHAIN_SIGNER_MIN_BALANCE[blockedSigner.chainId]));
-                if (BigNumber.from(balance).gte(minEtherBalance)) {
-                    this.aaService.UnblockedSigner(blockedSigner.chainId, blockedSigner.signerAddress);
-                    Alert.sendMessage(`Balance is enough, unblock signer ${blockedSigner.signerAddress}`);
+//                 const minEtherBalance = parseEther(String(CHAIN_SIGNER_MIN_BALANCE[blockedSigner.chainId]));
+//                 if (BigNumber.from(balance).gte(minEtherBalance)) {
+//                     this.aaService.UnblockedSigner(blockedSigner.chainId, blockedSigner.signerAddress);
+//                     Alert.sendMessage(`Balance is enough, unblock signer ${blockedSigner.signerAddress}`);
 
-                    const transaction = await this.transactionService.getTransactionById(blockedSigner.info.transactionId);
-                    await handleLocalTransaction(this.connection, transaction, provider, this.rpcService, this.aaService);
-                }
-            }
-        }
+//                     const transaction = await this.transactionService.getTransactionById(blockedSigner.info.transactionId);
+//                     await handleLocalTransaction(this.connection, transaction, provider, this.rpcService, this.aaService);
+//                 }
+//             }
+//         }
 
-        this.inCheckingAndReleaseBlockSigners = false;
-    }
+//         this.inCheckingAndReleaseBlockSigners = false;
+//     }
 
-    public stop() {
-        this.canRun = false;
-    }
-}
+//     public stop() {
+//         this.canRun = false;
+//     }
+// }

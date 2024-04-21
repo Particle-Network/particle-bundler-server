@@ -1,19 +1,19 @@
 import * as pm2 from 'pm2';
-import { IS_DEVELOPMENT, PROCESS_NOTIFY_TYPE } from './common-types';
+import { IS_DEVELOPMENT, PROCESS_EVENT_TYPE, SERVER_NAME } from './common-types';
 
 const nodeIds = [];
 
 pm2.connect(function () {
     pm2.list(function (err, processes) {
         for (const i in processes) {
-            if (processes[i].name === 'particle-bundler-server') {
+            if (processes[i].name === SERVER_NAME) {
                 nodeIds.push(processes[i].pm_id);
             }
         }
     });
 });
 
-class ProcessNotifyClass {
+class ProcessEventEmitterInstance {
     private handlerMap: Map<string, Function[]> = new Map();
 
     public constructor() {
@@ -31,7 +31,7 @@ class ProcessNotifyClass {
         }
     }
 
-    public sendMessages(type: PROCESS_NOTIFY_TYPE, data: any = null) {
+    public sendMessages(type: PROCESS_EVENT_TYPE, data: any = null) {
         if (IS_DEVELOPMENT) {
             this.onMessage({ type, data });
             return;
@@ -63,4 +63,4 @@ class ProcessNotifyClass {
     }
 }
 
-export const ProcessNotify = new ProcessNotifyClass();
+export const ProcessEventEmitter = new ProcessEventEmitterInstance();

@@ -14,8 +14,11 @@ export class Transaction {
     @Prop({ required: true, type: Schema.Types.Number })
     public chainId: number;
 
-    @Prop({ required: true, type: Schema.Types.Array })
-    public userOperationHashes: string[];
+    @Prop({ required: true, type: Schema.Types.Number })
+    public type: number;
+
+    @Prop({ required: true, type: Schema.Types.String })
+    public combinationHash: string;
 
     @Prop({ required: true, type: Schema.Types.String })
     public from: string;
@@ -26,8 +29,8 @@ export class Transaction {
     @Prop({ required: true, type: Schema.Types.Number })
     public nonce: number;
 
-    @Prop({ required: true, type: Schema.Types.Mixed })
-    public signedTxs: any; // save all signedTxs
+    @Prop({ required: true, type: Schema.Types.String })
+    public signedTx: string;
 
     @Prop({ required: true, type: Schema.Types.Mixed })
     public inner: any;
@@ -36,10 +39,10 @@ export class Transaction {
     public status: number;
 
     @Prop({ required: true, type: Schema.Types.String })
-    public txHash: string; // current txHash
+    public txHash: string;
 
-    @Prop({ required: true, type: Schema.Types.Array })
-    public txHashes: string[]; // save all txHashes
+    @Prop({ required: true, type: Schema.Types.Number })
+    public confirmations: number; 
 
     @Prop({ required: false, type: Schema.Types.String })
     public blockHash: string;

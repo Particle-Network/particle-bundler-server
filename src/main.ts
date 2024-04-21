@@ -4,9 +4,8 @@ import FastifyRawBody from 'fastify-raw-body';
 import { AppModule } from './app.module';
 import { Helper } from './common/helper';
 import { ConfigService } from '@nestjs/config';
-import { TaskService } from './modules/task/task.service';
-import { Alert } from './common/alert';
-import { AlertLarkService } from './common/alert-lark';
+// import { TaskService } from './modules/task/task.service';
+// import { Alert } from './common/alert';
 import { IS_DEVELOPMENT, IS_PRODUCTION } from './common/common-types';
 import { initializeBundlerConfig } from './configs/bundler-common';
 
@@ -29,29 +28,28 @@ async function bootstrap() {
     // Mongoose.set('debug', !IS_PRODUCTION);
 
     const configService = app.get(ConfigService);
-    const taskService = app.get(TaskService);
+    // const taskService = app.get(TaskService);
 
     if (process.env.LARK_NOTICE_URL) {
-        Alert.setAlert(new AlertLarkService(process.env.LARK_NOTICE_URL));
-        Alert.sendMessage(`Particle Bundler Server Started, ENVIRONMENT: ${process.env.ENVIRONMENT}`);
+        // Alert.sendMessage(`Particle Bundler Server Started, ENVIRONMENT: ${process.env.ENVIRONMENT}`);
     }
 
     const server = await app.listen(3000, '0.0.0.0');
 
     if (!IS_DEVELOPMENT) {
         process.on('uncaughtException', async (error) => {
-            await Alert.sendMessage(Helper.converErrorToString(error), 'Uncaught Exception');
+            // await Alert.sendMessage(Helper.converErrorToString(error), 'Uncaught Exception');
 
             process.exit(1); // exit application
         });
 
         process.on('SIGINT', (signal: any) => {
-            taskService.stop();
+            // taskService.stop();
 
             server.close(async (error: any) => {
                 const nodeInstanceId = configService.get('NODE_APP_INSTANCE');
                 const err = { error, signal, nodeInstanceId };
-                await Alert.sendMessage(Helper.converErrorToString(err), `Server Close`);
+                // await Alert.sendMessage(Helper.converErrorToString(err), `Server Close`);
 
                 if (error) {
                     process.exit(1);

@@ -2,19 +2,24 @@ import { Injectable, Logger } from '@nestjs/common';
 import { JsonRpcProvider, Wallet } from 'ethers';
 import { UserOperationService } from './user-operation.service';
 import { TransactionService } from './transaction.service';
-import { BLOCK_SIGNER_REASON, BUNDLING_MODE, GAS_FEE_LEVEL, IS_DEVELOPMENT, PROCESS_NOTIFY_TYPE } from '../../../common/common-types';
-import { Alert } from '../../../common/alert';
+import {
+    BLOCK_SIGNER_REASON,
+    CACHE_GAS_FEE_TIMEOUT,
+    GAS_FEE_LEVEL,
+    IS_DEVELOPMENT,
+    PROCESS_EVENT_TYPE,
+    keyCacheChainFeeData,
+} from '../../../common/common-types';
 import { ConfigService } from '@nestjs/config';
 import { UserOperationDocument } from '../schemas/user-operation.schema';
 import { getFeeDataFromParticle } from '../aa/utils';
-import { ProcessNotify } from '../../../common/process-notify';
+import { LarkService } from '../../common/services/lark.service';
+import P2PCache from '../../../common/p2p-cache';
 
 export enum TRANSACTION_EXTRA_STATUS {
     NONE,
     NONCE_TOO_LOW,
 }
-
-const GAS_FEE_TIMEOUT = 5000; // 5s
 
 @Injectable()
 export class AAService {
@@ -24,47 +29,55 @@ export class AAService {
     private readonly transactionCountCaches: Map<string, number> = new Map();
     private readonly userOpHashReceipts: Map<string, any> = new Map();
 
-    private bundlingMode: BUNDLING_MODE = IS_DEVELOPMENT && process.env.MANUAL_MODE ? BUNDLING_MODE.MANUAL : BUNDLING_MODE.AUTO;
+    private readonly chainSigners: Map<number, Wallet[]> = new Map();
 
     public constructor(
         public readonly userOperationService: UserOperationService,
         public readonly transactionService: TransactionService,
         public readonly configService: ConfigService,
+        public readonly larkService: LarkService,
     ) {
-        ProcessNotify.registerHandler(PROCESS_NOTIFY_TYPE.GET_GAS_FEE, this.onSetFeeData.bind(this));
-        ProcessNotify.registerHandler(PROCESS_NOTIFY_TYPE.GET_TRANSACTION_COUNT, this.onSetTransactionCountLocalCache.bind(this));
-        ProcessNotify.registerHandler(PROCESS_NOTIFY_TYPE.SET_RECEIPT, this.onSetUserOpHashReceipt.bind(this));
+        // ProcessNotify.registerHandler(PROCESS_NOTIFY_TYPE.GET_GAS_FEE, this.onSetFeeData.bind(this));
+        // ProcessNotify.registerHandler(PROCESS_NOTIFY_TYPE.GET_TRANSACTION_COUNT, this.onSetTransactionCountLocalCache.bind(this));
+        // ProcessNotify.registerHandler(PROCESS_NOTIFY_TYPE.SET_RECEIPT, this.onSetUserOpHashReceipt.bind(this));
     }
 
+    // TODO refactor name
     public getRandomSigners(chainId: number): Wallet[] {
         const signers = this.getSigners(chainId);
 
         return signers.sort(() => Math.random() - 0.5).filter((signer: Wallet) => !this.blockedSigners.has(`${chainId}-${signer.address}`));
     }
 
+    // TODO refactor name
     public getSigners(chainId: number): Wallet[] {
+        if (this.chainSigners.has(chainId)) {
+            return this.chainSigners.get(chainId);
+        }
+
         let pks = this.configService.get(`BUNDLER_SIGNERS_${chainId}`);
         if (!pks) {
             pks = this.configService.get('BUNDLER_SIGNERS');
         }
 
         pks = pks.split(',');
+        const chainSigners = (pks = pks.filter((pk: string) => !!pk).map((privateKey: string) => new Wallet(privateKey)));
 
-        return (pks = pks.filter((pk: string) => !!pk).map((privateKey: string) => new Wallet(privateKey)));
+        this.chainSigners.set(chainId, chainSigners);
+        return chainSigners;
     }
 
     public setBlockedSigner(chainId: number, signerAddress: string, reason: BLOCK_SIGNER_REASON, options: any = {}) {
         options.reason = reason;
         this.blockedSigners.set(`${chainId}-${signerAddress}`, options);
-
-        Alert.sendMessage(`${signerAddress} is blocked on chain ${chainId}`, `Block Signer On Chain ${chainId}`);
+        this.larkService.sendMessage(`${signerAddress} is blocked on chain ${chainId}`, `Block Signer On Chain ${chainId}`);
     }
 
     public UnblockedSigner(chainId: number, signerAddress: string) {
         const key = `${chainId}-${signerAddress}`;
         if (this.blockedSigners.has(key)) {
             this.blockedSigners.delete(key);
-            Alert.sendMessage(`${signerAddress} is unblocked on chain ${chainId}`, `Unblock Signer On Chain ${chainId}`);
+            this.larkService.sendMessage(`${signerAddress} is unblocked on chain ${chainId}`, `Unblock Signer On Chain ${chainId}`);
         }
     }
 
@@ -108,46 +121,19 @@ export class AAService {
         }
     }
 
-    // only for development
-    public setBundlingMode(bundlingMode: BUNDLING_MODE) {
-        if (!IS_DEVELOPMENT) {
-            console.error('SetBundlingMode Failed, It is only for development');
-            return;
-        }
-
-        this.bundlingMode = bundlingMode;
-    }
-
-    public getBundlingMode(): BUNDLING_MODE {
-        return this.bundlingMode;
-    }
-
     public async getFeeData(chainId: number) {
-        if (this.feeCaches.has(chainId)) {
-            const feeObj = this.feeCaches.get(chainId);
-            if (Date.now() - feeObj.timestamp <= GAS_FEE_TIMEOUT) {
-                return feeObj.fee;
+        const cacheKey = keyCacheChainFeeData(chainId);
+        if (P2PCache.has(cacheKey)) {
+            const feeObj = P2PCache.get(cacheKey);
+            if (Date.now() - feeObj.timestamp <= CACHE_GAS_FEE_TIMEOUT) {
+                return feeObj.feeData;
             }
         }
 
-        const feeObj = await getFeeDataFromParticle(chainId, GAS_FEE_LEVEL.MEDIUM);
-        this.setFeeData(chainId, feeObj);
-        ProcessNotify.sendMessages(PROCESS_NOTIFY_TYPE.GET_GAS_FEE, { chainId, feeObj });
+        const feeData = await getFeeDataFromParticle(chainId, GAS_FEE_LEVEL.MEDIUM);
+        P2PCache.set(cacheKey, { feeData, timestamp: Date.now() });
 
-        return feeObj;
-    }
-
-    private onSetFeeData(packet: any) {
-        const { chainId, feeObj } = packet.data;
-        Logger.log(`Get Gas Fee On Chain ${chainId} From Particle: ${JSON.stringify(feeObj)}`);
-
-        if (!!chainId && !!feeObj) {
-            this.setFeeData(chainId, feeObj);
-        }
-    }
-
-    private setFeeData(chainId: number, feeObj: any) {
-        this.feeCaches.set(chainId, { fee: feeObj, timestamp: Date.now() });
+        return feeData;
     }
 
     public async getTransactionCountLocalCache(
@@ -162,7 +148,7 @@ export class AAService {
 
         const nonce = await provider.getTransactionCount(address, 'latest');
         this.setTransactionCountLocalCache(chainId, address, nonce);
-        ProcessNotify.sendMessages(PROCESS_NOTIFY_TYPE.GET_TRANSACTION_COUNT, { chainId, address, nonce });
+        // ProcessNotify.sendMessages(PROCESS_NOTIFY_TYPE.GET_TRANSACTION_COUNT, { chainId, address, nonce });
 
         return nonce;
     }

@@ -3,10 +3,8 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { USER_OPERATION_STATUS, UserOperation, UserOperationDocument } from '../schemas/user-operation.schema';
 import { UserOperationEvent, UserOperationEventDocument } from '../schemas/user-operation-event.schema';
-import { BigNumber } from '../../../common/bignumber';
 import { getAddress } from 'ethers';
-import { TRANSACTION_STATUS, Transaction, TransactionDocument } from '../schemas/transaction.schema';
-import { AppException } from '../../../common/app-exception';
+import { Transaction, TransactionDocument } from '../schemas/transaction.schema';
 import { Helper } from '../../../common/helper';
 import { splitOriginNonce } from '../aa/utils';
 
@@ -18,34 +16,25 @@ export class UserOperationService {
         @InjectModel(Transaction.name) private readonly transactionModel: Model<TransactionDocument>,
     ) {}
 
-    // TODO: should use mongodb transaction
     public async createOrUpdateUserOperation(
         chainId: number,
         userOp: any,
         userOpHash: string,
         entryPoint: string,
         userOpDoc?: UserOperationDocument,
-    ) {
+    ): Promise<UserOperationDocument> {
         const userOpSender = getAddress(userOp.sender);
         const { nonceKey, nonceValue } = splitOriginNonce(userOp.nonce);
 
-        const nonceValueString = BigNumber.from(nonceValue).toString();
-        Helper.assertTrue(nonceValueString.length <= 30, -32608);
+        const nonceValueString = BigInt(nonceValue).toString();
+        Helper.assertTrue(nonceValueString.length <= 30, -32608); // ensure nonce is less than Decimals(128)
 
         userOpDoc = userOpDoc ?? (await this.getUserOperationByAddressNonce(chainId, userOpSender, nonceKey, nonceValueString));
 
-        // Allow to replace failed user operation, because the nonce of the user operation is not increased
         if (userOpDoc) {
-            Helper.assertTrue(userOpDoc.status === USER_OPERATION_STATUS.DONE, -32607);
+            Helper.assertTrue(this.checkCanBeReplaced(userOpDoc), -32607);
 
-            const transaction = await this.transactionModel.findOne({ chainId, txHash: userOpDoc.txHash });
-            if (!userOpDoc.isOld() && (!transaction || transaction.status !== TRANSACTION_STATUS.FAILED)) {
-                throw new AppException(-32004);
-            }
-
-            return {
-                userOpDoc: await this.resetToLocal(userOpDoc, userOpHash, entryPoint, userOp),
-            };
+            return await this.resetToLocal(userOpDoc, userOpHash, entryPoint, userOp);
         }
 
         const userOperation = new this.userOperationModel({
@@ -59,24 +48,33 @@ export class UserOperationService {
             status: USER_OPERATION_STATUS.LOCAL,
         });
 
-        userOperation.save(); // async save
+        return await userOperation.save();
+    }
 
-        return {
-            userOpDoc: userOperation,
-        };
+    private async checkCanBeReplaced(userOpDoc: UserOperationDocument) {
+        if (userOpDoc.status === USER_OPERATION_STATUS.DONE) {
+            return true;
+        }
+
+        const transaction = await this.transactionModel.findOne({ chainId: userOpDoc.chainId, combinationHash: userOpDoc.combinationHash });
+        if (!transaction) {
+            return true;
+        }
+
+        return false;
     }
 
     public async deleteAllLocalUserOperations(chainId: number) {
         await this.userOperationModel.deleteMany({
             chainId,
-            status: { $in: [USER_OPERATION_STATUS.LOCAL, USER_OPERATION_STATUS.TO_BE_REPLACE] },
+            // status: { $in: [USER_OPERATION_STATUS.LOCAL, USER_OPERATION_STATUS.TO_BE_REPLACE] },
         });
     }
 
     public async getPendingUserOperationCount(chainId: number): Promise<number> {
         return await this.userOperationModel.count({
             chainId,
-            status: { $in: [USER_OPERATION_STATUS.LOCAL, USER_OPERATION_STATUS.TO_BE_REPLACE, USER_OPERATION_STATUS.PENDING] },
+            // status: { $in: [USER_OPERATION_STATUS.LOCAL, USER_OPERATION_STATUS.TO_BE_REPLACE, USER_OPERATION_STATUS.PENDING] },
         });
     }
 
@@ -212,6 +210,7 @@ export class UserOperationService {
         userOperationDocument.origin = userOp;
         userOperationDocument.status = USER_OPERATION_STATUS.LOCAL;
         userOperationDocument.createdAt = new Date();
+        userOperationDocument.combinationHash = null;
         return await userOperationDocument.save();
     }
 }
