@@ -5,6 +5,7 @@ import { GAS_FEE_LEVEL } from '../../../common/common-types';
 import { EVM_CHAIN_ID, MINIMUM_GAS_FEE, PARTICLE_PUBLIC_RPC_URL } from '../../../configs/bundler-common';
 import { TransactionFactory, TypedTransaction } from '@ethereumjs/tx';
 import { AppException } from '../../../common/app-exception';
+import { SUPPORT_EIP_1559 } from '../../../common/chains';
 
 export function calcUserOpTotalGasLimit(userOp: any): bigint {
     const mul = 3n;
@@ -230,4 +231,19 @@ export function tryParseSignedTx(signedTx: string): TypedTransaction {
     }
 
     return tx;
+}
+
+export function createTxGasData(chainId: number, feeData: any) {
+    if (!SUPPORT_EIP_1559.includes(chainId)) {
+        return {
+            type: 0,
+            gasPrice: feeData.gasPrice ?? 0,
+        };
+    }
+
+    return {
+        type: 2,
+        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ?? 0,
+        maxFeePerGas: feeData.maxFeePerGas ?? 0,
+    };
 }

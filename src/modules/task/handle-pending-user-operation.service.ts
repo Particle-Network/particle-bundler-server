@@ -110,7 +110,7 @@ export class HandlePendingUserOperationService {
         try {
             [latestTransaction, latestNonce, feeData] = await Promise.all([
                 this.aaService.transactionService.getLatestTransaction(chainId, signer.address),
-                this.aaService.getTransactionCountLocalCache(provider, chainId, signer.address),
+                this.aaService.getTransactionCountWithCache(provider, chainId, signer.address),
                 this.aaService.getFeeData(chainId),
             ]);
         } catch (error) {

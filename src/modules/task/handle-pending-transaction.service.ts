@@ -19,11 +19,12 @@ import { UserOperationService } from '../rpc/services/user-operation.service';
 import { AAService } from '../rpc/services/aa.service';
 import { getBundlerChainConfig } from '../../configs/bundler-common';
 import P2PCache from '../../common/p2p-cache';
-import { Contract } from 'ethers';
+import { Contract, toBeHex } from 'ethers';
 import entryPointAbi from '../rpc/aa/abis/entry-point-abi';
-import { deepHexlify } from '../rpc/aa/utils';
+import { createTxGasData, deepHexlify, getFeeDataFromParticle, tryParseSignedTx } from '../rpc/aa/utils';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
+import { FeeMarketEIP1559Transaction, LegacyTransaction } from '@ethereumjs/tx';
 
 @Injectable()
 export class HandlePendingTransactionService {
@@ -329,7 +330,7 @@ export class HandlePendingTransactionService {
             const bundlerConfig = getBundlerChainConfig(pendingTransaction.chainId);
 
             if (bundlerConfig.canIncrGasPriceRetry && signerDoneTransactionMaxNonce + 1 === pendingTransaction.nonce) {
-                await this.tryIncrTransactionGasPrice(pendingTransaction);
+                await this.tryIncrTransactionGasPriceAndReplace(pendingTransaction);
             } else {
                 if (pendingTransaction.isOld()) {
                     try {
@@ -365,93 +366,86 @@ export class HandlePendingTransactionService {
         }
     }
 
-    private async tryIncrTransactionGasPrice(transaction: TransactionDocument) {
-        console.log('tryIncrTransactionGasPrice Start', transaction.id);
+    private async tryIncrTransactionGasPriceAndReplace(transaction: TransactionDocument) {
+        console.log('tryIncrTransactionGasPriceAndReplace Start', transaction.id);
         const keyLock = keyLockPendingTransaction(transaction.id);
-        if (LockDe.isAcquired(keyLock)) {
+        if (this.lockPendingTransactions.has(keyLock)) {
             console.log('tryIncrTransactionGasPrice already acquired', transaction.id);
             return;
         }
 
-        await LockDe.acquire(keyLock);
+        this.lockPendingTransactions.add(keyLock);
+
+        transaction = await this.transactionService.getTransactionById(transaction.id);
+        if (transaction.isDone()) {
+            console.log('tryIncrTransactionGasPriceAndReplace release in advance');
+            this.lockPendingTransactions.delete(keyLock);
+            return;
+        }
+
         try {
-            const remoteNonce = await aaService.getTransactionCountLocalCache(provider, transaction.chainId, transaction.from, true);
+            const provider = this.rpcService.getJsonRpcProvider(transaction.chainId);
+            const remoteNonce = await this.aaService.getTransactionCountWithCache(provider, transaction.chainId, transaction.from, true);
             if (remoteNonce != transaction.nonce) {
                 console.log('tryIncrTransactionGasPrice release', 'remoteNonce != transaction.nonce', remoteNonce, transaction.nonce);
-                LockDe.release(keyLock);
+                this.lockPendingTransactions.delete(keyLock);
                 return;
             }
         } catch (error) {
-            Alert.sendMessage(
+            this.larkService.sendMessage(
                 `TryIncrTransactionGasPrice GetTransactionCount Error On Chain ${transaction.chainId} For ${
                     transaction.from
                 }: ${Helper.converErrorToString(error)}`,
             );
 
-            LockDe.release(keyLock);
+            this.lockPendingTransactions.delete(keyLock);
             return;
         }
 
-        transaction = await aaService.transactionService.getTransactionById(transaction.id);
         if (!transaction.isPendingTimeout()) {
-            Logger.log('tryIncrTransactionGasPrice release', 'transaction is not pending timeout', transaction.id);
-            LockDe.release(keyLock);
+            console.log('tryIncrTransactionGasPrice release', 'transaction is not pending timeout', transaction.id);
+            this.lockPendingTransactions.delete(keyLock);
             return;
         }
 
-        const allSigners = aaService.getSigners(transaction.chainId);
-        const signer = allSigners.find((signer) => signer.address.toLowerCase() === transaction.from.toLowerCase());
+        const allValidSigners = this.aaService.getRandomValidSigners(transaction.chainId);
+        const signer = allValidSigners.find((signer) => signer.address.toLowerCase() === transaction.from.toLowerCase());
         if (!signer) {
-            Logger.log(`Not found signer for ${transaction.from}`);
-            LockDe.release(keyLock);
+            console.log(`Not found valid signer for ${transaction.from}`);
+            this.lockPendingTransactions.delete(keyLock);
             return;
         }
 
-        console.log('Try Replace Transaction', transaction.id, transaction.txHash);
+        console.log('Try Replace Transaction', transaction.id);
 
         try {
             const coefficient = 1.1;
 
-            const currentSignedTx = transaction.signedTxs[transaction.txHash];
+            const currentSignedTx = transaction.signedTxs[transaction.txHashes[transaction.txHashes.length - 1]];
             const tx = tryParseSignedTx(currentSignedTx);
             const txData: any = tx.toJSON();
 
-            const feeData = await aaService.getFeeData(transaction.chainId);
-            const feeDataFromParticle = await getFeeDataFromParticle(transaction.chainId);
+            const feeData = await this.aaService.getFeeData(transaction.chainId);
 
             if (tx instanceof FeeMarketEIP1559Transaction) {
-                if (BigNumber.from(feeData.maxFeePerGas).gt(tx.maxFeePerGas)) {
-                    txData.maxFeePerGas = BigNumber.from(feeData.maxFeePerGas).toHexString();
+                if (BigInt(feeData.maxFeePerGas) > BigInt(tx.maxFeePerGas)) {
+                    txData.maxFeePerGas = toBeHex(feeData.maxFeePerGas);
                 }
-                if (BigNumber.from(feeData.maxPriorityFeePerGas).gt(tx.maxPriorityFeePerGas)) {
-                    txData.maxPriorityFeePerGas = BigNumber.from(feeData.maxPriorityFeePerGas).toHexString();
+                if (BigInt(feeData.maxPriorityFeePerGas) > BigInt(tx.maxPriorityFeePerGas)) {
+                    txData.maxPriorityFeePerGas = toBeHex(feeData.maxPriorityFeePerGas);
                 }
 
-                let bnMaxPriorityFeePerGas = BigNumber.from(tx.maxPriorityFeePerGas);
-                let bnMaxFeePerGas = BigNumber.from(tx.maxFeePerGas);
-                if (bnMaxPriorityFeePerGas.eq(0)) {
-                    bnMaxPriorityFeePerGas = bnMaxPriorityFeePerGas.add(0.01 * 10 ** 9);
-                    if (bnMaxPriorityFeePerGas.gte(bnMaxFeePerGas)) {
-                        bnMaxFeePerGas = bnMaxPriorityFeePerGas.add(1);
+                let bnMaxPriorityFeePerGas = BigInt(tx.maxPriorityFeePerGas);
+                let bnMaxFeePerGas = BigInt(tx.maxFeePerGas);
+                if (bnMaxPriorityFeePerGas === 0n) {
+                    bnMaxPriorityFeePerGas = BigInt(0.01 * 10 ** 9);
+                    if (bnMaxPriorityFeePerGas >= bnMaxFeePerGas) {
+                        bnMaxFeePerGas = bnMaxPriorityFeePerGas + 1n;
                     }
                 }
 
-                txData.maxPriorityFeePerGas = bnMaxPriorityFeePerGas
-                    .mul(coefficient * 10)
-                    .div(10)
-                    .toHexString();
-                txData.maxFeePerGas = bnMaxFeePerGas
-                    .mul(coefficient * 10)
-                    .div(10)
-                    .toHexString();
-
-                if (
-                    BigNumber.from(txData.maxFeePerGas).lt(feeDataFromParticle.maxFeePerGas) &&
-                    BigNumber.from(txData.maxPriorityFeePerGas).lt(feeDataFromParticle.maxPriorityFeePerGas)
-                ) {
-                    txData.maxFeePerGas = BigNumber.from(feeDataFromParticle.maxFeePerGas).toHexString();
-                    txData.maxPriorityFeePerGas = BigNumber.from(feeDataFromParticle.maxPriorityFeePerGas).toHexString();
-                }
+                txData.maxPriorityFeePerGas = toBeHex((bnMaxPriorityFeePerGas * BigInt(coefficient * 10)) / 10n);
+                txData.maxFeePerGas = toBeHex((bnMaxFeePerGas * BigInt(coefficient * 10)) / 10n);
 
                 console.log(
                     `Replace Transaction, Old maxPriorityFeePerGas: ${tx.maxPriorityFeePerGas}, New maxPriorityFeePerGas: ${txData.maxPriorityFeePerGas}`,
@@ -459,19 +453,11 @@ export class HandlePendingTransactionService {
             }
 
             if (tx instanceof LegacyTransaction) {
-                if (BigNumber.from(feeData.gasPrice).gt(tx.gasPrice)) {
-                    txData.gasPrice = BigNumber.from(feeData.gasPrice).toHexString();
+                if (BigInt(feeData.gasPrice) > BigInt(tx.gasPrice)) {
+                    txData.gasPrice = toBeHex(feeData.gasPrice);
                 }
 
-                txData.gasPrice = BigNumber.from(tx.gasPrice)
-                    .mul(coefficient * 10)
-                    .div(10)
-                    .toHexString();
-
-                if (BigNumber.from(txData.gasPrice).lt(feeDataFromParticle.gasPrice)) {
-                    txData.gasPrice = BigNumber.from(feeDataFromParticle.gasPrice).toHexString();
-                }
-
+                txData.gasPrice = (BigInt(tx.gasPrice) * BigInt(coefficient * 10)) / 10n;
                 console.log(`Replace Transaction, Old gasPrice: ${tx.gasPrice}, New gasPrice: ${txData.gasPrice}`);
             }
 
@@ -484,36 +470,30 @@ export class HandlePendingTransactionService {
                 ...createTxGasData(transaction.chainId, txData),
             });
 
-            const rTxHash = await provider.send(getSendTransactionMethod(transaction.chainId), [signedTx]);
+            const bundlerConfig = getBundlerChainConfig(transaction.chainId);
+            const provider = this.rpcService.getJsonRpcProvider(transaction.chainId);
+            const rTxHash = await provider.send(bundlerConfig.methodSendRawTransaction, [signedTx]);
             if (!!rTxHash?.error) {
                 throw rTxHash.error;
             }
 
             const txHash = typeof rTxHash === 'string' ? rTxHash : rTxHash.result;
-
-            console.log('New TxHash', transaction.id, rTxHash);
-            console.log('New SignedTxs', transaction.id, signedTx);
-
+            console.log('Replaced TxHash', transaction.id, rTxHash);
             if (!!txHash) {
-                // should update user ops tx hash ???
-                await Helper.startMongoTransaction(mongodbConnection, async (session: any) => {
-                    await aaService.transactionService.replaceTransactionTxHash(transaction, txHash, signedTx, txData, session);
-                });
+                await this.transactionService.replaceTransactionTxHash(transaction, txHash, signedTx, txData);
             }
         } catch (error) {
-            console.error(`Replace Transaction ${transaction.id} error on chain ${transaction.chainId}`, error, transaction);
+            if (!IS_PRODUCTION) {
+                console.error(`Replace Transaction ${transaction.id} error on chain ${transaction.chainId}`, error, transaction);
+            }
 
-            error.transaction = transaction.toJSON();
-            Alert.sendMessage(
+
+            this.larkService.sendMessage(
                 `ReplaceTransaction Error On Chain ${transaction.chainId} For ${transaction.from}: ${Helper.converErrorToString(error)}`,
             );
-
-            LockDe.release(keyLock);
-            return;
         }
 
-        Logger.log('tryIncrTransactionGasPrice release', transaction.id);
-        LockDe.release(keyLock);
+        this.lockPendingTransactions.delete(keyLock);
     }
 
     private canRunCron() {

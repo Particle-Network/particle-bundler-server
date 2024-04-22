@@ -109,24 +109,23 @@ export class TransactionService {
     }
 
     public async replaceTransactionTxHash(transaction: TransactionDocument, newTxHash: string, newSignedTx: string, txData: any, session?: any) {
-        // const newSignedTxs = transaction.signedTxs;
-        // newSignedTxs[newTxHash] = newSignedTx;
-        // const newInner = transaction.inner;
-        // newInner[newTxHash] = txData;
-        // const newTxHashes = transaction.txHashes.concat(newTxHash);
-        // return await this.transactionModel.updateOne(
-        //     { _id: transaction.id, status: TRANSACTION_STATUS.PENDING },
-        //     {
-        //         $set: {
-        //             txHash: newTxHash,
-        //             txHashes: newTxHashes,
-        //             signedTx: newSignedTx,
-        //             signedTxs: newSignedTxs,
-        //             inner: newInner,
-        //             latestSentAt: new Date(),
-        //         },
-        //     },
-        //     { session },
-        // );
+        const newSignedTxs = transaction.signedTxs;
+        newSignedTxs[newTxHash] = newSignedTx;
+        const newInner = transaction.inner;
+        newInner[newTxHash] = txData;
+        const newTxHashes = transaction.txHashes.concat(newTxHash);
+        
+        return await this.transactionModel.updateOne(
+            { _id: transaction.id, status: TRANSACTION_STATUS.PENDING },
+            {
+                $set: {
+                    txHashes: newTxHashes,
+                    signedTxs: newSignedTxs,
+                    inner: newInner,
+                    latestSentAt: new Date(),
+                },
+            },
+            { session },
+        );
     }
 }

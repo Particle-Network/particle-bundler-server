@@ -137,12 +137,13 @@ export class AAService {
         return feeData;
     }
 
-    public async getTransactionCountLocalCache(
+    public async getTransactionCountWithCache(
         provider: JsonRpcProvider,
         chainId: number,
         address: string,
-        forceLatest = false,
+        forceLatest: boolean = false,
     ): Promise<number> {
+        // It it really need a timeout ?
         const cacheKey = keyCacheChainSignerTransactionCount(chainId, address);
         if (!forceLatest && P2PCache.has(cacheKey)) {
             const nonceObj = P2PCache.get(cacheKey);
