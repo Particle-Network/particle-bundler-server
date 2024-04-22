@@ -85,7 +85,7 @@ async function sealUserOps(
             const bundlerConfig = getBundlerConfig(chainId);
 
             // if bundle is full, push it to bundles array
-            const calcedGasLimit = calcUserOpTotalGasLimit(userOperation.origin);
+            const calcedGasLimit = calcUserOpTotalGasLimit(userOperation.origin, chainId);
             // TODO: refactor
             if ([EVM_CHAIN_ID.MERLIN_CHAIN_TESTNET, EVM_CHAIN_ID.MERLIN_CHAIN_MAINNET].includes(chainId)) {
                 if (calcedGasLimit.gt(bundlerConfig.MAX_BUNDLE_GAS)) {

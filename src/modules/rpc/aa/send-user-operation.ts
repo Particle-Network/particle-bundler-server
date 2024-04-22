@@ -50,7 +50,7 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
         throw new AppException(-32602, AppExceptionMessages.messageExtend(-32602, 'Gas limits must be larger than 0'));
     }
 
-    const gasLimit = calcUserOpTotalGasLimit(userOp);
+    const gasLimit = calcUserOpTotalGasLimit(userOp, chainId);
     Helper.assertTrue(gasLimit.lt(bundlerConfig.MAX_BUNDLE_GAS), -32602, AppExceptionMessages.messageExtend(-32602, 'gasLimit is too large'));
 
     Helper.assertTrue(
