@@ -8,13 +8,14 @@ import { mongodbConfigAsync } from '../src/configs/mongodb.config';
 import { configConfig } from '../src/configs/config.config';
 import { ConfigModule } from '@nestjs/config';
 import { Wallet, JsonRpcProvider, resolveProperties, parseEther } from 'ethers';
-import { RPC_CONFIG, AA_METHODS, EVM_CHAIN_ID, initializeBundlerConfig, getBundlerChainConfig } from '../src/configs/bundler-common';
+import { AA_METHODS, initializeBundlerConfig, getBundlerChainConfig } from '../src/configs/bundler-common';
 import { deepHexlify } from '../src/modules/rpc/aa/utils';
 import { IContractAccount } from '../src/modules/rpc/aa/interface-contract-account';
 import { BigNumber } from '../src/common/bignumber';
 import { ENTRY_POINT, gaslessSponsor } from './lib/common';
 import { deserializeUserOpCalldata } from '../src/modules/rpc/aa/deserialize-user-op';
 import { SimpleSmartAccount } from './lib/simple-smart-account';
+import { EVM_CHAIN_ID } from '../src/common/chains';
 
 let rpcController: RpcController;
 let rpcService: RpcService;

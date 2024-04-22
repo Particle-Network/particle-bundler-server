@@ -3,10 +3,8 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { TRANSACTION_STATUS, TRANSACTION_TYPE, Transaction, TransactionDocument } from '../schemas/transaction.schema';
 import { TypedTransaction } from '@ethereumjs/tx';
-// import { tryParseSignedTx } from '../shared/handle-pending-transactions';
 import { getAddress } from 'ethers';
 import { BigNumber } from '../../../common/bignumber';
-import { EVM_CHAIN_ID } from '../../../configs/bundler-common';
 import { tryParseSignedTx } from '../aa/utils';
 
 @Injectable()

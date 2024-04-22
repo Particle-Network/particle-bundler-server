@@ -61,6 +61,7 @@ export class HandlePendingTransactionService {
             const key = `${pendingTransaction.chainId}-${pendingTransaction.from.toLowerCase()}`;
             const signerDoneTransactionMaxNonce = this.signerDoneTransactionMaxNonce.get(key);
 
+            // add confirmations
             promises.push(this.getReceiptAndHandlePendingTransactions(pendingTransaction, signerDoneTransactionMaxNonce));
         }
     }

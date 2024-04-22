@@ -4,10 +4,11 @@ import { JsonRPCRequestDto, JsonRPCResponse } from './dtos/json-rpc-request.dto'
 import { FastifyReply } from 'fastify';
 import { isArray, isPlainObject } from 'lodash';
 import { Helper } from '../../common/helper';
-import { EVM_CHAIN_ID, getBundlerChainConfig } from '../../configs/bundler-common';
+import { getBundlerChainConfig } from '../../configs/bundler-common';
 import { AppException } from '../../common/app-exception';
 import { IS_PRODUCTION } from '../../common/common-types';
 import { LarkService } from '../common/services/lark.service';
+import { EVM_CHAIN_ID } from '../../common/chains';
 
 @Controller()
 export class RpcController {
