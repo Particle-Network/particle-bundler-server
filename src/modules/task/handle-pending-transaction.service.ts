@@ -6,6 +6,7 @@ import { LarkService } from '../common/services/lark.service';
 import { Helper } from '../../common/helper';
 import {
     BLOCK_SIGNER_REASON,
+    CACHE_TRANSACTION_RECEIPT_TIMEOUT,
     EVENT_ENTRY_POINT_USER_OPERATION,
     IS_DEVELOPMENT,
     IS_PRODUCTION,
@@ -59,10 +60,11 @@ export class HandlePendingTransactionService {
         for (const pendingTransaction of pendingTransactions) {
             const key = `${pendingTransaction.chainId}-${pendingTransaction.from.toLowerCase()}`;
             const signerDoneTransactionMaxNonce = this.signerDoneTransactionMaxNonce.get(key);
-
-            // add confirmations
             promises.push(this.getReceiptAndHandlePendingTransactions(pendingTransaction, signerDoneTransactionMaxNonce));
         }
+
+        const transactionsAddConfirmations = (await Promise.all(promises)).filter((t) => !!t);
+        this.transactionService.addTransactionsConfirmations(transactionsAddConfirmations.map((t) => t.id));
     }
 
     // There is a concurrency conflict and locks need to be added
@@ -117,7 +119,7 @@ export class HandlePendingTransactionService {
                 await Helper.startMongoTransaction(this.connection, async (session: any) => {
                     await Promise.all([
                         transaction.delete({ session }),
-                        this.userOperationService.setPendingUserOperationsToLocalByCombinationHash(transaction.id, session),
+                        this.userOperationService.setPendingUserOperationsToLocal(transaction.id, session),
                     ]);
                 });
             }
@@ -142,7 +144,7 @@ export class HandlePendingTransactionService {
 
     // There is a concurrency conflict and locks need to be added
     public async handlePendingTransaction(transaction: TransactionDocument, receipt: any) {
-        P2PCache.set(keyCacheChainReceipt(transaction.chainId, transaction.id), receipt);
+        P2PCache.set(keyCacheChainReceipt(transaction.chainId, transaction.id), receipt, CACHE_TRANSACTION_RECEIPT_TIMEOUT);
         const keyLock = keyLockPendingTransaction(transaction.id);
         if (this.lockPendingTransactions.has(keyLock)) {
             console.log('handlePendingTransaction already acquired', transaction.id);
@@ -205,6 +207,10 @@ export class HandlePendingTransactionService {
 
             transaction.receipts = transaction.receipts || {};
             transaction.receipts[txHash] = receipt;
+            transaction.userOperationHashMapTxHash = transaction.userOperationHashMapTxHash || {};
+            for (const userOpHash of userOpHashes) {
+                transaction.userOperationHashMapTxHash[userOpHash] = txHash;
+            }
         }
 
         await this.transactionService.updateTransactionStatus(transaction, TRANSACTION_STATUS.DONE);
@@ -213,7 +219,8 @@ export class HandlePendingTransactionService {
         this.lockPendingTransactions.delete(keyLock);
     }
 
-    // check is the userop is bundled by other tx(mev attack)
+    // Check is the userop is bundled by other tx(mev attack)
+    // This is not a strict check
     private async checkAndHandleFailedReceipt(transaction: TransactionDocument, receipt: any) {
         try {
             const bundlerConfig = getBundlerChainConfig(transaction.chainId);
@@ -293,7 +300,7 @@ export class HandlePendingTransactionService {
             // the pending transaction is too old, force to finish it
             if (!!signerDoneTransactionMaxNonce && signerDoneTransactionMaxNonce > pendingTransaction.nonce && pendingTransaction.isOld()) {
                 await this.handlePendingTransaction(pendingTransaction, null);
-                return true;
+                return null;
             }
 
             const provider = this.rpcService.getJsonRpcProvider(pendingTransaction.chainId);
@@ -319,40 +326,37 @@ export class HandlePendingTransactionService {
             for (const receipt of receipts) {
                 if (!!receipt) {
                     await this.handlePendingTransaction(pendingTransaction, receipt);
-                    return true;
+                    return null;
                 }
             }
 
             if (!pendingTransaction.isPendingTimeout() || !signerDoneTransactionMaxNonce) {
-                return false;
+                return pendingTransaction;
             }
 
             const bundlerConfig = getBundlerChainConfig(pendingTransaction.chainId);
-
             if (bundlerConfig.canIncrGasPriceRetry && signerDoneTransactionMaxNonce + 1 === pendingTransaction.nonce) {
                 await this.tryIncrTransactionGasPriceAndReplace(pendingTransaction);
-            } else {
-                if (pendingTransaction.isOld()) {
-                    try {
-                        // Transactions may be discarded by the node tx pool and need to be reissued
-                        await provider.send(bundlerConfig.methodSendRawTransaction, [
-                            pendingTransaction.signedTxs[pendingTransaction.txHashes[pendingTransaction.txHashes.length - 1]],
-                        ]);
-                    } catch (error) {
-                        if (!IS_PRODUCTION) {
-                            console.error('trySendOldPendingTransaction error', error);
-                        }
-
-                        this.larkService.sendMessage(
-                            `trySendOldPendingTransaction Error On Chain ${pendingTransaction.chainId} For ${
-                                pendingTransaction.id
-                            }: ${Helper.converErrorToString(error)}`,
-                        );
+            } else if (pendingTransaction.isOld()) {
+                try {
+                    // Transactions may be discarded by the node tx pool and need to be reissued
+                    await provider.send(bundlerConfig.methodSendRawTransaction, [
+                        pendingTransaction.signedTxs[pendingTransaction.txHashes[pendingTransaction.txHashes.length - 1]],
+                    ]);
+                } catch (error) {
+                    if (!IS_PRODUCTION) {
+                        console.error('trySendOldPendingTransaction error', error);
                     }
+
+                    this.larkService.sendMessage(
+                        `trySendOldPendingTransaction Error On Chain ${pendingTransaction.chainId} For ${
+                            pendingTransaction.id
+                        }: ${Helper.converErrorToString(error)}`,
+                    );
                 }
             }
 
-            return false;
+            return null;
         } catch (error) {
             if (!IS_PRODUCTION) {
                 console.error('getReceiptAndHandlePendingTransactions error', error);

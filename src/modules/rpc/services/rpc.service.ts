@@ -10,13 +10,14 @@ import { FetchRequest, JsonRpcProvider, Network, getAddress, isAddress } from 'e
 import { AA_METHODS } from '../../../configs/bundler-common';
 import { PROVIDER_FETCH_TIMEOUT } from '../../../common/common-types';
 import { Helper } from '../../../common/helper';
+import { LarkService } from '../../common/services/lark.service';
 
 @Injectable()
 export class RpcService {
     private readonly jsonRpcProviders: Map<number, JsonRpcProvider> = new Map();
     private readonly cachedValidPaymasters: Map<number, string> = new Map();
 
-    public constructor(public readonly aaService: AAService) {}
+    public constructor(public readonly aaService: AAService, public readonly larkService: LarkService) {}
 
     public getJsonRpcProvider(chainId: number): JsonRpcProvider {
         if (!this.jsonRpcProviders.has(chainId)) {

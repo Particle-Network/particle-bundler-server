@@ -1,14 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { JsonRpcProvider, Wallet } from 'ethers';
 import { UserOperationService } from './user-operation.service';
 import { TransactionService } from './transaction.service';
 import {
     BLOCK_SIGNER_REASON,
     CACHE_GAS_FEE_TIMEOUT,
-    CACHE_TRANSACTION_COUINT_TIMEOUT,
+    CACHE_TRANSACTION_COUNT_TIMEOUT,
     GAS_FEE_LEVEL,
-    IS_DEVELOPMENT,
-    PROCESS_EVENT_TYPE,
     keyCacheChainFeeData,
     keyCacheChainSignerTransactionCount,
 } from '../../../common/common-types';
@@ -27,10 +25,6 @@ export enum TRANSACTION_EXTRA_STATUS {
 export class AAService {
     private readonly blockedSigners: Map<string, any & { reason: BLOCK_SIGNER_REASON }> = new Map();
     private readonly lockedUserOperationHashes: Set<string> = new Set();
-    private readonly feeCaches: Map<number, { fee: any; timestamp: number }> = new Map();
-    private readonly transactionCountCaches: Map<string, number> = new Map();
-    private readonly userOpHashReceipts: Map<string, any> = new Map();
-
     private readonly chainSigners: Map<number, Wallet[]> = new Map();
 
     public constructor(
@@ -38,20 +32,15 @@ export class AAService {
         public readonly transactionService: TransactionService,
         public readonly configService: ConfigService,
         public readonly larkService: LarkService,
-    ) {
-        // ProcessNotify.registerHandler(PROCESS_NOTIFY_TYPE.GET_GAS_FEE, this.onSetFeeData.bind(this));
-        // ProcessNotify.registerHandler(PROCESS_NOTIFY_TYPE.GET_TRANSACTION_COUNT, this.onSetTransactionCountLocalCache.bind(this));
-        // ProcessNotify.registerHandler(PROCESS_NOTIFY_TYPE.SET_RECEIPT, this.onSetUserOpHashReceipt.bind(this));
-    }
+    ) {}
 
     public getRandomValidSigners(chainId: number): Wallet[] {
-        const signers = this.getSigners(chainId);
+        const signers = this.getChainSigners(chainId);
 
         return signers.sort(() => Math.random() - 0.5).filter((signer: Wallet) => !this.blockedSigners.has(`${chainId}-${signer.address}`));
     }
 
-    // TODO refactor name
-    public getSigners(chainId: number): Wallet[] {
+    public getChainSigners(chainId: number): Wallet[] {
         if (this.chainSigners.has(chainId)) {
             return this.chainSigners.get(chainId);
         }
@@ -124,15 +113,13 @@ export class AAService {
 
     public async getFeeData(chainId: number) {
         const cacheKey = keyCacheChainFeeData(chainId);
-        if (P2PCache.has(cacheKey)) {
-            const feeObj = P2PCache.get(cacheKey);
-            if (Date.now() - feeObj.timestamp <= CACHE_GAS_FEE_TIMEOUT) {
-                return feeObj.feeData;
-            }
+        let feeData = P2PCache.get(cacheKey);
+        if (!!feeData) {
+            return feeData;
         }
 
-        const feeData = await getFeeDataFromParticle(chainId, GAS_FEE_LEVEL.MEDIUM);
-        P2PCache.set(cacheKey, { feeData, timestamp: Date.now() });
+        feeData = await getFeeDataFromParticle(chainId, GAS_FEE_LEVEL.MEDIUM);
+        P2PCache.set(cacheKey, feeData, CACHE_GAS_FEE_TIMEOUT);
 
         return feeData;
     }
@@ -143,17 +130,14 @@ export class AAService {
         address: string,
         forceLatest: boolean = false,
     ): Promise<number> {
-        // It it really need a timeout ?
         const cacheKey = keyCacheChainSignerTransactionCount(chainId, address);
-        if (!forceLatest && P2PCache.has(cacheKey)) {
-            const nonceObj = P2PCache.get(cacheKey);
-            if (Date.now() - nonceObj.timestamp <= CACHE_TRANSACTION_COUINT_TIMEOUT) {
-                return nonceObj.nonce;
-            }
+        let nonce = P2PCache.get(cacheKey);
+        if (!forceLatest && !!nonce) {
+            return nonce;
         }
 
-        const nonce = await provider.getTransactionCount(address, 'latest');
-        P2PCache.set(cacheKey, { nonce, timestamp: Date.now() });
+        nonce = await provider.getTransactionCount(address, 'latest');
+        P2PCache.set(cacheKey, nonce, CACHE_TRANSACTION_COUNT_TIMEOUT);
 
         return nonce;
     }
@@ -161,43 +145,9 @@ export class AAService {
     public trySetTransactionCountLocalCache(chainId: number, address: string, nonce: number) {
         const cacheKey = keyCacheChainSignerTransactionCount(chainId, address);
 
-        let currentNonce: number = -1;
-        if (P2PCache.has(cacheKey)) {
-            const nonceObj = P2PCache.get(cacheKey);
-            currentNonce = nonceObj.nonce;
+        const cachedNonce = P2PCache.get(cacheKey) ?? 0;
+        if (nonce > cachedNonce) {
+            P2PCache.set(cacheKey, nonce, CACHE_TRANSACTION_COUNT_TIMEOUT);
         }
-
-        if (nonce > currentNonce) {
-            P2PCache.set(cacheKey, { nonce, timestamp: Date.now() });
-        }
-    }
-
-    public getUserOpHashReceipts(chainId: number, userOpHash: string): any {
-        const key = `${chainId}-${userOpHash}`;
-        if (this.userOpHashReceipts.has(key)) {
-            return this.userOpHashReceipts.get(key);
-        }
-
-        return null;
-    }
-
-    private onSetUserOpHashReceipt(packet: any) {
-        const { chainId, userOpHashes, receipt } = packet.data;
-        console.log(`Set Receipt On Chain ${chainId} For ${userOpHashes}`, receipt);
-
-        if (!!chainId && !!userOpHashes && !!receipt) {
-            for (const userOpHash of userOpHashes) {
-                this.setUserOpHashReceipt(chainId, userOpHash, receipt);
-            }
-        }
-    }
-
-    private setUserOpHashReceipt(chainId: number, userOpHash: string, receipt: any) {
-        const key = `${chainId}-${userOpHash}`;
-        this.userOpHashReceipts.set(key, receipt);
-
-        setTimeout(() => {
-            this.userOpHashReceipts.delete(key);
-        }, 10000);
     }
 }

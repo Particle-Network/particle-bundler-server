@@ -14,10 +14,12 @@ pm2.connect(function () {
     });
 });
 
+const ITEM_TTL = 1000 * 60 * 60 * 24; // 1 day
+
 class P2PCacheInstance {
     private readonly cache: LRUCache<string, any> = new LRUCache({
         max: 100000,
-        ttl: 1000 * 60 * 60 * 24, // 1 day
+        ttl: ITEM_TTL,
     });
 
     public constructor() {
@@ -25,16 +27,16 @@ class P2PCacheInstance {
     }
 
     private onMessage(packet: any) {
-        if (typeof packet !== 'object' || !packet?.key || !packet?.value) {
+        if (typeof packet !== 'object' || !packet?.key || !packet?.value || !packet?.ttl) {
             return;
         }
 
-        this.cache.set(packet.key, packet.value);
+        this.cache.set(packet.key, packet.value, packet.ttl);
     }
 
-    public set(key: string, value: any) {
+    public set(key: string, value: any, ttl: number = ITEM_TTL) {
         if (IS_DEVELOPMENT) {
-            this.onMessage({ key, value });
+            this.onMessage({ key, value, ttl });
             return;
         }
 
@@ -44,6 +46,7 @@ class P2PCacheInstance {
                 {
                     key,
                     value,
+                    ttl,
                 },
                 (err, res) => {
                     // nothing

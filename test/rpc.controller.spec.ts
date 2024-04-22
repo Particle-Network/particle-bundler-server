@@ -20,6 +20,9 @@ import { EVM_CHAIN_ID } from '../src/common/chains';
 let rpcController: RpcController;
 let rpcService: RpcService;
 
+process.env.DISABLE_TASK = '1';
+process.env.ENVIRONMENT = 'dev';
+
 describe('RpcController', () => {
     beforeEach(async () => {
         await initializeBundlerConfig();
@@ -164,8 +167,6 @@ async function sendUserOp(chainId: number, userOp: any) {
     const r3 = await rpcController.handleRpc(chainId, bodySend);
     console.log(r3);
     expect(r3.result.length).toBe(66);
-
-    return;
 
     for (let index = 0; index < 30; index++) {
         await new Promise((resolve) => setTimeout(resolve, 1000));

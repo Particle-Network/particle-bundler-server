@@ -7,13 +7,11 @@ import { Helper } from '../../common/helper';
 import { UserOperationService } from '../rpc/services/user-operation.service';
 import { Cron } from '@nestjs/schedule';
 import { getBundlerChainConfig } from '../../configs/bundler-common';
-import { Wallet } from 'ethers';
+import { Wallet, toBeHex } from 'ethers';
 import { UserOperationDocument } from '../rpc/schemas/user-operation.schema';
 import { ProcessEventEmitter } from '../../common/process-event-emitter';
 import { LarkService } from '../common/services/lark.service';
-import { waitSeconds } from '../rpc/aa/utils';
-import { HandleLocalTransactionService } from './handle-local-transaction.service';
-import { HandlePendingTransactionService } from './handle-pending-transaction.service';
+import { calcUserOpTotalGasLimit, waitSeconds } from '../rpc/aa/utils';
 import { HandlePendingUserOperationService } from './handle-pending-user-operation.service';
 
 @Injectable()
@@ -35,6 +33,8 @@ export class HandleLocalUserOperationService {
     private onSealUserOps(packet: any) {
         const { chainId, userOpDoc } = packet.data;
         if (!!chainId && !!userOpDoc) {
+            console.log('onSealUserOps', packet);
+            
             this.sealUserOps([userOpDoc]);
         }
     }
@@ -85,13 +85,29 @@ export class HandleLocalUserOperationService {
             return;
         }
 
-        const unhandledUserOperations = await this.handlePendingUserOperationService.handleLocalUserOperations(chainId, targetSigner, userOperations, canMakeTxCount);
+        const { packedBundles, unusedUserOperations, userOperationsToDelete } = this.packUserOperationsForSigner(
+            chainId,
+            userOperations,
+            canMakeTxCount,
+        );
+        
+        this.aaService.unlockUserOperations(unusedUserOperations);
+
+        await this.handlePendingUserOperationService.handleLocalUserOperationBundles(
+            chainId,
+            targetSigner,
+            packedBundles,
+        );
+
         this.lockChainSigner.delete(keyLockSigner(chainId, targetSigner.address));
 
-        await waitSeconds(2);
-
-        // TODO
-        this.aaService.unlockUserOperations(userOperations); // unlock left userOperations
+        await Promise.all([
+            waitSeconds(2),
+            this.userOperationService.deleteUserOperationsByIds(userOperationsToDelete.map((userOperation) => userOperation.id)),
+        ]);
+        
+        this.aaService.unlockUserOperations(packedBundles.map((bundle) => bundle.userOperations).flat());
+        this.aaService.unlockUserOperations(userOperationsToDelete);
     }
 
     private async waitForASigner(chainId: number): Promise<{ signer: Wallet; canMakeTxCount: number }> {
@@ -119,6 +135,77 @@ export class HandleLocalUserOperationService {
         }
 
         return { signer: targetSigner, canMakeTxCount: bundlerConfig.pendingTransactionSignerHandleLimit - targetSignerPendingTxCount };
+    }
+
+    private packUserOperationsForSigner(chainId: number, userOperations: UserOperationDocument[], canMakeTxCount: number) {
+        userOperations.sort((a, b) => {
+            const r1 = a.userOpSender.localeCompare(b.userOpSender);
+            if (r1 !== 0) {
+                return r1;
+            }
+
+            return BigInt(a.userOpNonce.toString()) > BigInt(b.userOpNonce.toString()) ? 1 : -1;
+        });
+
+        const bundlesMap = {};
+        for (let index = 0; index < userOperations.length; index++) {
+            const userOperation = userOperations[index];
+            if (!bundlesMap[userOperation.entryPoint]) {
+                bundlesMap[userOperation.entryPoint] = [];
+            }
+
+            bundlesMap[userOperation.entryPoint].push(userOperation);
+        }
+
+        // chunk user operations into bundles by calc it's gas limit
+        const bundles: { entryPoint: string; userOperations: UserOperationDocument[]; gasLimit: string }[] = [];
+        const userOperationsToDelete: UserOperationDocument[] = [];
+        for (const entryPoint in bundlesMap) {
+            const userOperationsToPack: UserOperationDocument[] = bundlesMap[entryPoint];
+
+            let bundle: UserOperationDocument[] = [];
+            let totalGasLimit = 0n;
+            for (let index = 0; index < userOperationsToPack.length; index++) {
+                const userOperation = userOperationsToPack[index];
+                const bundlerConfig = getBundlerChainConfig(chainId);
+
+                // if bundle is full, push it to bundles array
+                const calcedGasLimit = calcUserOpTotalGasLimit(userOperation.origin);
+                if (calcedGasLimit > bundlerConfig.maxBundleGas) {
+                    userOperationsToDelete.push(userOperation);
+                    console.log('delete userOperation', calcedGasLimit.toString(), userOperation.toJSON());
+                    continue;
+                }
+
+                const newTotalGasLimit = totalGasLimit + calcedGasLimit;
+                if (newTotalGasLimit > bundlerConfig.maxBundleGas || bundle.length >= bundlerConfig.maxUserOpPackCount) {
+                    bundles.push({ entryPoint, userOperations: bundle, gasLimit: toBeHex(totalGasLimit) });
+                    totalGasLimit = 0n;
+                    bundle = [];
+                }
+
+                totalGasLimit += calcedGasLimit;
+                bundle.push(userOperation);
+
+                if (index === userOperationsToPack.length - 1) {
+                    bundles.push({ entryPoint, userOperations: bundle, gasLimit: toBeHex(totalGasLimit) });
+                }
+            }
+        }
+
+        const unusedUserOperations = [];
+        const packedBundles = [];
+        for (const bundle of bundles) {
+            if (canMakeTxCount <= 0) {
+                unusedUserOperations.push(...bundle.userOperations);
+                continue;
+            }
+
+            canMakeTxCount--;
+            packedBundles.push(bundle);
+        }
+
+        return { packedBundles, unusedUserOperations, userOperationsToDelete };
     }
 
     private tryLockUserOperationsAndGetUnuseds(userOperations: UserOperationDocument[]): UserOperationDocument[] {

@@ -76,7 +76,7 @@ export async function simulateHandleOpAndGetGasCost(rpcService: RpcService, chai
     const provider = rpcService.getJsonRpcProvider(chainId);
     const contractEntryPoint = new Contract(entryPoint, EntryPointAbi, provider);
 
-    const signers = rpcService.aaService.getSigners(chainId);
+    const signers = rpcService.aaService.getChainSigners(chainId);
     let [errorResult, gasCostWholeTransaction] = await Promise.all([
         contractEntryPoint.simulateHandleOp.staticCall(userOp, ZeroAddress, '0x', { from: signers[0].address }).catch((e) => e),
         tryGetGasCostWholeTransaction(chainId, rpcService, contractEntryPoint, entryPoint, userOp),
@@ -134,7 +134,7 @@ export async function getL2ExtraFee(rpcService: RpcService, chainId: number, use
     const contractEntryPoint = new Contract(entryPoint, EntryPointAbi, provider);
     const l1GasPriceOracleContract = new Contract(L2_GAS_ORACLE[chainId], l1GasPriceOracleAbi, provider);
 
-    const fakeSigner = rpcService.aaService.getSigners(chainId)[0];
+    const fakeSigner = rpcService.aaService.getChainSigners(chainId)[0];
     const simulateTx = await contractEntryPoint.handleOps.populateTransaction([userOp], fakeSigner.address);
     simulateTx.from = fakeSigner.address;
 
@@ -187,7 +187,7 @@ function checkUserOpGasPriceIsSatisfied(chainId: number, userOp: any, gasCost: b
 async function checkUserOpCanExecutedSucceed(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string) {
     const provider = rpcService.getJsonRpcProvider(chainId);
     const contractEntryPoint = new Contract(entryPoint, EntryPointAbi, provider);
-    const signer = rpcService.aaService.getSigners(chainId)[0];
+    const signer = rpcService.aaService.getChainSigners(chainId)[0];
 
     const promises = [contractEntryPoint.handleOps.staticCall([userOp], signer.address, { from: signer.address })];
     const { nonceValue } = splitOriginNonce(userOp.nonce);
@@ -238,7 +238,7 @@ async function tryGetGasCostWholeTransaction(
 
     const simulateHandleOpTx = await contractEntryPoint.simulateHandleOp.populateTransaction(userOp, ZeroAddress, '0x');
     const multiCallContract = new Contract(MULTI_CALL_3_ADDRESS, MultiCall3Abi, provider);
-    const signer = rpcService.aaService.getSigners(chainId)[0];
+    const signer = rpcService.aaService.getChainSigners(chainId)[0];
     const toEstimatedTx = await multiCallContract.tryAggregate.populateTransaction(false, [
         {
             target: entryPoint,

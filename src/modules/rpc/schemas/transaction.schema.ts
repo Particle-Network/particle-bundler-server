@@ -5,23 +5,13 @@ import { PENDING_TRANSACTION_EXPIRED_TIME, PENDING_TRANSACTION_WAITING_TIME } fr
 export enum TRANSACTION_STATUS {
     LOCAL,
     PENDING,
-    SUCCESS,
-    FAILED,
     DONE,
-}
-
-export enum TRANSACTION_TYPE {
-    NORMAL,
-    REPLACED,
 }
 
 @NestSchema({ versionKey: false, collection: 'transactions', timestamps: true })
 export class Transaction {
     @Prop({ required: true, type: Schema.Types.Number })
     public chainId: number;
-
-    @Prop({ required: true, type: Schema.Types.Number })
-    public type: TRANSACTION_TYPE;
 
     @Prop({ required: true, type: Schema.Types.String })
     public from: string;
@@ -39,7 +29,7 @@ export class Transaction {
     public signedTxs: any; // save all signedTxs
 
     @Prop({ required: true, type: Schema.Types.Mixed })
-    public inner: any;
+    public inners: any;
 
     @Prop({ required: true, type: Schema.Types.Number })
     public status: number;
@@ -48,10 +38,13 @@ export class Transaction {
     public txHashes: string[]; // save all txHashes
 
     @Prop({ required: true, type: Schema.Types.Number })
-    public confirmations: number; 
+    public confirmations: number;
 
     @Prop({ required: false, type: Schema.Types.Mixed })
     public receipts: any;
+
+    @Prop({ required: false, type: Schema.Types.Mixed })
+    public userOperationHashMapTxHash: any;
 
     @Prop({ required: true, type: Schema.Types.Date })
     public latestSentAt: Date;
@@ -89,7 +82,7 @@ TransactionSchema.methods.isOld = function (): boolean {
 };
 
 TransactionSchema.methods.isDone = function (): boolean {
-    return [TRANSACTION_STATUS.FAILED, TRANSACTION_STATUS.SUCCESS].includes(this.status);
+    return [TRANSACTION_STATUS.DONE].includes(this.status);
 };
 
 TransactionSchema.methods.isPending = function (): boolean {
@@ -99,16 +92,6 @@ TransactionSchema.methods.isPending = function (): boolean {
 TransactionSchema.methods.isLocal = function (): boolean {
     return [TRANSACTION_STATUS.LOCAL].includes(this.status);
 };
-
-TransactionSchema.index(
-    {
-        chainId: 1,
-        txHash: 1,
-    },
-    {
-        unique: true,
-    },
-);
 
 TransactionSchema.index(
     {

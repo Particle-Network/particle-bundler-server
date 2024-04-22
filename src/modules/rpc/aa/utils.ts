@@ -10,7 +10,7 @@ import { EVM_CHAIN_ID, SUPPORT_EIP_1559 } from '../../../common/chains';
 // TODO need to test
 export function calcUserOpTotalGasLimit(userOp: any): bigint {
     const mul = 3n;
-    const g1 = (BigInt(userOp.callGasLimit) + BigInt(userOp.verificationGasLimit)) * mul + BigInt(userOp.preVerificationGas) + 5000n;
+    const g1 = BigInt(userOp.callGasLimit) + BigInt(userOp.verificationGasLimit) * mul + BigInt(userOp.preVerificationGas) + 5000n;
     const g2 = BigInt(userOp.callGasLimit) + BigInt(userOp.verificationGasLimit) + BigInt(userOp.preVerificationGas) + 1000000n;
 
     return g1 < g2 ? g1 : g2; // return min(g1, g2)

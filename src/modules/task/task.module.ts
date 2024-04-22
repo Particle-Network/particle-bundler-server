@@ -13,6 +13,9 @@ import { RpcService } from '../rpc/services/rpc.service';
 import { CommonModule } from '../common/common.module';
 import { HandleLocalUserOperationService } from './handle-local-user-operation.service';
 import { LarkService } from '../common/services/lark.service';
+import { HandlePendingUserOperationService } from './handle-pending-user-operation.service';
+import { HandleLocalTransactionService } from './handle-local-transaction.service';
+import { HandlePendingTransactionService } from './handle-pending-transaction.service';
 
 @Module({
     imports: [
@@ -27,6 +30,9 @@ import { LarkService } from '../common/services/lark.service';
     ],
     providers: [
         HandleLocalUserOperationService,
+        HandlePendingUserOperationService,
+        HandleLocalTransactionService,
+        HandlePendingTransactionService,
         // ListenerService,
         AAService,
         UserOperationService,

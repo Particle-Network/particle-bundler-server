@@ -9,7 +9,8 @@ export const PENDING_TRANSACTION_WAITING_TIME = 60;
 export const PENDING_TRANSACTION_EXPIRED_TIME = 600; // 10 mins
 export const PENDING_TRANSACTION_SIGNER_HANDLE_LIMIT = 10;
 export const CACHE_GAS_FEE_TIMEOUT = 5000; // 5s
-export const CACHE_TRANSACTION_COUINT_TIMEOUT = 60000; // 60s
+export const CACHE_TRANSACTION_COUNT_TIMEOUT = 600000; // 600s
+export const CACHE_TRANSACTION_RECEIPT_TIMEOUT = 10000; // 10s
 export const SERVER_NAME = 'particle-bundler-server';
 export const MULTI_CALL_3_ADDRESS = '0xcA11bde05977b3631167028862bE2a173976CA11';
 
@@ -64,11 +65,11 @@ export function keyCacheChainFeeData(chainId: number): string {
 }
 
 export function keyCacheChainSignerTransactionCount(chainId: number, address: string): string {
-    return `chain_signer_transaction_count:${chainId}:${address.toLocaleLowerCase()}`;
+    return `chain_signer_transaction_count:${chainId}:${address.toLowerCase()}`;
 }
 
-export function keyCacheChainReceipt(chainId: number, combinationHash: string): string {
-    return `chain_signer_transaction_count:${chainId}:${combinationHash}`;
+export function keyCacheChainReceipt(chainId: number, transactionId: string): string {
+    return `chain_receipt:${chainId}:${transactionId}`;
 }
 
 export function keyLockPendingTransaction(id: string) {
@@ -80,7 +81,7 @@ export function keyLockSendingTransaction(id: string) {
 }
 
 export function keyLockSigner(chainId: number, signer: string) {
-    return `bundler:lock:signer:${chainId}:${signer}`;
+    return `bundler:lock:signer:${chainId}:${signer.toLowerCase()}`;
 }
 
 // UserOperationEvent Topic

@@ -4,11 +4,10 @@ import { Connection } from 'mongoose';
 import { Contract, Wallet, keccak256 } from 'ethers';
 import { UserOperationDocument } from '../rpc/schemas/user-operation.schema';
 import { RpcService } from '../rpc/services/rpc.service';
-import { AppException } from '../../common/app-exception';
 import { LarkService } from '../common/services/lark.service';
 import { Helper } from '../../common/helper';
 import { IS_DEVELOPMENT, IS_PRODUCTION } from '../../common/common-types';
-import { EVM_CHAIN_ID, SUPPORT_EIP_1559 } from '../../common/chains';
+import { EVM_CHAIN_ID } from '../../common/chains';
 import entryPointAbi from '../rpc/aa/abis/entry-point-abi';
 import { TRANSACTION_STATUS, TransactionDocument } from '../rpc/schemas/transaction.schema';
 import { TransactionService } from '../rpc/services/transaction.service';
@@ -95,6 +94,8 @@ export class HandleLocalTransactionService {
             const entryPointContract = new Contract(entryPoint, entryPointAbi, provider);
             const userOps = userOperationDocuments.map((userOperationDocument) => userOperationDocument.origin);
             let gasLimit = (BigInt(bundleGasLimit) * 15n) / 10n;
+
+            // TODO can we remove this?
             if ([EVM_CHAIN_ID.MANTLE_MAINNET, EVM_CHAIN_ID.MANTLE_SEPOLIA_TESTNET].includes(chainId)) {
                 gasLimit *= 4n;
             }
@@ -112,7 +113,7 @@ export class HandleLocalTransactionService {
             await Helper.startMongoTransaction(this.connection, async (session: any) => {
                 const userOpHashes = userOperationDocuments.map((userOperationDocument) => userOperationDocument.userOpHash);
                 localTransaction = await this.transactionService.createTransaction(chainId, signedTx, userOpHashes, session);
-                const updateInfo = await this.userOperationService.setSpecialLocalUserOperationsAsPending(
+                const updateInfo = await this.userOperationService.setLocalUserOperationsAsPending(
                     userOperationDocuments,
                     localTransaction,
                     session,
@@ -130,16 +131,11 @@ export class HandleLocalTransactionService {
             // no need to await
             this.handlePendingTransactionService.trySendAndUpdateTransactionStatus(localTransaction, localTransaction.txHashes[0]);
         } catch (error) {
-            if (error instanceof AppException) {
-                throw error;
-            }
-
             if (!IS_PRODUCTION) {
                 console.error('Failed to create bundle transaction', error);
             }
 
             this.larkService.sendMessage(`Failed to create bundle transaction: ${Helper.converErrorToString(error)}`);
-            throw error;
         }
     }
 

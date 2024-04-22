@@ -64,6 +64,14 @@ export class UserOperationService {
         return false;
     }
 
+    public async deleteUserOperationsByIds(ids: string[]) {
+        if (ids.length === 0) {
+            return;
+        }
+
+        return await this.userOperationModel.deleteMany({ _id: { $in: ids } });
+    }
+
     public async deleteAllLocalUserOperations(chainId: number) {
         await this.userOperationModel.deleteMany({
             chainId,
@@ -110,8 +118,8 @@ export class UserOperationService {
         return userOpDoc.userOpNonce.toString();
     }
 
-    public async getUserOperationByHash(chainId: number, userOpHash: string): Promise<UserOperationDocument> {
-        return await this.userOperationModel.findOne({ chainId, userOpHash });
+    public async getUserOperationByHash(userOpHash: string): Promise<UserOperationDocument> {
+        return await this.userOperationModel.findOne({ userOpHash });
     }
 
     public async getUserOperationByHashes(chainId: number, userOpHashes: string[]): Promise<UserOperationDocument[]> {
@@ -142,7 +150,7 @@ export class UserOperationService {
             .limit(limit);
     }
 
-    public async setSpecialLocalUserOperationsAsPending(
+    public async setLocalUserOperationsAsPending(
         userOperationDocument: UserOperationDocument[],
         transaction: TransactionDocument,
         session: any,
@@ -156,7 +164,7 @@ export class UserOperationService {
         );
     }
 
-    public async setPendingUserOperationsToLocalByCombinationHash(transactionId: string, session: any) {
+    public async setPendingUserOperationsToLocal(transactionId: string, session: any) {
         return await this.userOperationModel.updateMany(
             { transactionId, status: USER_OPERATION_STATUS.PENDING },
             { $set: { status: USER_OPERATION_STATUS.LOCAL, transactionId: null } },
@@ -171,8 +179,8 @@ export class UserOperationService {
         );
     }
 
-    public async getUserOperationEvent(chainId: number, userOperationHash: string): Promise<UserOperationEventDocument> {
-        return await this.userOperationEventModel.findOne({ chainId, userOperationHash });
+    public async getUserOperationEvent(userOperationHash: string): Promise<UserOperationEventDocument> {
+        return await this.userOperationEventModel.findOne({ userOperationHash });
     }
 
     public async createOrGetUserOperationEvent(
@@ -185,7 +193,7 @@ export class UserOperationService {
         topic: string,
         args: any,
     ): Promise<UserOperationEventDocument> {
-        const event = await this.getUserOperationEvent(chainId, userOperationHash);
+        const event = await this.getUserOperationEvent(userOperationHash);
         if (event) {
             return event;
         }
