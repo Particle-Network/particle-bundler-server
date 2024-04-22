@@ -10,7 +10,6 @@ import { Helper } from '../../common/helper';
 import { IS_PRODUCTION } from '../../common/common-types';
 import { getBundlerChainConfig } from '../../configs/bundler-common';
 import { calcUserOpTotalGasLimit, waitSeconds } from '../rpc/aa/utils';
-import { EVM_CHAIN_ID } from '../../common/chains';
 import { AAService } from '../rpc/services/aa.service';
 
 @Injectable()
@@ -22,11 +21,11 @@ export class HandlePendingUserOperationService {
         private readonly aaService: AAService,
     ) {}
 
-    public async handleLocalUserOperations(chainId: number, signer: Wallet, userOperations: UserOperationDocument[]) {
+    public async handleLocalUserOperations(chainId: number, signer: Wallet, userOperations: UserOperationDocument[], canMakeTxCount: number) {
         try {
             console.log(`Start Handling ${userOperations.length} user operations on chain ${chainId}`);
 
-            await this.sealLocalUserOps(chainId, signer, userOperations);
+            await this.sealLocalUserOps(chainId, signer, userOperations, canMakeTxCount);
         } catch (error) {
             if (!(error instanceof AppException)) {
                 if (!IS_PRODUCTION) {
@@ -40,8 +39,8 @@ export class HandlePendingUserOperationService {
         console.log(`handleLocalUserOperations Finish release on chain ${chainId} with ${signer.address}`);
     }
 
-    private async sealLocalUserOps(chainId: number, signer: Wallet, userOperations: UserOperationDocument[]) {
-        if (userOperations.length === 0) {
+    private async sealLocalUserOps(chainId: number, signer: Wallet, userOperations: UserOperationDocument[], canMakeTxCount: number) {
+        if (userOperations.length === 0 || canMakeTxCount <= 0) {
             return;
         }
 
@@ -84,7 +83,7 @@ export class HandlePendingUserOperationService {
                 const calcedGasLimit = calcUserOpTotalGasLimit(userOperation.origin);
                 if (calcedGasLimit > bundlerConfig.maxBundleGas) {
                     userOperationsToDelete.push(userOperation);
-                    console.log('delete userOperation', userOperation.chainId, userOperation.userOpHash, calcedGasLimit.toString());
+                    console.log('delete userOperation', calcedGasLimit.toString(), userOperation.toJSON());
                     continue;
                 }
 
@@ -134,22 +133,22 @@ export class HandlePendingUserOperationService {
         let finalizedNonce = localLatestNonce > latestNonce ? localLatestNonce : latestNonce;
 
         const newFeeData: any = feeData;
-        for (const bundle of bundles) {
-            await createBundleTransaction(
-                chainId,
-                bundle.userOperations[0].entryPoint,
-                mongodbConnection,
-                provider,
-                rpcService,
-                listenerService,
-                bundle.userOperations,
-                bundle.gasLimit,
-                signer,
-                finalizedNonce,
-                newFeeData,
-            );
+        // for (const bundle of bundles) {
+        //     await createBundleTransaction(
+        //         chainId,
+        //         bundle.userOperations[0].entryPoint,
+        //         mongodbConnection,
+        //         provider,
+        //         rpcService,
+        //         listenerService,
+        //         bundle.userOperations,
+        //         bundle.gasLimit,
+        //         signer,
+        //         finalizedNonce,
+        //         newFeeData,
+        //     );
 
-            finalizedNonce++;
-        }
+        //     finalizedNonce++;
+        // }
     }
 }

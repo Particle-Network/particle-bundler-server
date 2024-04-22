@@ -3,7 +3,6 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { USER_OPERATION_STATUS, UserOperation, UserOperationDocument } from '../schemas/user-operation.schema';
 import { UserOperationEvent, UserOperationEventDocument } from '../schemas/user-operation-event.schema';
-import { getAddress } from 'ethers';
 import { Transaction, TransactionDocument } from '../schemas/transaction.schema';
 import { Helper } from '../../../common/helper';
 import { splitOriginNonce } from '../aa/utils';
@@ -21,15 +20,12 @@ export class UserOperationService {
         userOp: any,
         userOpHash: string,
         entryPoint: string,
-        userOpDoc?: UserOperationDocument,
+        userOpDoc: UserOperationDocument,
     ): Promise<UserOperationDocument> {
-        const userOpSender = getAddress(userOp.sender);
         const { nonceKey, nonceValue } = splitOriginNonce(userOp.nonce);
 
         const nonceValueString = BigInt(nonceValue).toString();
         Helper.assertTrue(nonceValueString.length <= 30, -32608); // ensure nonce is less than Decimals(128)
-
-        userOpDoc = userOpDoc ?? (await this.getUserOperationByAddressNonce(chainId, userOpSender, nonceKey, nonceValueString));
 
         if (userOpDoc) {
             Helper.assertTrue(this.checkCanBeReplaced(userOpDoc), -32607);

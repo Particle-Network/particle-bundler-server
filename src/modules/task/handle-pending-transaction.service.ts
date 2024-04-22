@@ -21,14 +21,13 @@ import { getBundlerChainConfig } from '../../configs/bundler-common';
 import P2PCache from '../../common/p2p-cache';
 import { Contract, toBeHex } from 'ethers';
 import entryPointAbi from '../rpc/aa/abis/entry-point-abi';
-import { createTxGasData, deepHexlify, getFeeDataFromParticle, tryParseSignedTx } from '../rpc/aa/utils';
+import { createTxGasData, deepHexlify, tryParseSignedTx } from '../rpc/aa/utils';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { FeeMarketEIP1559Transaction, LegacyTransaction } from '@ethereumjs/tx';
 
 @Injectable()
 export class HandlePendingTransactionService {
-    // should be timestamp not boolean, can set a timeout
     private readonly lockSendingTransactions: Set<string> = new Set();
     private readonly lockPendingTransactions: Set<string> = new Set();
     private readonly signerDoneTransactionMaxNonce: Map<string, number> = new Map();
@@ -487,7 +486,6 @@ export class HandlePendingTransactionService {
             if (!IS_PRODUCTION) {
                 console.error(`Replace Transaction ${transaction.id} error on chain ${transaction.chainId}`, error, transaction);
             }
-
 
             this.larkService.sendMessage(
                 `ReplaceTransaction Error On Chain ${transaction.chainId} For ${transaction.from}: ${Helper.converErrorToString(error)}`,

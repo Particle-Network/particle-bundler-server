@@ -112,16 +112,6 @@ async function createSimpleAccount(chainId: number): Promise<IContractAccount> {
     return new SimpleSmartAccount(owner);
 }
 
-// async function createBiconomySmartAccount(chainId: number): Promise<IContractAccount> {
-//     const rpcUrl = RPC_CONFIG[Number(chainId)].rpcUrl;
-//     const provider = new JsonRpcProvider(rpcUrl, null, { batchMaxCount: 1 });
-
-//     const owner: Wallet = new Wallet(Wallet.createRandom().privateKey, provider);
-//     const smartAccountFactoryAddress = '0x000000F9eE1842Bb72F6BBDD75E6D3d4e3e9594C';
-
-//     return new BiconomySmartAccount(owner, smartAccountFactoryAddress, ENTRY_POINT);
-// }
-
 async function createFakeUserOp(chainId: number, simpleAccount: IContractAccount) {
     const unsignedUserOp = await simpleAccount.createUnsignedUserOp([
         {

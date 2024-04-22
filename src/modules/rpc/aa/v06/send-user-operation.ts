@@ -13,7 +13,6 @@ import { cloneDeep } from 'lodash';
 import MultiCall3Abi from '../abis/multi-call-3-abi';
 import { EVM_CHAIN_ID, L2_GAS_ORACLE, SUPPORT_EIP_1559, USE_PROXY_CONTRACT_TO_ESTIMATE_GAS } from '../../../../common/chains';
 import { ProcessEventEmitter } from '../../../../common/process-event-emitter';
-import { UserOperationDocument } from '../../schemas/user-operation.schema';
 
 export async function sendUserOperation(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
     Helper.assertTrue(typeof body.params[0] === 'object', -32602, 'Invalid params: userop must be an object');
@@ -212,7 +211,6 @@ async function checkUserOpCanExecutedSucceed(rpcService: RpcService, chainId: nu
             console.error(error);
         }
 
-        // TODO: refactor
         throw new AppException(
             -32606,
             `Simulate user operation failed: ${
