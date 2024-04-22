@@ -7,6 +7,7 @@ export enum TRANSACTION_STATUS {
     PENDING,
     SUCCESS,
     FAILED,
+    DONE,
 }
 
 export enum TRANSACTION_TYPE {
@@ -23,9 +24,6 @@ export class Transaction {
     public type: TRANSACTION_TYPE;
 
     @Prop({ required: true, type: Schema.Types.String })
-    public combinationHash: string;
-
-    @Prop({ required: true, type: Schema.Types.String })
     public from: string;
 
     @Prop({ required: true, type: Schema.Types.String })
@@ -34,8 +32,11 @@ export class Transaction {
     @Prop({ required: true, type: Schema.Types.Number })
     public nonce: number;
 
-    @Prop({ required: true, type: Schema.Types.String })
-    public signedTx: string;
+    @Prop({ required: true, type: Schema.Types.Array })
+    public userOperationHashes: string[];
+
+    @Prop({ required: true, type: Schema.Types.Mixed })
+    public signedTxs: any; // save all signedTxs
 
     @Prop({ required: true, type: Schema.Types.Mixed })
     public inner: any;
@@ -43,20 +44,14 @@ export class Transaction {
     @Prop({ required: true, type: Schema.Types.Number })
     public status: number;
 
-    @Prop({ required: true, type: Schema.Types.String })
-    public txHash: string;
+    @Prop({ required: true, type: Schema.Types.Array })
+    public txHashes: string[]; // save all txHashes
 
     @Prop({ required: true, type: Schema.Types.Number })
     public confirmations: number; 
 
-    @Prop({ required: false, type: Schema.Types.String })
-    public blockHash: string;
-
-    @Prop({ required: false, type: Schema.Types.Number })
-    public blockNumber: number;
-
     @Prop({ required: false, type: Schema.Types.Mixed })
-    public receipt: any;
+    public receipts: any;
 
     @Prop({ required: true, type: Schema.Types.Date })
     public latestSentAt: Date;

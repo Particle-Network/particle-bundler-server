@@ -56,7 +56,11 @@ export class UserOperationService {
             return true;
         }
 
-        const transaction = await this.transactionModel.findOne({ chainId: userOpDoc.chainId, combinationHash: userOpDoc.combinationHash });
+        if (!userOpDoc.transactionId) {
+            return true;
+        }
+
+        const transaction = await this.transactionModel.findById(userOpDoc.transactionId);
         if (!transaction) {
             return true;
         }
@@ -142,40 +146,32 @@ export class UserOperationService {
             .limit(limit);
     }
 
-    public async transactionSetSpecialLocalUserOperationsAsPending(
+    public async setSpecialLocalUserOperationsAsPending(
         userOperationDocument: UserOperationDocument[],
-        combinationHash: string,
+        transaction: TransactionDocument,
         session: any,
     ) {
         const ids = userOperationDocument.map((u) => u._id);
 
         return await this.userOperationModel.updateMany(
             { _id: { $in: ids }, status: USER_OPERATION_STATUS.LOCAL },
-            { $set: { status: USER_OPERATION_STATUS.PENDING, combinationHash } },
+            { $set: { status: USER_OPERATION_STATUS.PENDING, transactionId: transaction.id } },
             { session },
         );
     }
 
-    public async setPendingUserOperationsToLocalByCombinationHash(combinationHash: string, session: any) {
+    public async setPendingUserOperationsToLocalByCombinationHash(transactionId: string, session: any) {
         return await this.userOperationModel.updateMany(
-            { combinationHash, status: USER_OPERATION_STATUS.PENDING },
-            { $set: { status: USER_OPERATION_STATUS.LOCAL, combinationHash: null } },
+            { transactionId, status: USER_OPERATION_STATUS.PENDING },
+            { $set: { status: USER_OPERATION_STATUS.LOCAL, transactionId: null } },
             { session },
         );
     }
 
-    public async transactionSetUserOperationsAsDone(
-        chainId: number,
-        userOpHashes: string[],
-        txHash: string,
-        blockNumber: number,
-        blockHash: string,
-        session: any = null,
-    ) {
+    public async setUserOperationsAsDone(userOpHashes: string[], txHash: string, blockNumber: number, blockHash: string) {
         return await this.userOperationModel.updateMany(
-            { chainId, userOpHash: { $in: userOpHashes }, status: USER_OPERATION_STATUS.PENDING },
+            { userOpHash: { $in: userOpHashes }, status: USER_OPERATION_STATUS.PENDING },
             { $set: { status: USER_OPERATION_STATUS.DONE, txHash, blockNumber, blockHash } },
-            { session },
         );
     }
 
@@ -185,6 +181,8 @@ export class UserOperationService {
 
     public async createOrGetUserOperationEvent(
         chainId: number,
+        blockHash: string,
+        blockNumber: number,
         userOperationHash: string,
         txHash: string,
         contractAddress: string,
@@ -198,6 +196,8 @@ export class UserOperationService {
 
         const userOperation = new this.userOperationEventModel({
             chainId,
+            blockHash,
+            blockNumber,
             txHash,
             contractAddress,
             userOperationHash,
@@ -214,7 +214,7 @@ export class UserOperationService {
         userOperationDocument.origin = userOp;
         userOperationDocument.status = USER_OPERATION_STATUS.LOCAL;
         userOperationDocument.createdAt = new Date();
-        userOperationDocument.combinationHash = null;
+        userOperationDocument.transactionId = null;
         return await userOperationDocument.save();
     }
 }

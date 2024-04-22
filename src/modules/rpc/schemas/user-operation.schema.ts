@@ -35,7 +35,7 @@ export class UserOperation {
     public status: any;
 
     @Prop({ required: false, type: Schema.Types.String })
-    public combinationHash: string; // multi userOp hash // uniq on all chains
+    public transactionId: string;
 
     @Prop({ required: false, type: Schema.Types.String })
     public txHash: string; // final confirm tx

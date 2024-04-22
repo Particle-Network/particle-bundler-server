@@ -21,16 +21,16 @@ export class TransactionService {
         return await this.transactionModel.find({ status }).sort({ _id: 1 }).limit(limit);
     }
 
-    public async getMerlinTransactionsByStatus(status: TRANSACTION_STATUS, limit: number): Promise<TransactionDocument[]> {
-        return await this.transactionModel.find({ status, chainId: EVM_CHAIN_ID.MERLIN_CHAIN_MAINNET }).sort({ from: 1, nonce: 1 }).limit(limit);
+    public async getTransactionsByStatusSortConfirmations(status: TRANSACTION_STATUS, limit: number): Promise<TransactionDocument[]> {
+        return await this.transactionModel.find({ status }).sort({ confirmations: 1 }).limit(limit);
     }
 
-    public async getLatestTransaction(chainId: number, sender: string, statuses?: TRANSACTION_STATUS[]): Promise<TransactionDocument> {
-        if (statuses) {
-            return await this.transactionModel.findOne({ chainId, from: sender, status: { $in: statuses } }).sort({ nonce: -1 });
-        }
-
+    public async getLatestTransaction(chainId: number, sender: string): Promise<TransactionDocument> {
         return await this.transactionModel.findOne({ chainId, from: sender }).sort({ nonce: -1 });
+    }
+
+    public async getLatestTransactionByStatus(chainId: number, sender: string, status?: TRANSACTION_STATUS): Promise<TransactionDocument> {
+        return await this.transactionModel.findOne({ chainId, from: sender, status: status }).sort({ nonce: -1 });
     }
 
     public async getTransactionById(id: string): Promise<TransactionDocument> {
@@ -53,21 +53,21 @@ export class TransactionService {
         });
     }
 
-    public async createTransaction(chainId: number, signedTx: any, combinationHash: string, session: any): Promise<TransactionDocument> {
+    public async createTransaction(chainId: number, signedTx: any, userOperationHashes: string[], session: any): Promise<TransactionDocument> {
         const tx: TypedTransaction = tryParseSignedTx(signedTx);
         const txHash = `0x${Buffer.from(tx.hash()).toString('hex')}`;
 
         const transaction = new this.transactionModel({
             chainId,
             type: TRANSACTION_TYPE.NORMAL,
-            combinationHash,
+            userOperationHashes,
             from: getAddress(tx.getSenderAddress().toString()),
             to: getAddress(tx.to.toString()),
             nonce: Number(tx.nonce),
             inner: tx.toJSON(),
-            signedTx: signedTx,
+            signedTxs: { [txHash]: signedTx },
             status: TRANSACTION_STATUS.LOCAL,
-            txHash, // calculate tx hash in advance
+            txHashes: [txHash],
             confirmations: 0,
             latestSentAt: new Date(),
         });

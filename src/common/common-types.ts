@@ -23,6 +23,8 @@ export interface IBundlerChainConfig {
     minSignerBalance?: number;
     pendingTransactionSignerHandleLimit?: number;
     maxUserOpPackCount?: number;
+    mevCheck?: boolean;
+    canIncrGasPriceRetry?: boolean;
     minGasFee?: {
         gasPrice?: string;
         maxFeePerGas?: string;
@@ -65,12 +67,16 @@ export function keyCacheChainSignerTransactionCount(chainId: number, address: st
     return `chain_signer_transaction_count:${chainId}:${address.toLocaleLowerCase()}`;
 }
 
+export function keyCacheChainReceipt(chainId: number, combinationHash: string): string {
+    return `chain_signer_transaction_count:${chainId}:${combinationHash}`;
+}
+
 export function keyLockPendingTransaction(id: string) {
     return `bundler:lock:pending_transaction:${id}`;
 }
 
-export function keyLockSendingTransaction(chainId: number, txHash: string) {
-    return `bundler:lock:sending_transaction:${chainId}:${txHash}`;
+export function keyLockSendingTransaction(id: string) {
+    return `bundler:lock:sending_transaction:${id}`;
 }
 
 export function keyLockSigner(chainId: number, signer: string) {

@@ -21,6 +21,8 @@ import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class HandleLocalTransactionService {
+    private readonly lockedLocalTransactions: Set<string> = new Set();
+
     public constructor(
         @InjectConnection() private readonly connection: Connection,
         private readonly rpcService: RpcService,
@@ -40,19 +42,43 @@ export class HandleLocalTransactionService {
         try {
             const localTransactions = await this.transactionService.getTransactionsByStatus(TRANSACTION_STATUS.LOCAL, 500);
 
-            const promises = [];
             for (const localTransaction of localTransactions) {
-                const provider = this.rpcService.getJsonRpcProvider(localTransaction.chainId);
-                promises.push(handleLocalTransaction(this.connection, localTransaction, provider, this.rpcService, this.aaService));
+                this.handleLocalTransaction(localTransaction);
+            }
+        } catch (error) {
+            if (!IS_PRODUCTION) {
+                console.error(error);
             }
 
-            await Promise.all(promises);
-        } catch (error) {
-            Logger.error(error);
-            Alert.sendMessage(`Handle Local Transactions Error: ${Helper.converErrorToString(error)}`);
+            this.larkService.sendMessage(`Handle Local Transactions Error: ${Helper.converErrorToString(error)}`);
+        }
+    }
+
+    private async handleLocalTransaction(localTransaction: TransactionDocument) {
+        if (this.lockedLocalTransactions.has(localTransaction.id)) {
+            return;
         }
 
-        LockDe.release(keyLock);
+        this.lockedLocalTransactions.add(localTransaction.id);
+
+        try {
+            const provider = this.rpcService.getJsonRpcProvider(localTransaction.chainId);
+            // local transaction should have only one txHash
+            const receipt = await this.rpcService.getTransactionReceipt(provider, localTransaction.txHashes[0]); 
+            if (!!receipt) {
+                await this.handlePendingTransactionService.handlePendingTransaction(localTransaction, receipt);
+            } else {
+                await this.handlePendingTransactionService.trySendAndUpdateTransactionStatus(localTransaction, localTransaction.txHashes[0]);
+            }
+        } catch (error) {
+            if (!IS_PRODUCTION) {
+                console.error(error);
+            }
+
+            this.larkService.sendMessage(`Failed to handle local transaction: ${Helper.converErrorToString(error)}`);            
+        }
+
+        this.lockedLocalTransactions.delete(localTransaction.id);
     }
 
     public async createBundleTransaction(
@@ -86,12 +112,10 @@ export class HandleLocalTransactionService {
             let localTransaction: TransactionDocument;
             await Helper.startMongoTransaction(this.connection, async (session: any) => {
                 const userOpHashes = userOperationDocuments.map((userOperationDocument) => userOperationDocument.userOpHash);
-                const combinationHash = keccak256(hexConcat(userOpHashes));
-
-                localTransaction = await this.transactionService.createTransaction(chainId, signedTx, combinationHash, session);
-                const updateInfo = await this.userOperationService.transactionSetSpecialLocalUserOperationsAsPending(
+                localTransaction = await this.transactionService.createTransaction(chainId, signedTx, userOpHashes, session);
+                const updateInfo = await this.userOperationService.setSpecialLocalUserOperationsAsPending(
                     userOperationDocuments,
-                    combinationHash,
+                    localTransaction,
                     session,
                 );
 
@@ -105,7 +129,7 @@ export class HandleLocalTransactionService {
             // listenerService.appendUserOpHashPendingTransactionMap(localTransaction);
 
             // no need to await
-            this.handlePendingTransactionService.trySendAndUpdateTransactionStatus(localTransaction);
+            this.handlePendingTransactionService.trySendAndUpdateTransactionStatus(localTransaction, localTransaction.txHashes[0]);
         } catch (error) {
             if (error instanceof AppException) {
                 throw error;
