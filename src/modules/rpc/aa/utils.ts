@@ -6,16 +6,20 @@ import { EVM_CHAIN_ID, MINIMUM_GAS_FEE, PARTICLE_PUBLIC_RPC_URL } from '../../..
 
 export function calcUserOpTotalGasLimit(userOp: any): BigNumber {
     const mul = 3;
+    let magicExtraGas = 1000000;
+    // HACK
+    if (userOp.chainId === EVM_CHAIN_ID.MERLIN_CHAIN_MAINNET || userOp.chainId === EVM_CHAIN_ID.MERLIN_CHAIN_TESTNET) {
+        magicExtraGas = 200000;
+    }
     const g1 = BigNumber.from(userOp.callGasLimit)
-        .add(BigNumber.from(userOp.verificationGasLimit))
-        .mul(mul) // (callGasLimit + verificationGasLimit) * mul
+        .add(BigNumber.from(userOp.verificationGasLimit).mul(mul))
         .add(BigNumber.from(userOp.preVerificationGas))
         .add(BigNumber.from(5000));
 
     const g2 = BigNumber.from(userOp.callGasLimit)
         .add(BigNumber.from(userOp.verificationGasLimit))
         .add(BigNumber.from(userOp.preVerificationGas))
-        .add(BigNumber.from(1000000));
+        .add(BigNumber.from(magicExtraGas));
 
     return BigNumber.from(g1.lt(g2) ? g1 : g2); // return min(g1, g2)
 }
