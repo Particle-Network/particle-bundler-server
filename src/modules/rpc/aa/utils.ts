@@ -4,11 +4,11 @@ import { AbiCoder, BytesLike, JsonRpcProvider, Network, hexlify, keccak256 } fro
 import { GAS_FEE_LEVEL } from '../../../common/common-types';
 import { EVM_CHAIN_ID, MINIMUM_GAS_FEE, PARTICLE_PUBLIC_RPC_URL } from '../../../configs/bundler-common';
 
-export function calcUserOpTotalGasLimit(userOp: any): BigNumber {
+export function calcUserOpTotalGasLimit(userOp: any, chainId: number): BigNumber {
     const mul = 3;
     let magicExtraGas = 1000000;
     // HACK
-    if (userOp.chainId === EVM_CHAIN_ID.MERLIN_CHAIN_MAINNET || userOp.chainId === EVM_CHAIN_ID.MERLIN_CHAIN_TESTNET) {
+    if (chainId === EVM_CHAIN_ID.MERLIN_CHAIN_MAINNET || chainId === EVM_CHAIN_ID.MERLIN_CHAIN_TESTNET) {
         magicExtraGas = 200000;
     }
     const g1 = BigNumber.from(userOp.callGasLimit)
