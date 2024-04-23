@@ -8,10 +8,16 @@ import { AppException } from '../../../common/app-exception';
 import { EVM_CHAIN_ID, SUPPORT_EIP_1559 } from '../../../common/chains';
 
 // TODO need to test
-export function calcUserOpTotalGasLimit(userOp: any): bigint {
+export function calcUserOpTotalGasLimit(userOp: any, chainId: number): bigint {
     const mul = 3n;
     const g1 = BigInt(userOp.callGasLimit) + BigInt(userOp.verificationGasLimit) * mul + BigInt(userOp.preVerificationGas) + 5000n;
-    const g2 = BigInt(userOp.callGasLimit) + BigInt(userOp.verificationGasLimit) + BigInt(userOp.preVerificationGas) + 1000000n;
+
+    let magicExtraGas = 1000000n;
+    // HACK
+    if (chainId === EVM_CHAIN_ID.MERLIN_CHAIN_MAINNET || chainId === EVM_CHAIN_ID.MERLIN_CHAIN_TESTNET) {
+        magicExtraGas = 200000n;
+    }
+    const g2 = BigInt(userOp.callGasLimit) + BigInt(userOp.verificationGasLimit) + BigInt(userOp.preVerificationGas) + magicExtraGas;
 
     return g1 < g2 ? g1 : g2; // return min(g1, g2)
 }

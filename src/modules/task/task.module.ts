@@ -9,13 +9,14 @@ import { UserOperationEvent, UserOperationEventSchema } from '../rpc/schemas/use
 import { Transaction, TransactionSchema } from '../rpc/schemas/transaction.schema';
 import { TransactionService } from '../rpc/services/transaction.service';
 import { RpcService } from '../rpc/services/rpc.service';
-// import { ListenerService } from './listener.service';
+import { ListenerService } from './listener.service';
 import { CommonModule } from '../common/common.module';
 import { HandleLocalUserOperationService } from './handle-local-user-operation.service';
 import { LarkService } from '../common/services/lark.service';
 import { HandlePendingUserOperationService } from './handle-pending-user-operation.service';
 import { HandleLocalTransactionService } from './handle-local-transaction.service';
 import { HandlePendingTransactionService } from './handle-pending-transaction.service';
+import { FillSignerBalanceService } from './fill-signer-balance.service';
 
 @Module({
     imports: [
@@ -33,7 +34,8 @@ import { HandlePendingTransactionService } from './handle-pending-transaction.se
         HandlePendingUserOperationService,
         HandleLocalTransactionService,
         HandlePendingTransactionService,
-        // ListenerService,
+        ListenerService,
+        FillSignerBalanceService,
         AAService,
         UserOperationService,
         TransactionService,

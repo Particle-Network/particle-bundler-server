@@ -51,8 +51,6 @@ export class TransactionService {
         const tx: TypedTransaction = tryParseSignedTx(signedTx);
         const txHash = `0x${Buffer.from(tx.hash()).toString('hex')}`;
 
-        console.trace('createTransaction', chainId, txHash);
-
         const transaction = new this.transactionModel({
             chainId,
             userOperationHashes,

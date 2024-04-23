@@ -144,7 +144,7 @@ export class HandlePendingTransactionService {
 
     // There is a concurrency conflict and locks need to be added
     public async handlePendingTransaction(transaction: TransactionDocument, receipt: any) {
-        P2PCache.set(keyCacheChainReceipt(transaction.chainId, transaction.id), receipt, CACHE_TRANSACTION_RECEIPT_TIMEOUT);
+        P2PCache.set(keyCacheChainReceipt(transaction.id), receipt, CACHE_TRANSACTION_RECEIPT_TIMEOUT);
         const keyLock = keyLockPendingTransaction(transaction.id);
         if (this.lockPendingTransactions.has(keyLock)) {
             console.log('handlePendingTransaction already acquired', transaction.id);

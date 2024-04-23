@@ -6,7 +6,13 @@ import { UserOperationDocument } from '../rpc/schemas/user-operation.schema';
 import { RpcService } from '../rpc/services/rpc.service';
 import { LarkService } from '../common/services/lark.service';
 import { Helper } from '../../common/helper';
-import { IS_DEVELOPMENT, IS_PRODUCTION } from '../../common/common-types';
+import {
+    CACHE_TRANSACTION_RECEIPT_TIMEOUT,
+    IS_DEVELOPMENT,
+    IS_PRODUCTION,
+    keyCacheChainReceipt,
+    keyCacheChainUserOpHashReceipt,
+} from '../../common/common-types';
 import { EVM_CHAIN_ID } from '../../common/chains';
 import entryPointAbi from '../rpc/aa/abis/entry-point-abi';
 import { TRANSACTION_STATUS, TransactionDocument } from '../rpc/schemas/transaction.schema';
@@ -16,6 +22,8 @@ import { HandlePendingTransactionService } from './handle-pending-transaction.se
 import { Cron } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { createTxGasData } from '../rpc/aa/utils';
+import { ListenerService } from './listener.service';
+import P2PCache from '../../common/p2p-cache';
 
 @Injectable()
 export class HandleLocalTransactionService {
@@ -28,8 +36,13 @@ export class HandleLocalTransactionService {
         private readonly larkService: LarkService,
         private readonly transactionService: TransactionService,
         private readonly userOperationService: UserOperationService,
+        private readonly listenerService: ListenerService,
         private readonly handlePendingTransactionService: HandlePendingTransactionService,
-    ) {}
+    ) {
+        if (this.canRunCron()) {
+            this.listenerService.initialize(this.handlePendingTransactionByEvent.bind(this));
+        }
+    }
 
     @Cron('* * * * * *')
     public async handleLocalTransactions() {
@@ -126,7 +139,7 @@ export class HandleLocalTransactionService {
                 );
             });
 
-            // listenerService.appendUserOpHashPendingTransactionMap(localTransaction);
+            this.listenerService.appendUserOpHashPendingTransactionMap(localTransaction);
 
             // no need to await
             this.handlePendingTransactionService.trySendAndUpdateTransactionStatus(localTransaction, localTransaction.txHashes[0]);
@@ -137,6 +150,21 @@ export class HandleLocalTransactionService {
 
             this.larkService.sendMessage(`Failed to create bundle transaction: ${Helper.converErrorToString(error)}`);
         }
+    }
+
+    public handlePendingTransactionByEvent(event: any) {
+        const userOpHash = event[6];
+        const userOpEvent = event[7];
+        const receipt = {
+            transactionHash: userOpEvent.log.transactionHash,
+            blockHash: userOpEvent.log.blockHash,
+            blockNumber: userOpEvent.log.blockNumber,
+            status: '0x01',
+            logs: [userOpEvent.log],
+            isEvent: true,
+        };
+
+        P2PCache.set(keyCacheChainUserOpHashReceipt(userOpHash), receipt, CACHE_TRANSACTION_RECEIPT_TIMEOUT);
     }
 
     private canRunCron() {

@@ -7,7 +7,7 @@ import entryPointAbi from './abis/entry-point-abi';
 import { TRANSACTION_STATUS } from '../schemas/transaction.schema';
 import { deepHexlify } from './utils';
 import P2PCache from '../../../common/p2p-cache';
-import { IS_PRODUCTION, keyCacheChainReceipt } from '../../../common/common-types';
+import { IS_PRODUCTION, keyCacheChainReceipt, keyCacheChainUserOpHashReceipt } from '../../../common/common-types';
 
 export async function getUserOperationReceipt(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
     Helper.assertTrue(body.params.length === 1, -32602);
@@ -21,7 +21,12 @@ export async function getUserOperationReceipt(rpcService: RpcService, chainId: n
         return null;
     }
 
-    let receipt = P2PCache.get(keyCacheChainReceipt(userOperation.chainId, userOperation.transactionId));
+    let receipt = P2PCache.get(keyCacheChainUserOpHashReceipt(userOperation.userOpHash));
+    if (!!receipt) {
+        return formatReceipt(rpcService, userOperation, receipt);
+    }
+
+    receipt = P2PCache.get(keyCacheChainReceipt(userOperation.transactionId));
     if (!!receipt) {
         return formatReceipt(rpcService, userOperation, receipt);
     }

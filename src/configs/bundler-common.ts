@@ -2,7 +2,6 @@ import { BundlerConfig, IBundlerChainConfig } from '../common/common-types';
 import { cloneDeep } from 'lodash';
 import * as Fs from 'fs';
 
-export const RPC_CONFIG: any = {};
 export let BUNDLER_CONFIG_MAP: BundlerConfig;
 export let PARTICLE_PAYMASTER_URL: string;
 export let PARTICLE_PUBLIC_RPC_URL: string;
@@ -30,6 +29,7 @@ export function getBundlerChainConfig(chainId: number): IBundlerChainConfig {
     return config;
 }
 
+export const DEFAULT_ENTRY_POINT_ADDRESS = '0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789';
 export const ENTRY_POINT_VERSION_MAP = {
     v06: ['0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789'],
 };

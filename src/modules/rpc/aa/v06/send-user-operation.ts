@@ -27,7 +27,7 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
     }
 
     const bundlerConfig = getBundlerChainConfig(chainId);
-    const gasLimit = calcUserOpTotalGasLimit(userOp);
+    const gasLimit = calcUserOpTotalGasLimit(userOp, chainId);
     Helper.assertTrue(gasLimit < bundlerConfig.maxBundleGas, -32602, 'GasLimit is too large');
 
     Helper.assertTrue(

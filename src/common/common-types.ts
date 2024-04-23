@@ -68,8 +68,12 @@ export function keyCacheChainSignerTransactionCount(chainId: number, address: st
     return `chain_signer_transaction_count:${chainId}:${address.toLowerCase()}`;
 }
 
-export function keyCacheChainReceipt(chainId: number, transactionId: string): string {
-    return `chain_receipt:${chainId}:${transactionId}`;
+export function keyCacheChainReceipt(transactionId: string): string {
+    return `chain_receipt:${transactionId}`;
+}
+
+export function keyCacheChainUserOpHashReceipt(userOpHash: string): string {
+    return `chain_userophash_receipt:${userOpHash}`;
 }
 
 export function keyLockPendingTransaction(id: string) {
