@@ -40,6 +40,9 @@ export class Transaction {
     @Prop({ required: true, type: Schema.Types.Number })
     public confirmations: number;
 
+    @Prop({ required: true, type: Schema.Types.Boolean })
+    public incrRetry: boolean; // can edit by console
+
     @Prop({ required: false, type: Schema.Types.Mixed })
     public receipts: any;
 

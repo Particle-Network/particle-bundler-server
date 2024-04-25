@@ -1,8 +1,8 @@
-import { Contract, ZeroAddress, getAddress, toBeHex } from 'ethers';
+import { Contract, ZeroAddress, getAddress, isAddress, toBeHex } from 'ethers';
 import { JsonRPCRequestDto } from '../../dtos/json-rpc-request.dto';
 import { RpcService } from '../../services/rpc.service';
 import { Helper } from '../../../../common/helper';
-import { IS_PRODUCTION, MULTI_CALL_3_ADDRESS, PROCESS_EVENT_TYPE } from '../../../../common/common-types';
+import { FORBIDDEN_PAYMASTER, IS_PRODUCTION, MULTI_CALL_3_ADDRESS, PROCESS_EVENT_TYPE } from '../../../../common/common-types';
 import { AppException } from '../../../../common/app-exception';
 import { calcUserOpGasPrice, calcUserOpTotalGasLimit, getUserOpHash, isUserOpValid, splitOriginNonce } from '../utils';
 import { getBundlerChainConfig } from '../../../../configs/bundler-common';
@@ -40,14 +40,23 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
     const userOpSender = getAddress(userOp.sender);
     const { nonceKey, nonceValue } = splitOriginNonce(userOp.nonce);
 
-    const [rSimulation, extraFee, signerFeeData, userOpDoc] = await Promise.all([
+    if (userOp.paymasterAndData !== '0x' && !body.isAuth) {
+        const paymaster = userOp.paymasterAndData.slice(0, 42);
+        Helper.assertTrue(isAddress(paymaster), -32602, 'Invalid params: paymaster address');
+        Helper.assertTrue(!FORBIDDEN_PAYMASTER.includes(getAddress(paymaster)), -32602, 'Forbidden paymaster');
+    }
+
+    const [rSimulation, extraFee, signerFeeData, userOpDoc, localUserOperationsCount] = await Promise.all([
         simulateHandleOpAndGetGasCost(rpcService, chainId, userOp, entryPoint),
         getL2ExtraFee(rpcService, chainId, userOp, entryPoint),
         rpcService.aaService.getFeeData(chainId),
         rpcService.aaService.userOperationService.getUserOperationByAddressNonce(chainId, userOpSender, nonceKey, BigInt(nonceValue).toString()),
+        rpcService.aaService.userOperationService.getLocalUserOperationsCountByChainId(chainId),
         // do not care return value
         checkUserOpCanExecutedSucceed(rpcService, chainId, userOp, entryPoint),
     ]);
+
+    Helper.assertTrue(localUserOperationsCount < bundlerConfig.userOperationLocalPoolMaxCount, -32609);
 
     const gasCostInContract = BigInt(rSimulation.gasCostInContract);
     const gasCostWholeTransaction = BigInt(rSimulation.gasCostWholeTransaction);

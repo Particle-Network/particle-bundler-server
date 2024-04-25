@@ -73,6 +73,7 @@ export class TransactionService {
             status: TRANSACTION_STATUS.LOCAL,
             txHashes: [txHash],
             confirmations: 0,
+            incrRetry: false,
             latestSentAt: new Date(),
         });
 
@@ -97,17 +98,22 @@ export class TransactionService {
         return await transaction.save({ session });
     }
 
-    public async replaceTransactionTxHash(transaction: TransactionDocument, newTxHash: string, newSignedTx: string, txData: any, session?: any) {
+    public async replaceTransactionTxHash(transaction: TransactionDocument, newSignedTx: string, session?: any) {
+        const tx: TypedTransaction = tryParseSignedTx(newSignedTx);
+        const newTxHash = `0x${Buffer.from(tx.hash()).toString('hex')}`;
+        const newTxData = tx.toJSON();
+
         const newSignedTxs = transaction.signedTxs;
         newSignedTxs[newTxHash] = newSignedTx;
         const newInner = transaction.inners;
-        newInner[newTxHash] = txData;
+        newInner[newTxHash] = newTxData;
         const newTxHashes = transaction.txHashes.concat(newTxHash);
 
         return await this.transactionModel.updateOne(
             { _id: transaction.id, status: TRANSACTION_STATUS.PENDING },
             {
                 $set: {
+                    incrRetry: false,
                     txHashes: newTxHashes,
                     signedTxs: newSignedTxs,
                     inners: newInner,

@@ -132,7 +132,10 @@ export class HandlePendingTransactionService {
                 });
             }
 
-            if (error?.message?.toLowerCase()?.includes('nonce too low')) {
+            if (
+                error?.message?.toLowerCase()?.includes('nonce too low') ||
+                error?.message?.toLowerCase()?.includes('replacement transaction underpriced')
+            ) {
                 // delete transaction and recover user op
                 this.aaService.trySetTransactionCountLocalCache(transaction.chainId, transaction.from, transaction.nonce + 1);
                 await Helper.startMongoTransaction(this.connection, async (session: any) => {
@@ -353,12 +356,22 @@ export class HandlePendingTransactionService {
                 }
             }
 
+            // force retry
+            if (pendingTransaction.incrRetry) {
+                await this.tryIncrTransactionGasPriceAndReplace(pendingTransaction);
+            }
+
             if (!pendingTransaction.isPendingTimeout() || !signerDoneTransactionMaxNonce) {
                 return pendingTransaction;
             }
 
             const bundlerConfig = getBundlerChainConfig(pendingTransaction.chainId);
-            if (bundlerConfig.canIncrGasPriceRetry && signerDoneTransactionMaxNonce + 1 === pendingTransaction.nonce) {
+
+            if (
+                bundlerConfig.canIncrGasPriceRetry &&
+                signerDoneTransactionMaxNonce + 1 === pendingTransaction.nonce &&
+                pendingTransaction.txHashes.length < bundlerConfig.canIncrGasPriceRetryMaxCount
+            ) {
                 await this.tryIncrTransactionGasPriceAndReplace(pendingTransaction);
             } else if (pendingTransaction.isOld()) {
                 try {
@@ -443,8 +456,6 @@ export class HandlePendingTransactionService {
             return;
         }
 
-        console.log('Try Replace Transaction', transaction.id);
-
         try {
             const coefficient = 1.1;
 
@@ -453,7 +464,6 @@ export class HandlePendingTransactionService {
             const txData: any = tx.toJSON();
 
             const feeData = await this.aaService.getFeeData(transaction.chainId);
-
             if (tx instanceof FeeMarketEIP1559Transaction) {
                 if (BigInt(feeData.maxFeePerGas) > BigInt(tx.maxFeePerGas)) {
                     txData.maxFeePerGas = toBeHex(feeData.maxFeePerGas);
@@ -462,8 +472,8 @@ export class HandlePendingTransactionService {
                     txData.maxPriorityFeePerGas = toBeHex(feeData.maxPriorityFeePerGas);
                 }
 
-                let bnMaxPriorityFeePerGas = BigInt(tx.maxPriorityFeePerGas);
-                let bnMaxFeePerGas = BigInt(tx.maxFeePerGas);
+                let bnMaxPriorityFeePerGas = BigInt(txData.maxPriorityFeePerGas);
+                let bnMaxFeePerGas = BigInt(txData.maxFeePerGas);
                 if (bnMaxPriorityFeePerGas === 0n) {
                     bnMaxPriorityFeePerGas = BigInt(0.01 * 10 ** 9);
                     if (bnMaxPriorityFeePerGas >= bnMaxFeePerGas) {
@@ -497,17 +507,14 @@ export class HandlePendingTransactionService {
                 ...createTxGasData(transaction.chainId, txData),
             });
 
+            // if failed and it's ok, just generate a invalid tx hash
+            await this.transactionService.replaceTransactionTxHash(transaction, signedTx, txData);
+
             const bundlerConfig = getBundlerChainConfig(transaction.chainId);
             const provider = this.rpcService.getJsonRpcProvider(transaction.chainId);
             const rTxHash = await provider.send(bundlerConfig.methodSendRawTransaction, [signedTx]);
             if (!!rTxHash?.error) {
                 throw rTxHash.error;
-            }
-
-            const txHash = typeof rTxHash === 'string' ? rTxHash : rTxHash.result;
-            console.log('Replaced TxHash', transaction.id, rTxHash);
-            if (!!txHash) {
-                await this.transactionService.replaceTransactionTxHash(transaction, txHash, signedTx, txData);
             }
         } catch (error) {
             if (!IS_PRODUCTION) {

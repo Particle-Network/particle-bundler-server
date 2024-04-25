@@ -44,7 +44,8 @@ describe('Common', () => {
     }, 60000);
 
     it('getFeeDataFromParticle', async () => {
-        let feeData = await getFeeDataFromParticle(EVM_CHAIN_ID.TAIKO_TESTNET_KATLA);
+        let feeData = await getFeeDataFromParticle(EVM_CHAIN_ID.OPTIMISM_TESTNET_SEPOLIA);
+        console.log('feeData', feeData);
         expect(feeData.baseFee).toBe(1);
 
         feeData = await getFeeDataFromParticle(EVM_CHAIN_ID.MERLIN_CHAIN_MAINNET);

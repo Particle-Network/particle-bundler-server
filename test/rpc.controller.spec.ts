@@ -1,12 +1,6 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { Test } from '@nestjs/testing';
 import { RpcController } from '../src/modules/rpc/rpc.controller';
 import { RpcService } from '../src/modules/rpc/services/rpc.service';
-import { RpcModule } from '../src/modules/rpc/rpc.module';
-import { MongooseModule } from '@nestjs/mongoose';
-import { UserOperation, UserOperationSchema } from '../src/modules/rpc/schemas/user-operation.schema';
-import { mongodbConfigAsync } from '../src/configs/mongodb.config';
-import { configConfig } from '../src/configs/config.config';
-import { ConfigModule } from '@nestjs/config';
 import { Wallet, JsonRpcProvider, resolveProperties, parseEther } from 'ethers';
 import { AA_METHODS, initializeBundlerConfig, getBundlerChainConfig } from '../src/configs/bundler-common';
 import { deepHexlify } from '../src/modules/rpc/aa/utils';
@@ -16,6 +10,9 @@ import { ENTRY_POINT, gaslessSponsor } from './lib/common';
 import { deserializeUserOpCalldata } from '../src/modules/rpc/aa/deserialize-user-op';
 import { SimpleSmartAccount } from './lib/simple-smart-account';
 import { EVM_CHAIN_ID } from '../src/common/chains';
+import { AppModule } from '../src/app.module';
+import * as request from 'supertest';
+import { INestApplication } from '@nestjs/common';
 
 let rpcController: RpcController;
 let rpcService: RpcService;
@@ -23,18 +20,17 @@ let rpcService: RpcService;
 process.env.DISABLE_TASK = '1';
 process.env.ENVIRONMENT = 'dev';
 
+let app: INestApplication;
 describe('RpcController', () => {
     beforeEach(async () => {
         await initializeBundlerConfig();
 
-        const app: TestingModule = await Test.createTestingModule({
-            imports: [
-                ConfigModule.forRoot(configConfig),
-                MongooseModule.forRootAsync(mongodbConfigAsync),
-                RpcModule,
-                MongooseModule.forFeature([{ name: UserOperation.name, schema: UserOperationSchema }]),
-            ],
+        const moduleRef = await Test.createTestingModule({
+            imports: [AppModule],
         }).compile();
+
+        app = moduleRef.createNestApplication();
+        await app.init();
 
         rpcController = app.get<RpcController>(RpcController);
         rpcService = app.get<RpcService>(RpcService);
@@ -164,8 +160,10 @@ async function sendUserOp(chainId: number, userOp: any) {
         params: [userOp, ENTRY_POINT],
     };
 
-    const r3 = await rpcController.handleRpc(chainId, bodySend);
-    console.log(r3);
+    let r3: any = await request(app.getHttpServer()).post('').query({ chainId }).auth('test_user', 'test_pass').send(bodySend);
+    console.log('r3', r3.text);
+
+    r3 = JSON.parse(r3.text);
     expect(r3.result.length).toBe(66);
 
     for (let index = 0; index < 30; index++) {

@@ -15,6 +15,9 @@ export const CACHE_USEROPHASH_TXHASH_TIMEOUT = 10000; // 10s
 export const SERVER_NAME = 'particle-bundler-server';
 export const MULTI_CALL_3_ADDRESS = '0xcA11bde05977b3631167028862bE2a173976CA11';
 
+// need basic auth
+export const FORBIDDEN_PAYMASTER = ['0x8817340e0a3435E06254f2ed411E6418cd070D6F', '0x23b944a93020A9C7C414b1aDeCDB2Fd4Cd4e8184'];
+
 export type BundlerConfig = {
     [key: string]: IBundlerChainConfig;
 };
@@ -27,6 +30,8 @@ export interface IBundlerChainConfig {
     maxUserOpPackCount?: number;
     mevCheck?: boolean;
     canIncrGasPriceRetry?: boolean;
+    canIncrGasPriceRetryMaxCount?: number;
+    userOperationLocalPoolMaxCount?: number;
     minGasFee?: {
         gasPrice?: string;
         maxFeePerGas?: string;

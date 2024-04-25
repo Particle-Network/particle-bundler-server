@@ -183,6 +183,10 @@ export class UserOperationService {
         return await this.userOperationEventModel.findOne({ userOperationHash });
     }
 
+    public async getLocalUserOperationsCountByChainId(chainId: number): Promise<number> {
+        return await this.userOperationEventModel.count({ chainId, status: USER_OPERATION_STATUS.LOCAL });
+    }
+
     public async createOrGetUserOperationEvent(
         chainId: number,
         blockHash: string,
