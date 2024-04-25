@@ -57,6 +57,3 @@ export class AppExceptionMessages {
         return `${this.exceptionMessages.get(errorCode)}: ${message}`;
     }
 }
-
-export const MESSAGE_32602_INVALID_USEROP_TYPE = AppExceptionMessages.messageExtend(-32602, 'UserOP must be an object');
-export const MESSAGE_32602_INVALID_ENTRY_POINT_ADDRESS = AppExceptionMessages.messageExtend(-32602, 'Invalid entry point address');
