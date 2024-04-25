@@ -25,7 +25,7 @@ async function bootstrap() {
         maxAge: 86400,
     });
 
-    Mongoose.set('debug', !IS_PRODUCTION);
+    Mongoose.set('debug', IS_DEVELOPMENT);
 
     const configService = app.get(ConfigService);
     const larkService = app.get(LarkService);

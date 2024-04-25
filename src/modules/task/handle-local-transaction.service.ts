@@ -8,10 +8,12 @@ import { LarkService } from '../common/services/lark.service';
 import { Helper } from '../../common/helper';
 import {
     CACHE_TRANSACTION_RECEIPT_TIMEOUT,
+    CACHE_USEROPHASH_TXHASH_TIMEOUT,
     IS_DEVELOPMENT,
     IS_PRODUCTION,
     keyCacheChainReceipt,
     keyCacheChainUserOpHashReceipt,
+    keyCacheChainUserOpHashTxHash,
 } from '../../common/common-types';
 import { EVM_CHAIN_ID } from '../../common/chains';
 import entryPointAbi from '../rpc/aa/abis/entry-point-abi';
@@ -21,9 +23,10 @@ import { UserOperationService } from '../rpc/services/user-operation.service';
 import { HandlePendingTransactionService } from './handle-pending-transaction.service';
 import { Cron } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
-import { createTxGasData } from '../rpc/aa/utils';
+import { createTxGasData, tryParseSignedTx } from '../rpc/aa/utils';
 import { ListenerService } from './listener.service';
 import P2PCache from '../../common/p2p-cache';
+import { TypedTransaction } from '@ethereumjs/tx';
 
 @Injectable()
 export class HandleLocalTransactionService {
@@ -122,9 +125,15 @@ export class HandleLocalTransactionService {
             finalizedTx.chainId = BigInt(chainId);
             const signedTx = await signer.signTransaction(finalizedTx);
 
+            const tx: TypedTransaction = tryParseSignedTx(signedTx);
+            const txHash = `0x${Buffer.from(tx.hash()).toString('hex')}`;
+            const userOpHashes = userOperationDocuments.map((userOperationDocument) => userOperationDocument.userOpHash);
+            for (const userOpHash of userOpHashes) {
+                P2PCache.set(keyCacheChainUserOpHashTxHash(userOpHash), txHash, CACHE_USEROPHASH_TXHASH_TIMEOUT);
+            }
+
             let localTransaction: TransactionDocument;
             await Helper.startMongoTransaction(this.connection, async (session: any) => {
-                const userOpHashes = userOperationDocuments.map((userOperationDocument) => userOperationDocument.userOpHash);
                 localTransaction = await this.transactionService.createTransaction(chainId, signedTx, userOpHashes, session);
                 const updateInfo = await this.userOperationService.setLocalUserOperationsAsPending(
                     userOperationDocuments,

@@ -4,7 +4,6 @@ import { Model } from 'mongoose';
 import { TRANSACTION_STATUS, Transaction, TransactionDocument } from '../schemas/transaction.schema';
 import { TypedTransaction } from '@ethereumjs/tx';
 import { getAddress } from 'ethers';
-import { BigNumber } from '../../../common/bignumber';
 import { tryParseSignedTx } from '../aa/utils';
 
 @Injectable()
@@ -15,8 +14,20 @@ export class TransactionService {
         return await this.transactionModel.find({ status }).sort({ _id: 1 }).limit(limit);
     }
 
-    public async getTransactionsByStatusSortConfirmations(status: TRANSACTION_STATUS, limit: number): Promise<TransactionDocument[]> {
-        return await this.transactionModel.find({ status }).sort({ confirmations: 1 }).limit(limit);
+    public async getRecentTransactionsByStatusSortConfirmations(status: TRANSACTION_STATUS, limit: number): Promise<TransactionDocument[]> {
+        const recentData = new Date(Date.now() - 10000); // 10s ago
+        return await this.transactionModel
+            .find({ status, latestSentAt: { $gte: recentData } })
+            .sort({ confirmations: 1 })
+            .limit(limit);
+    }
+
+    public async getLongAgoTransactionsByStatusSortConfirmations(status: TRANSACTION_STATUS, limit: number): Promise<TransactionDocument[]> {
+        const recentData = new Date(Date.now() - 10000); // 10s ago
+        return await this.transactionModel
+            .find({ status, latestSentAt: { $lt: recentData } })
+            .sort({ confirmations: 1 })
+            .limit(limit);
     }
 
     public async getLatestTransaction(chainId: number, sender: string): Promise<TransactionDocument> {

@@ -23,11 +23,15 @@ export async function getUserOperationReceipt(rpcService: RpcService, chainId: n
 
     let receipt = P2PCache.get(keyCacheChainUserOpHashReceipt(userOperation.userOpHash));
     if (!!receipt) {
+        console.log('keyCacheChainUserOpHashReceipt', receipt);
+        
         return formatReceipt(rpcService, userOperation, receipt);
     }
 
     receipt = P2PCache.get(keyCacheChainReceipt(userOperation.transactionId));
     if (!!receipt) {
+        console.log('keyCacheChainReceipt', receipt);
+        
         return formatReceipt(rpcService, userOperation, receipt);
     }
 

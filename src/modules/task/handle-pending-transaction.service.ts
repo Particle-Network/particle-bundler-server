@@ -11,6 +11,7 @@ import {
     IS_DEVELOPMENT,
     IS_PRODUCTION,
     keyCacheChainReceipt,
+    keyCacheChainUserOpHashTxHash,
     keyLockPendingTransaction,
     keyLockSendingTransaction,
 } from '../../common/common-types';
@@ -44,18 +45,36 @@ export class HandlePendingTransactionService {
     ) {}
 
     @Cron('*/2 * * * * *')
-    public handlePendingTransactions() {
+    public async handleLongPendingTransactions() {
         if (!this.canRunCron()) {
             return;
         }
 
+        const pendingTransactions = await this.transactionService.getLongAgoTransactionsByStatusSortConfirmations(
+            TRANSACTION_STATUS.PENDING,
+            500,
+        );
+
         // async execute, no need to wait
-        this.handlePendingTransactionsAction();
+        this.handlePendingTransactionsAction(pendingTransactions);
     }
 
-    private async handlePendingTransactionsAction() {
-        const pendingTransactions = await this.transactionService.getTransactionsByStatusSortConfirmations(TRANSACTION_STATUS.PENDING, 500);
+    @Cron('* * * * * *')
+    public async handleRecentPendingTransactions() {
+        if (!this.canRunCron()) {
+            return;
+        }
 
+        const pendingTransactions = await this.transactionService.getRecentTransactionsByStatusSortConfirmations(
+            TRANSACTION_STATUS.PENDING,
+            500,
+        );
+
+        // async execute, no need to wait
+        this.handlePendingTransactionsAction(pendingTransactions);
+    }
+
+    private async handlePendingTransactionsAction(pendingTransactions: TransactionDocument[]) {
         const promises = [];
         for (const pendingTransaction of pendingTransactions) {
             const key = `${pendingTransaction.chainId}-${pendingTransaction.from.toLowerCase()}`;
@@ -211,6 +230,10 @@ export class HandlePendingTransactionService {
             for (const userOpHash of userOpHashes) {
                 transaction.userOperationHashMapTxHash[userOpHash] = txHash;
             }
+        }
+
+        for (const userOperationHash of transaction.userOperationHashes) {
+            P2PCache.delete(keyCacheChainUserOpHashTxHash(userOperationHash));
         }
 
         await this.transactionService.updateTransactionStatus(transaction, TRANSACTION_STATUS.DONE);

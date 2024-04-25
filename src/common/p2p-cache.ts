@@ -27,26 +27,48 @@ class P2PCacheInstance {
     }
 
     private onMessage(packet: any) {
-        if (typeof packet !== 'object' || !packet?.key || !packet?.value || !packet?.ttl) {
+        console.log('p2pcache onMessage', packet);
+
+        if (typeof packet !== 'object') {
             return;
         }
 
-        this.cache.set(packet.key, packet.value, packet.ttl);
+        if (packet?.type === 'set') {
+            if (!packet?.data?.key || !packet?.data?.value || !packet?.data?.ttl) {
+                return;
+            }
+
+            this.cache.set(packet.data.key, packet.data.value, packet.data.ttl);
+        }
+
+        if (packet?.type === 'delete') {
+            if (!packet?.data?.key) {
+                return;
+            }
+
+            this.cache.delete(packet.data.key);
+        }
     }
 
     public set(key: string, value: any, ttl: number = ITEM_TTL) {
         if (IS_DEVELOPMENT) {
-            this.onMessage({ key, value, ttl });
+            this.onMessage({ type: 'set', data: { key, value, ttl } });
             return;
         }
+
+        console.log('p2pcache set', key, value, ttl, nodeIds);
 
         for (const nodeId of nodeIds) {
             pm2.sendDataToProcessId(
                 nodeId,
                 {
-                    key,
-                    value,
-                    ttl,
+                    type: 'set',
+                    data: {
+                        key,
+                        value,
+                        ttl,
+                    },
+                    topic: true,
                 },
                 (err, res) => {
                     // nothing
@@ -61,6 +83,31 @@ class P2PCacheInstance {
 
     public has(key: string): boolean {
         return this.cache.has(key);
+    }
+
+    public delete(key: string) {
+        if (IS_DEVELOPMENT) {
+            this.onMessage({ type: 'delete', data: { key } });
+            return;
+        }
+
+        console.log('p2pcache delete', key, nodeIds);
+
+        for (const nodeId of nodeIds) {
+            pm2.sendDataToProcessId(
+                nodeId,
+                {
+                    type: 'delete',
+                    data: {
+                        key,
+                    },
+                    topic: true,
+                },
+                (err, res) => {
+                    // nothing
+                },
+            );
+        }
     }
 }
 

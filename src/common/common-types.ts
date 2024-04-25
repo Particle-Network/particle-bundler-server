@@ -8,9 +8,10 @@ export const PROVIDER_FETCH_TIMEOUT = 12000; // 12s
 export const PENDING_TRANSACTION_WAITING_TIME = 60;
 export const PENDING_TRANSACTION_EXPIRED_TIME = 600; // 10 mins
 export const PENDING_TRANSACTION_SIGNER_HANDLE_LIMIT = 10;
-export const CACHE_GAS_FEE_TIMEOUT = 5000; // 5s
+export const CACHE_GAS_FEE_TIMEOUT = 10000; // 10s
 export const CACHE_TRANSACTION_COUNT_TIMEOUT = 600000; // 600s
 export const CACHE_TRANSACTION_RECEIPT_TIMEOUT = 10000; // 10s
+export const CACHE_USEROPHASH_TXHASH_TIMEOUT = 10000; // 10s
 export const SERVER_NAME = 'particle-bundler-server';
 export const MULTI_CALL_3_ADDRESS = '0xcA11bde05977b3631167028862bE2a173976CA11';
 
@@ -74,6 +75,10 @@ export function keyCacheChainReceipt(transactionId: string): string {
 
 export function keyCacheChainUserOpHashReceipt(userOpHash: string): string {
     return `chain_userophash_receipt:${userOpHash}`;
+}
+
+export function keyCacheChainUserOpHashTxHash(userOpHash: string): string {
+    return `chain_userophash_txHash:${userOpHash}`;
 }
 
 export function keyLockPendingTransaction(id: string) {

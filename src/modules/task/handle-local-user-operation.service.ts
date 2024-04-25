@@ -33,7 +33,7 @@ export class HandleLocalUserOperationService {
     private onSealUserOps(packet: any) {
         const { chainId, userOpDoc } = packet.data;
         if (!!chainId && !!userOpDoc) {
-            console.log('onSealUserOps', packet);
+            console.log('onSealUserOps', packet, Date.now());
             
             this.sealUserOps([userOpDoc]);
         }
