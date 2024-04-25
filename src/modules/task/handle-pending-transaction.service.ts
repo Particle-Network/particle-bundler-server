@@ -11,6 +11,7 @@ import {
     IS_DEVELOPMENT,
     IS_PRODUCTION,
     keyCacheChainReceipt,
+    keyCacheChainSignerTransactionCount,
     keyCacheChainUserOpHashTxHash,
     keyLockPendingTransaction,
     keyLockSendingTransaction,
@@ -44,7 +45,7 @@ export class HandlePendingTransactionService {
         private readonly aaService: AAService,
     ) {}
 
-    @Cron('*/2 * * * * *')
+    @Cron('*/5 * * * * *')
     public async handleLongPendingTransactions() {
         if (!this.canRunCron()) {
             return;
@@ -54,6 +55,26 @@ export class HandlePendingTransactionService {
             TRANSACTION_STATUS.PENDING,
             500,
         );
+
+        const chainIdFromMap: any = {};
+        for (const pendingTransaction of pendingTransactions) {
+            if (!chainIdFromMap[pendingTransaction.chainId]) {
+                chainIdFromMap[pendingTransaction.chainId] = [];
+            }
+
+            if (!chainIdFromMap[pendingTransaction.chainId].includes(pendingTransaction.from.toLowerCase())) {
+                chainIdFromMap[pendingTransaction.chainId].push(pendingTransaction.from);
+            }
+        }
+
+        const chainIds = Object.keys(chainIdFromMap);
+        for (const chainId of chainIds) {
+            const provider = this.rpcService.getJsonRpcProvider(Number(chainId));
+            for (const from of chainIdFromMap[chainId]) {
+                // async update signer nonce
+                this.aaService.getTransactionCountWithCache(provider, Number(chainId), from, true);
+            }
+        }
 
         // async execute, no need to wait
         this.handlePendingTransactionsAction(pendingTransactions);
@@ -77,9 +98,19 @@ export class HandlePendingTransactionService {
     private async handlePendingTransactionsAction(pendingTransactions: TransactionDocument[]) {
         const promises = [];
         for (const pendingTransaction of pendingTransactions) {
-            const key = `${pendingTransaction.chainId}-${pendingTransaction.from.toLowerCase()}`;
-            const signerDoneTransactionMaxNonce = this.signerDoneTransactionMaxNonce.get(key);
-            promises.push(this.getReceiptAndHandlePendingTransactions(pendingTransaction, signerDoneTransactionMaxNonce));
+            const cacheKey1 = `${pendingTransaction.chainId}-${pendingTransaction.from.toLowerCase()}`;
+            const cacheKey2 = keyCacheChainSignerTransactionCount(pendingTransaction.chainId, pendingTransaction.from);
+
+            // local cache nonce directly
+            const signerDoneTransactionMaxNonceFromP2PCache = P2PCache.get(cacheKey2) ?? 0;
+            const signerDoneTransactionMaxNonce = this.signerDoneTransactionMaxNonce.get(cacheKey1) ?? 0;
+
+            promises.push(
+                this.getReceiptAndHandlePendingTransactions(
+                    pendingTransaction,
+                    Math.max(signerDoneTransactionMaxNonce, signerDoneTransactionMaxNonceFromP2PCache),
+                ),
+            );
         }
 
         const transactionsAddConfirmations = (await Promise.all(promises)).filter((t) => !!t);
@@ -112,7 +143,7 @@ export class HandlePendingTransactionService {
         // It's possible that when you grab the lock, the previous call has already been made, so you need to check it again
         transaction = await this.transactionService.getTransactionById(transaction.id);
         if (!transaction || !transaction.isLocal()) {
-            console.log(`trySendAndUpdateTransactionStatus release !transaction.isLocal(); Hash: ${txHash} On Chain ${transaction.chainId}`);
+            console.log(`trySendAndUpdateTransactionStatus release !transaction.isLocal(); Hash: ${txHash} On Chain ${transaction?.chainId}`);
             this.lockSendingTransactions.delete(keyLock);
             return;
         }
@@ -508,7 +539,7 @@ export class HandlePendingTransactionService {
             });
 
             // if failed and it's ok, just generate a invalid tx hash
-            await this.transactionService.replaceTransactionTxHash(transaction, signedTx, txData);
+            await this.transactionService.replaceTransactionTxHash(transaction, signedTx);
 
             const bundlerConfig = getBundlerChainConfig(transaction.chainId);
             const provider = this.rpcService.getJsonRpcProvider(transaction.chainId);

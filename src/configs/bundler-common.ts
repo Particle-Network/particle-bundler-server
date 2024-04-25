@@ -5,6 +5,7 @@ import * as Fs from 'fs';
 export let BUNDLER_CONFIG_MAP: BundlerConfig;
 export let PARTICLE_PAYMASTER_URL: string;
 export let PARTICLE_PUBLIC_RPC_URL: string;
+export let FORBIDDEN_PAYMASTER: string[] = [];
 
 export async function initializeBundlerConfig() {
     let bc: any;
@@ -18,6 +19,10 @@ export async function initializeBundlerConfig() {
     BUNDLER_CONFIG_MAP = bc.exportBundlerConfig();
     PARTICLE_PAYMASTER_URL = bc.PARTICLE_PAYMASTER_URL;
     PARTICLE_PUBLIC_RPC_URL = bc.PARTICLE_PUBLIC_RPC_URL;
+
+    if (bc.FORBIDDEN_PAYMASTER) {
+        FORBIDDEN_PAYMASTER = bc.FORBIDDEN_PAYMASTER;
+    }
 }
 
 export function getBundlerChainConfig(chainId: number): IBundlerChainConfig {

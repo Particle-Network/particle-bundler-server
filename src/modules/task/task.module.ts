@@ -17,6 +17,7 @@ import { HandlePendingUserOperationService } from './handle-pending-user-operati
 import { HandleLocalTransactionService } from './handle-local-transaction.service';
 import { HandlePendingTransactionService } from './handle-pending-transaction.service';
 import { FillSignerBalanceService } from './fill-signer-balance.service';
+import { UnblockAndReleaseSignersService } from './unblock-and-release-signers.service';
 
 @Module({
     imports: [
@@ -30,6 +31,7 @@ import { FillSignerBalanceService } from './fill-signer-balance.service';
         ]),
     ],
     providers: [
+        UnblockAndReleaseSignersService,
         HandleLocalUserOperationService,
         HandlePendingUserOperationService,
         HandleLocalTransactionService,
