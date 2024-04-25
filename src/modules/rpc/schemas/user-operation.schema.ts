@@ -94,14 +94,10 @@ UserOperationSchema.index(
 );
 
 UserOperationSchema.index({
-    chainId: 1,
-    status: 1,
-    userOpHash: 1,
-    userOpSender: 1,
-    userOpNonceKey: 1,
-    userOpNonce: 1,
+    transactionId: 1,
 });
 
 UserOperationSchema.index({
     status: 1,
+    chainId: 1,
 });

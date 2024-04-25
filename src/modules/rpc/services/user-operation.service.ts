@@ -72,25 +72,12 @@ export class UserOperationService {
         return await this.userOperationModel.deleteMany({ _id: { $in: ids } });
     }
 
-    public async deleteAllLocalUserOperations(chainId: number) {
-        await this.userOperationModel.deleteMany({
-            chainId,
-            // status: { $in: [USER_OPERATION_STATUS.LOCAL, USER_OPERATION_STATUS.TO_BE_REPLACE] },
-        });
-    }
-
     public async getPendingUserOperationCount(chainId: number): Promise<number> {
-        return await this.userOperationModel.count({
-            chainId,
-            // status: { $in: [USER_OPERATION_STATUS.LOCAL, USER_OPERATION_STATUS.TO_BE_REPLACE, USER_OPERATION_STATUS.PENDING] },
-        });
+        return await this.userOperationModel.count({ chainId });
     }
 
-    public async deleteUserOperationByUserOpHash(chainId: number, userOpHash: string) {
-        return await this.userOperationModel.deleteMany({
-            chainId,
-            userOpHash,
-        });
+    public async deleteUserOperationByUserOpHash(userOpHash: string) {
+        return await this.userOperationModel.deleteMany({ userOpHash });
     }
 
     public async getUserOperationByAddressNonce(
@@ -102,52 +89,12 @@ export class UserOperationService {
         return await this.userOperationModel.findOne({ chainId, userOpSender, userOpNonceKey, userOpNonce });
     }
 
-    public async getSuccessUserOperationNonce(chainId: number, userOpSender: string, userOpNonceKey: string): Promise<string> {
-        const userOpDoc = await this.userOperationModel
-            .findOne({ chainId, userOpSender, userOpNonceKey, status: USER_OPERATION_STATUS.DONE })
-            .sort({ userOpNonce: -1 });
-        if (!userOpDoc) {
-            return null;
-        }
-
-        const userOpEvent = await this.userOperationEventModel.findOne({ chainId, userOperationHash: userOpDoc.userOpHash });
-        if (!userOpEvent) {
-            return null;
-        }
-
-        return userOpDoc.userOpNonce.toString();
-    }
-
     public async getUserOperationByHash(userOpHash: string): Promise<UserOperationDocument> {
         return await this.userOperationModel.findOne({ userOpHash });
     }
 
-    public async getUserOperationByHashes(chainId: number, userOpHashes: string[]): Promise<UserOperationDocument[]> {
-        return await this.userOperationModel.find({ chainId, userOpHash: { $in: userOpHashes } });
-    }
-
-    public async getLocalUserOperationsByDuration(chainId: number, startAt: number, endAt: number): Promise<UserOperationDocument[]> {
-        return await this.userOperationModel.find({
-            chainId,
-            status: USER_OPERATION_STATUS.LOCAL,
-            createdAt: { $gt: new Date(startAt), $lte: new Date(endAt) },
-        });
-    }
-
     public async getLocalUserOperations(limit: number = 1000): Promise<UserOperationDocument[]> {
         return await this.userOperationModel.find({ status: USER_OPERATION_STATUS.LOCAL }).limit(limit);
-    }
-
-    // Ensure nonce is sorted by asc
-    public async getLocalUserOperationsByChainIdAndSortByCreatedAt(
-        chainId: number,
-        entryPoint: string,
-        limit = 100,
-    ): Promise<UserOperationDocument[]> {
-        return await this.userOperationModel
-            .find({ chainId, status: USER_OPERATION_STATUS.LOCAL, entryPoint })
-            .sort({ createdAt: 1 })
-            .limit(limit);
     }
 
     public async setLocalUserOperationsAsPending(
@@ -184,7 +131,7 @@ export class UserOperationService {
     }
 
     public async getLocalUserOperationsCountByChainId(chainId: number): Promise<number> {
-        return await this.userOperationEventModel.count({ chainId, status: USER_OPERATION_STATUS.LOCAL });
+        return await this.userOperationModel.count({ status: USER_OPERATION_STATUS.LOCAL, chainId });
     }
 
     public async createOrGetUserOperationEvent(

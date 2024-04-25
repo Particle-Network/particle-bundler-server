@@ -1,7 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { RpcController } from '../src/modules/rpc/rpc.controller';
 import { RpcService } from '../src/modules/rpc/services/rpc.service';
-import { Wallet, JsonRpcProvider, resolveProperties, parseEther } from 'ethers';
+import { Wallet, JsonRpcProvider, resolveProperties, parseEther, toBeHex } from 'ethers';
 import { AA_METHODS, initializeBundlerConfig, getBundlerChainConfig } from '../src/configs/bundler-common';
 import { deepHexlify } from '../src/modules/rpc/aa/utils';
 import { IContractAccount } from '../src/modules/rpc/aa/interface-contract-account';
@@ -115,7 +115,7 @@ async function createFakeUserOp(chainId: number, simpleAccount: IContractAccount
     const unsignedUserOp = await simpleAccount.createUnsignedUserOp([
         {
             to: Wallet.createRandom().address,
-            value: BigNumber.from(parseEther('0')).toHexString(),
+            value: toBeHex(0),
             data: '0x',
         },
     ]);

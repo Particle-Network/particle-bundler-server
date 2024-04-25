@@ -35,7 +35,7 @@ export class TransactionService {
     }
 
     public async getLatestTransactionByStatus(chainId: number, sender: string, status?: TRANSACTION_STATUS): Promise<TransactionDocument> {
-        return await this.transactionModel.findOne({ chainId, from: sender, status: status }).sort({ nonce: -1 });
+        return await this.transactionModel.findOne({ chainId, status: status, from: sender }).sort({ nonce: -1 });
     }
 
     public async getTransactionById(id: string): Promise<TransactionDocument> {
@@ -45,16 +45,16 @@ export class TransactionService {
     public async getPendingTransactionCountBySigner(chainId: number, signerAddress: string): Promise<number> {
         return await this.transactionModel.countDocuments({
             chainId,
-            from: signerAddress,
             status: { $in: [TRANSACTION_STATUS.PENDING, TRANSACTION_STATUS.LOCAL] },
+            from: signerAddress,
         });
     }
 
     public async getPendingTransactionsBySigner(chainId: number, signerAddress: string): Promise<TransactionDocument[]> {
         return await this.transactionModel.find({
             chainId,
-            from: signerAddress,
             status: { $in: [TRANSACTION_STATUS.PENDING, TRANSACTION_STATUS.LOCAL] },
+            from: signerAddress,
         });
     }
 

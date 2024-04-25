@@ -108,13 +108,13 @@ TransactionSchema.index(
 );
 
 TransactionSchema.index({
+    chainId: 1,
     status: 1,
     from: 1,
-    nonce: 1,
 });
 
 TransactionSchema.index({
-    chainId: 1,
-    from: 1,
     status: 1,
+    latestSentAt: 1,
+    confirmations: 1,
 });

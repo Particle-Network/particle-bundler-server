@@ -40,7 +40,6 @@ UserOperationEventSchema.set('toJSON', {
 
 UserOperationEventSchema.index(
     {
-        chainId: 1,
         userOperationHash: 1,
     },
     {
