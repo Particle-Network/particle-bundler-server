@@ -1,5 +1,4 @@
 import { isEmpty } from 'lodash';
-import { BigNumber } from '../../../common/bignumber';
 import { AbiCoder, BytesLike, JsonRpcProvider, Network, hexlify, keccak256, toBeHex } from 'ethers';
 import { GAS_FEE_LEVEL } from '../../../common/common-types';
 import { PARTICLE_PUBLIC_RPC_URL, getBundlerChainConfig } from '../../../configs/bundler-common';
@@ -63,7 +62,7 @@ export function deepHexlify(obj: any): any {
     if (obj == null || typeof obj === 'string' || typeof obj === 'boolean') {
         return obj;
     } else if (typeof obj === 'bigint' || typeof obj === 'number') {
-        return BigNumber.from(obj).toHexString();
+        return toBeHex(obj);
     } else if (obj._isBigNumber !== null && obj.toHexString) {
         return obj.toHexString();
     } else if (typeof obj !== 'object') {

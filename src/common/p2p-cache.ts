@@ -38,7 +38,7 @@ class P2PCacheInstance {
                 return;
             }
 
-            this.cache.set(packet.data.key, packet.data.value, packet.data.ttl);
+            this.cache.set(packet.data.key, packet.data.value, { ttl: packet.data.ttl });
         }
 
         if (packet?.type === 'delete') {
@@ -83,6 +83,10 @@ class P2PCacheInstance {
 
     public has(key: string): boolean {
         return this.cache.has(key);
+    }
+
+    public ttl(key: string) {
+        return this.cache.getRemainingTTL(key);
     }
 
     public delete(key: string) {
