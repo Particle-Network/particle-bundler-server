@@ -119,12 +119,12 @@ export async function getFeeDataFromParticle(chainId: number, level: string = GA
         };
     }
 
-    // B^2 Mainnet: 0.001 Gwei
+    // B^2 Mainnet: 0.0011 Gwei
     if ([EVM_CHAIN_ID.BSQUARED_MAINNET].includes(chainId)) {
         return {
-            maxPriorityFeePerGas: 1000000,
-            maxFeePerGas: 1000000,
-            gasPrice: 1000000,
+            maxPriorityFeePerGas: 1100000,
+            maxFeePerGas: 1100000,
+            gasPrice: 1100000,
             baseFee: 0,
         };
     }
