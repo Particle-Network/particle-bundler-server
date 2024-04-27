@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectConnection } from '@nestjs/mongoose';
 import { Connection } from 'mongoose';
-import { Contract, Wallet, keccak256 } from 'ethers';
+import { Contract, Wallet } from 'ethers';
 import { UserOperationDocument } from '../rpc/schemas/user-operation.schema';
 import { RpcService } from '../rpc/services/rpc.service';
 import { LarkService } from '../common/services/lark.service';
@@ -11,7 +11,6 @@ import {
     CACHE_USEROPHASH_TXHASH_TIMEOUT,
     IS_DEVELOPMENT,
     IS_PRODUCTION,
-    keyCacheChainReceipt,
     keyCacheChainUserOpHashReceipt,
     keyCacheChainUserOpHashTxHash,
 } from '../../common/common-types';
