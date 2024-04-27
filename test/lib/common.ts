@@ -18,7 +18,6 @@ export async function gaslessSponsor(chainId: number, userOp: any, rpcController
     };
 
     const rSponsor = await Axios.post(particlePaymasterUrl, bodySponsor);
-    console.log('rSponsor', rSponsor.data);
     userOp.paymasterAndData = rSponsor.data.result.paymasterAndData;
 
     return deepHexlify(userOp);

@@ -11,7 +11,6 @@ import {
     keyCacheChainSignerTransactionCount,
 } from '../../../common/common-types';
 import { ConfigService } from '@nestjs/config';
-import { UserOperationDocument } from '../schemas/user-operation.schema';
 import { getFeeDataFromParticle } from '../aa/utils';
 import { LarkService } from '../../common/services/lark.service';
 import P2PCache from '../../../common/p2p-cache';
@@ -24,7 +23,6 @@ export enum TRANSACTION_EXTRA_STATUS {
 @Injectable()
 export class AAService {
     private readonly blockedSigners: Map<string, any & { reason: BLOCK_SIGNER_REASON }> = new Map();
-    private readonly lockedUserOperationHashes: Set<string> = new Set();
     private readonly chainSigners: Map<number, Wallet[]> = new Map();
 
     public constructor(
@@ -87,28 +85,6 @@ export class AAService {
 
     public isBlockedSigner(chainId: number, signerAddress: string) {
         return this.blockedSigners.has(`${chainId}-${signerAddress}`);
-    }
-
-    public tryLockUserOperationsAndGetUnuseds(userOperations: UserOperationDocument[]): UserOperationDocument[] {
-        const unusedUserOperations = [];
-        for (const userOperation of userOperations) {
-            const key = `${userOperation.chainId}-${userOperation.userOpHash}`;
-            if (this.lockedUserOperationHashes.has(key)) {
-                continue;
-            }
-
-            this.lockedUserOperationHashes.add(key);
-            unusedUserOperations.push(userOperation);
-        }
-
-        return unusedUserOperations;
-    }
-
-    public unlockUserOperations(userOperations: UserOperationDocument[]) {
-        for (const userOperation of userOperations) {
-            const key = `${userOperation.chainId}-${userOperation.userOpHash}`;
-            this.lockedUserOperationHashes.delete(key);
-        }
     }
 
     public async getFeeData(chainId: number) {

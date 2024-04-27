@@ -75,7 +75,7 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
         userOpDoc,
     );
 
-    ProcessEventEmitter.sendMessages(PROCESS_EVENT_TYPE.CREATE_USER_OPERATION, { chainId, userOpDoc: newUserOpDoc.toJSON() });
+    ProcessEventEmitter.sendMessages(PROCESS_EVENT_TYPE.CREATE_USER_OPERATION, newUserOpDoc.toJSON());
 
     return userOpHash;
 }

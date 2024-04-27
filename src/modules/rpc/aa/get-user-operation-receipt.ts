@@ -11,7 +11,7 @@ import { IS_PRODUCTION, keyCacheChainReceipt, keyCacheChainUserOpHashReceipt } f
 
 export async function getUserOperationReceipt(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
     Helper.assertTrue(body.params.length === 1, -32602);
-    Helper.assertTrue(typeof body.params[0] === 'string', -32602);
+    Helper.assertTrue(typeof body.params[0] === 'string' && body.params[0].length === 66, -32602);
 
     const userOperationService = rpcService.aaService.userOperationService;
     const transactionService = rpcService.aaService.transactionService;

@@ -102,7 +102,7 @@ export class FillSignerBalanceService {
         }
 
         if (IS_DEVELOPMENT) {
-            return true;
+            return false;
         }
 
         return this.configService.get('NODE_APP_INSTANCE') === '0';

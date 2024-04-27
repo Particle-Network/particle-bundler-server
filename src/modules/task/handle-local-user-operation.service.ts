@@ -31,10 +31,8 @@ export class HandleLocalUserOperationService {
     }
 
     private onSealUserOps(packet: any) {
-        const { chainId, userOpDoc } = packet.data;
-        if (!!chainId && !!userOpDoc) {
-            console.log('onSealUserOps', packet, Date.now());
-            
+        const userOpDoc = packet.data;
+        if (!!userOpDoc) {
             this.sealUserOps([userOpDoc]);
         }
     }
@@ -51,8 +49,6 @@ export class HandleLocalUserOperationService {
             if (userOperations.length <= 0) {
                 return;
             }
-
-            console.log(`[SealUserOps] UserOpLength: ${userOperations.length}`);
 
             const userOperationsByChainId: any = {};
             for (const userOperation of userOperations) {
@@ -90,14 +86,9 @@ export class HandleLocalUserOperationService {
             userOperations,
             canMakeTxCount,
         );
-        
-        this.aaService.unlockUserOperations(unusedUserOperations);
 
-        await this.handlePendingUserOperationService.handleLocalUserOperationBundles(
-            chainId,
-            targetSigner,
-            packedBundles,
-        );
+        this.unlockUserOperations(unusedUserOperations);
+        await this.handlePendingUserOperationService.handleLocalUserOperationBundles(chainId, targetSigner, packedBundles);
 
         this.lockChainSigner.delete(keyLockSigner(chainId, targetSigner.address));
 
@@ -105,9 +96,9 @@ export class HandleLocalUserOperationService {
             waitSeconds(2),
             this.userOperationService.deleteUserOperationsByIds(userOperationsToDelete.map((userOperation) => userOperation.id)),
         ]);
-        
-        this.aaService.unlockUserOperations(packedBundles.map((bundle) => bundle.userOperations).flat());
-        this.aaService.unlockUserOperations(userOperationsToDelete);
+
+        this.unlockUserOperations(packedBundles.map((bundle) => bundle.userOperations).flat());
+        this.unlockUserOperations(userOperationsToDelete);
     }
 
     private async waitForASigner(chainId: number): Promise<{ signer: Wallet; canMakeTxCount: number }> {
@@ -211,12 +202,11 @@ export class HandleLocalUserOperationService {
     private tryLockUserOperationsAndGetUnuseds(userOperations: UserOperationDocument[]): UserOperationDocument[] {
         const unusedUserOperations = [];
         for (const userOperation of userOperations) {
-            const key = `${userOperation.chainId}-${userOperation.userOpHash}`;
-            if (this.lockedUserOperationHashes.has(key)) {
+            if (this.lockedUserOperationHashes.has(userOperation.userOpHash)) {
                 continue;
             }
 
-            this.lockedUserOperationHashes.add(key);
+            this.lockedUserOperationHashes.add(userOperation.userOpHash);
             unusedUserOperations.push(userOperation);
         }
 
@@ -225,8 +215,7 @@ export class HandleLocalUserOperationService {
 
     private unlockUserOperations(userOperations: UserOperationDocument[]) {
         for (const userOperation of userOperations) {
-            const key = `${userOperation.chainId}-${userOperation.userOpHash}`;
-            this.lockedUserOperationHashes.delete(key);
+            this.lockedUserOperationHashes.delete(userOperation.userOpHash);
         }
     }
 
