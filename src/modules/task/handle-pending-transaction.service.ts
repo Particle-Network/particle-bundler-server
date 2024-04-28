@@ -189,6 +189,7 @@ export class HandlePendingTransactionService {
             return;
         }
 
+        // not in transaction db, may error is send succss and here is panic, There is a high probability that it will not appear
         await this.transactionService.updateTransactionStatus(transaction, TRANSACTION_STATUS.PENDING);
 
         console.log(`trySendAndUpdateTransactionStatus release hash: ${txHash} On Chain ${transaction.chainId}`);
