@@ -9,12 +9,10 @@ import { AppException } from '../../../../common/app-exception';
 import { JsonRPCRequestDto } from '../../dtos/json-rpc-request.dto';
 import { DUMMY_SIGNATURE } from '../../../../common/common-types';
 import { getL2ExtraFee, simulateHandleOpAndGetGasCost } from './send-user-operation';
-import { EVM_CHAIN_ID, L2_GAS_ORACLE, SUPPORT_EIP_1559 } from '../../../../common/chains';
+import { EVM_CHAIN_ID, L2_GAS_ORACLE, SUPPORT_EIP_1559, USE_PROXY_CONTRACT_TO_ESTIMATE_GAS } from '../../../../common/chains';
 import { deserializeUserOpCalldata } from '../deserialize-user-op';
 
 export async function estimateUserOperationGas(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
-    console.log('estimateUserOperationGas V6');
-
     Helper.assertTrue(typeof body.params[0] === 'object', -32602, 'Invalid params: userop must be an object');
 
     const userOp = body.params[0];
@@ -62,7 +60,7 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
         userOp.callGasLimit = toBeHex(gasCostInContract - initGas);
     }
 
-    if (gasCostWholeTransaction > gasCostInContract) {
+    if (USE_PROXY_CONTRACT_TO_ESTIMATE_GAS.includes(chainId) && gasCostWholeTransaction > gasCostInContract) {
         userOp.preVerificationGas = toBeHex(gasCostWholeTransaction - gasCostInContract);
     }
 
@@ -77,6 +75,7 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
 
     try {
         return {
+            gasCostWholeTransaction: toBeHex(gasCostWholeTransaction),
             maxFeePerGas: userOp.maxFeePerGas,
             maxPriorityFeePerGas: userOp.maxPriorityFeePerGas,
             preVerificationGas: userOp.preVerificationGas,
@@ -163,7 +162,11 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
 
     const gasCostInContract = BigInt(rSimulation.gasCostInContract);
     const gasCostWholeTransaction = BigInt(rSimulation.gasCostWholeTransaction);
-    const gasCost = gasCostWholeTransaction > gasCostInContract ? gasCostWholeTransaction : gasCostInContract;
+    const gasCost = USE_PROXY_CONTRACT_TO_ESTIMATE_GAS.includes(chainId)
+        ? gasCostWholeTransaction > gasCostInContract
+            ? gasCostWholeTransaction
+            : gasCostInContract
+        : gasCostInContract;
 
     userOp.maxFeePerGas = SUPPORT_EIP_1559.includes(chainId) ? toBeHex(userOpFeeData.maxFeePerGas) : toBeHex(userOpFeeData.gasPrice);
     userOp.maxPriorityFeePerGas = SUPPORT_EIP_1559.includes(chainId)

@@ -11,7 +11,14 @@ import { calcPreVerificationGas } from '@account-abstraction/sdk';
 import l1GasPriceOracleAbi from '../abis/l1-gas-price-oracle-abi';
 import { cloneDeep } from 'lodash';
 import MultiCall3Abi from '../abis/multi-call-3-abi';
-import { EVM_CHAIN_ID, L2_GAS_ORACLE, PARTICLE_CHAINS, SUPPORT_EIP_1559, USE_PROXY_CONTRACT_TO_ESTIMATE_GAS } from '../../../../common/chains';
+import {
+    EVM_CHAIN_ID,
+    L2_GAS_ORACLE,
+    PARTICLE_CHAINS,
+    SUPPORT_EIP_1559,
+    SUPPORT_MULTCALL3,
+    USE_PROXY_CONTRACT_TO_ESTIMATE_GAS,
+} from '../../../../common/chains';
 import { ProcessEventEmitter } from '../../../../common/process-event-emitter';
 
 export async function sendUserOperation(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
@@ -60,7 +67,11 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
 
     const gasCostInContract = BigInt(rSimulation.gasCostInContract);
     const gasCostWholeTransaction = BigInt(rSimulation.gasCostWholeTransaction);
-    const gasCost = gasCostWholeTransaction > gasCostInContract ? gasCostWholeTransaction : gasCostInContract;
+    const gasCost = USE_PROXY_CONTRACT_TO_ESTIMATE_GAS.includes(chainId)
+        ? gasCostWholeTransaction > gasCostInContract
+            ? gasCostWholeTransaction
+            : gasCostInContract
+        : gasCostInContract;
 
     // auth && particle chain can skip gas price check
     if (!body.isAuth || !PARTICLE_CHAINS.includes(chainId)) {
@@ -244,7 +255,7 @@ async function tryGetGasCostWholeTransaction(
     userOp: any,
 ) {
     const provider = rpcService.getJsonRpcProvider(chainId);
-    if (!USE_PROXY_CONTRACT_TO_ESTIMATE_GAS.includes(chainId)) {
+    if (!SUPPORT_MULTCALL3.includes(chainId)) {
         return '0x00';
     }
 
