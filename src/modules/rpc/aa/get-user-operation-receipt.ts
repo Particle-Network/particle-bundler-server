@@ -5,75 +5,57 @@ import { USER_OPERATION_STATUS, UserOperationDocument } from '../schemas/user-op
 import { Contract } from 'ethers';
 import entryPointAbi from './abis/entry-point-abi';
 import { TRANSACTION_STATUS } from '../schemas/transaction.schema';
-import { BigNumber } from '../../../common/bignumber';
 import { deepHexlify } from './utils';
-import { Alert } from '../../../common/alert';
+import P2PCache from '../../../common/p2p-cache';
+import { IS_PRODUCTION, keyCacheChainReceipt, keyCacheChainUserOpHashReceipt } from '../../../common/common-types';
 
 export async function getUserOperationReceipt(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
     Helper.assertTrue(body.params.length === 1, -32602);
-    Helper.assertTrue(typeof body.params[0] === 'string', -32602);
+    Helper.assertTrue(typeof body.params[0] === 'string' && body.params[0].length === 66, -32602);
 
     const userOperationService = rpcService.aaService.userOperationService;
     const transactionService = rpcService.aaService.transactionService;
 
-    const userOperation = await userOperationService.getUserOperationByHash(chainId, body.params[0]);
-    if (!userOperation || userOperation.status === USER_OPERATION_STATUS.LOCAL || userOperation.blockNumber <= 0) {
+    const userOperation = await userOperationService.getUserOperationByHash(body.params[0]);
+    if (!userOperation) {
         return null;
     }
 
-    const receipt = rpcService.aaService.getUserOpHashReceipts(chainId, body.params[0]);
-    if (!!receipt && userOperation.status !== USER_OPERATION_STATUS.DONE) {
-        return await manuallyGetUserOperationReceipt(chainId, rpcService, userOperation, receipt);
+    let receipt = P2PCache.get(keyCacheChainUserOpHashReceipt(userOperation.userOpHash));
+    if (!!receipt) {
+        console.log('keyCacheChainUserOpHashReceipt', receipt);
+        
+        return formatReceipt(rpcService, userOperation, receipt);
     }
 
-    const [transaction, userOperationEvent] = await Promise.all([
-        transactionService.getTransaction(chainId, userOperation.txHash),
-        userOperationService.getUserOperationEvent(chainId, userOperation.userOpHash),
-    ]);
-
-    if (userOperation.status === USER_OPERATION_STATUS.PENDING && !!transaction && transaction.status === TRANSACTION_STATUS.PENDING) {
-        if (Date.now() - transaction.latestSentAt.getTime() > 5000) {
-            return await manuallyGetUserOperationReceipt(chainId, rpcService, userOperation);
-        }
+    receipt = P2PCache.get(keyCacheChainReceipt(userOperation.transactionId));
+    if (!!receipt) {
+        console.log('keyCacheChainReceipt', receipt);
+        
+        return formatReceipt(rpcService, userOperation, receipt);
     }
 
-    if (!transaction || ![TRANSACTION_STATUS.FAILED, TRANSACTION_STATUS.SUCCESS].includes(transaction.status)) {
+    if (userOperation.status !== USER_OPERATION_STATUS.DONE) {
         return null;
     }
 
-    const logs = [];
-    for (const logItem of transaction.receipt.logs ?? []) {
-        if (logItem.topics.includes(userOperation.userOpHash)) {
-            logs.push(logItem);
-        }
+    const transaction = await transactionService.getTransactionById(userOperation.transactionId);
+    if (!transaction || transaction.status !== TRANSACTION_STATUS.DONE || !transaction.userOperationHashMapTxHash[userOperation.userOpHash]) {
+        return null;
     }
 
-    return deepHexlify({
-        userOpHash: userOperation.userOpHash,
-        sender: userOperation.userOpSender,
-        nonce: BigNumber.from(userOperation.origin?.nonce).toHexString(),
-        actualGasCost: BigNumber.from(userOperationEvent?.args[5] ?? 0).toHexString(),
-        actualGasUsed: BigNumber.from(userOperationEvent?.args[6] ?? 0).toHexString(),
-        success: userOperationEvent?.args[4] ?? false,
-        logs,
-        receipt: transaction.receipt,
-    });
+    receipt = transaction.receipts[transaction.userOperationHashMapTxHash[userOperation.userOpHash]];
+    if (!receipt) {
+        return null;
+    }
+
+    return formatReceipt(rpcService, userOperation, receipt);
 }
 
-export async function manuallyGetUserOperationReceipt(
-    chainId: number,
-    rpcService: RpcService,
-    userOperation: UserOperationDocument,
-    receipt?: any,
-) {
+export function formatReceipt(rpcService: RpcService, userOperation: UserOperationDocument, receipt: any) {
     try {
-        const provider = rpcService.getJsonRpcProvider(chainId);
-        if (!receipt) {
-            receipt = await rpcService.getTransactionReceipt(provider, userOperation.txHash);
-        }
-
         // failed transaction use local database value
-        if (!receipt || BigNumber.from(receipt.status).toNumber() === 0) {
+        if (BigInt(receipt.status) === 0n) {
             return null;
         }
 
@@ -112,9 +94,11 @@ export async function manuallyGetUserOperationReceipt(
             receipt,
         });
     } catch (error) {
-        console.error(error);
-        Alert.sendMessage(`Failed to get user operation receipt: ${Helper.converErrorToString(error)}`);
+        if (!IS_PRODUCTION) {
+            console.error('Failed to format receipt', error);
+        }
 
+        rpcService.larkService.sendMessage(`Failed to format receipt: ${Helper.converErrorToString(error)}`);
         return null;
     }
 }

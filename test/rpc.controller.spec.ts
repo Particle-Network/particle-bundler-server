@@ -1,37 +1,35 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { Test } from '@nestjs/testing';
 import { RpcController } from '../src/modules/rpc/rpc.controller';
 import { RpcService } from '../src/modules/rpc/services/rpc.service';
-import { RpcModule } from '../src/modules/rpc/rpc.module';
-import { MongooseModule } from '@nestjs/mongoose';
-import { UserOperation, UserOperationSchema } from '../src/modules/rpc/schemas/user-operation.schema';
-import { mongodbConfigAsync } from '../src/configs/mongodb.config';
-import { configConfig } from '../src/configs/config.config';
-import { ConfigModule } from '@nestjs/config';
-import { Wallet, JsonRpcProvider, resolveProperties, parseEther } from 'ethers';
-import { RPC_CONFIG, AA_METHODS, EVM_CHAIN_ID, initializeBundlerConfig } from '../src/configs/bundler-common';
+import { Wallet, JsonRpcProvider, resolveProperties, toBeHex } from 'ethers';
+import { AA_METHODS, initializeBundlerConfig, getBundlerChainConfig } from '../src/configs/bundler-common';
 import { deepHexlify } from '../src/modules/rpc/aa/utils';
 import { IContractAccount } from '../src/modules/rpc/aa/interface-contract-account';
-import { BigNumber } from '../src/common/bignumber';
 import { ENTRY_POINT, gaslessSponsor } from './lib/common';
-import { SimpleSmartAccount } from '../src/modules/rpc/aa/smart-accounts/simple-smart-account';
-import { BiconomySmartAccount } from '../src/modules/rpc/aa/smart-accounts/biconomy-smart-account';
 import { deserializeUserOpCalldata } from '../src/modules/rpc/aa/deserialize-user-op';
+import { SimpleSmartAccount } from './lib/simple-smart-account';
+import { EVM_CHAIN_ID } from '../src/common/chains';
+import { AppModule } from '../src/app.module';
+import * as request from 'supertest';
+import { INestApplication } from '@nestjs/common';
 
 let rpcController: RpcController;
 let rpcService: RpcService;
 
+process.env.DISABLE_TASK = '1';
+process.env.ENVIRONMENT = 'dev';
+
+let app: INestApplication;
 describe('RpcController', () => {
     beforeEach(async () => {
         await initializeBundlerConfig();
 
-        const app: TestingModule = await Test.createTestingModule({
-            imports: [
-                ConfigModule.forRoot(configConfig),
-                MongooseModule.forRootAsync(mongodbConfigAsync),
-                RpcModule,
-                MongooseModule.forFeature([{ name: UserOperation.name, schema: UserOperationSchema }]),
-            ],
+        const moduleRef = await Test.createTestingModule({
+            imports: [AppModule],
         }).compile();
+
+        app = moduleRef.createNestApplication();
+        await app.init();
 
         rpcController = app.get<RpcController>(RpcController);
         rpcService = app.get<RpcService>(RpcService);
@@ -105,30 +103,18 @@ describe('RpcController', () => {
 });
 
 async function createSimpleAccount(chainId: number): Promise<IContractAccount> {
-    const rpcUrl = RPC_CONFIG[Number(chainId)].rpcUrl;
+    const rpcUrl = getBundlerChainConfig(chainId).rpcUrl;
     const provider = new JsonRpcProvider(rpcUrl, null, { batchMaxCount: 1 });
 
     const owner: Wallet = new Wallet(Wallet.createRandom().privateKey, provider);
-    const factoryAddress = '0x9406cc6185a346906296840746125a0e44976454';
-
-    return new SimpleSmartAccount(owner, factoryAddress, ENTRY_POINT);
-}
-
-async function createBiconomySmartAccount(chainId: number): Promise<IContractAccount> {
-    const rpcUrl = RPC_CONFIG[Number(chainId)].rpcUrl;
-    const provider = new JsonRpcProvider(rpcUrl, null, { batchMaxCount: 1 });
-
-    const owner: Wallet = new Wallet(Wallet.createRandom().privateKey, provider);
-    const smartAccountFactoryAddress = '0x000000F9eE1842Bb72F6BBDD75E6D3d4e3e9594C';
-
-    return new BiconomySmartAccount(owner, smartAccountFactoryAddress, ENTRY_POINT);
+    return new SimpleSmartAccount(owner);
 }
 
 async function createFakeUserOp(chainId: number, simpleAccount: IContractAccount) {
     const unsignedUserOp = await simpleAccount.createUnsignedUserOp([
         {
             to: Wallet.createRandom().address,
-            value: BigNumber.from(parseEther('0')).toHexString(),
+            value: toBeHex(0),
             data: '0x',
         },
     ]);
@@ -173,8 +159,10 @@ async function sendUserOp(chainId: number, userOp: any) {
         params: [userOp, ENTRY_POINT],
     };
 
-    const r3 = await rpcController.handleRpc(chainId, bodySend);
-    console.log(r3);
+    let r3: any = await request(app.getHttpServer()).post('').query({ chainId }).auth('test_user', 'test_pass').send(bodySend);
+    console.log('r3', r3.text);
+
+    r3 = JSON.parse(r3.text);
     expect(r3.result.length).toBe(66);
 
     for (let index = 0; index < 30; index++) {

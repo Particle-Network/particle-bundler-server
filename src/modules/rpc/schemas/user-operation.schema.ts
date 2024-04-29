@@ -1,9 +1,8 @@
 import { Prop, Schema as NestSchema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema, Types } from 'mongoose';
-import { BigNumber } from '../../../common/bignumber';
+import { toBeHex } from 'ethers';
 
 export enum USER_OPERATION_STATUS {
-    TO_BE_REPLACE,
     LOCAL,
     PENDING,
     DONE,
@@ -36,7 +35,10 @@ export class UserOperation {
     public status: any;
 
     @Prop({ required: false, type: Schema.Types.String })
-    public txHash: string;
+    public transactionId: string;
+
+    @Prop({ required: false, type: Schema.Types.String })
+    public txHash: string; // final confirm tx
 
     @Prop({ required: false, type: Schema.Types.String })
     public blockHash: string;
@@ -54,10 +56,14 @@ export class UserOperation {
 export type UserOperationDocument = UserOperation & Document & IUserOperationSchema;
 export const UserOperationSchema = SchemaFactory.createForClass(UserOperation);
 
+export interface IUserOperationSchema {
+    isOld: () => boolean;
+}
+
 UserOperationSchema.set('toJSON', {
     transform: function (doc, ret, options) {
         ret._id = ret._id.toString();
-        ret.userOpNonce = BigNumber.from(ret.userOpNonce.toString()).toHexString();
+        ret.userOpNonce = toBeHex(ret.userOpNonce.toString());
         return ret;
     },
 });
@@ -66,13 +72,8 @@ UserOperationSchema.methods.isOld = function (): boolean {
     return this.updatedAt.getTime() < Date.now() - 1000 * 600;
 };
 
-export interface IUserOperationSchema {
-    isOld: () => boolean;
-}
-
 UserOperationSchema.index(
     {
-        chainId: 1,
         userOpHash: 1,
     },
     {
@@ -93,14 +94,10 @@ UserOperationSchema.index(
 );
 
 UserOperationSchema.index({
-    chainId: 1,
-    status: 1,
-    userOpHash: 1,
-    userOpSender: 1,
-    userOpNonceKey: 1,
-    userOpNonce: 1,
+    transactionId: 1,
 });
 
 UserOperationSchema.index({
     status: 1,
+    chainId: 1,
 });

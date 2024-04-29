@@ -4,16 +4,28 @@ import { JsonRPCRequestDto, JsonRPCResponse } from './dtos/json-rpc-request.dto'
 import { FastifyReply } from 'fastify';
 import { isArray, isPlainObject } from 'lodash';
 import { Helper } from '../../common/helper';
-import { EVM_CHAIN_ID, RPC_CONFIG } from '../../configs/bundler-common';
+import { getBundlerChainConfig } from '../../configs/bundler-common';
 import { AppException } from '../../common/app-exception';
-import { Alert } from '../../common/alert';
 import { IS_PRODUCTION } from '../../common/common-types';
+import { LarkService } from '../common/services/lark.service';
+import { EVM_CHAIN_ID } from '../../common/chains';
+import { ConfigService } from '@nestjs/config';
 
 @Controller()
 export class RpcController {
-    public constructor(private readonly rpcService: RpcService) {}
+    private readonly basicAuthUsername: string;
+    private readonly basicAuthPassword: string;
 
-    @Post('')
+    public constructor(
+        private readonly configService: ConfigService,
+        private readonly rpcService: RpcService,
+        private readonly larkService: LarkService,
+    ) {
+        this.basicAuthUsername = this.configService.get('BASIC_AUTH_USERNAME');
+        this.basicAuthPassword = this.configService.get('BASIC_AUTH_PASSWORD');
+    }
+
+    @Post()
     public async rpc(@Query() query: any, @Req() req: any, @Res() res: FastifyReply): Promise<any> {
         this._rpc(query, req, res);
     }
@@ -24,7 +36,9 @@ export class RpcController {
         let body: any;
 
         try {
-            body = JSON.parse(req.rawBody);
+            const isAuth = this.verifyBasicAuth(req);
+            body = req.body ?? JSON.parse(req.rawBody);
+            body.isAuth = isAuth;
             let chainId: number;
             if (!!query.chainId) {
                 chainId = Number(query.chainId);
@@ -38,7 +52,7 @@ export class RpcController {
                 }
             }
 
-            Helper.assertTrue(!!RPC_CONFIG[chainId], -32001, `Unsupported chainId: ${chainId}`);
+            Helper.assertTrue(!!getBundlerChainConfig(chainId), -32001, `Unsupported chainId: ${chainId}`);
             Helper.assertTrue(!IS_PRODUCTION || chainId !== EVM_CHAIN_ID.PARTICLE_PANGU_TESTNET, -32001, `Unsupported chainId: ${chainId}`);
 
             result = await this.handleRpc(chainId, body);
@@ -51,6 +65,18 @@ export class RpcController {
         res.status(200).send(result);
     }
 
+    private verifyBasicAuth(req: any): boolean {
+        const authorization = req?.headers?.authorization;
+        if (!authorization) {
+            return false;
+        }
+
+        const base64Auth = (authorization ?? '').split(' ')[1] ?? '';
+        const [username, password] = Buffer.from(base64Auth, 'base64').toString().split(':');
+
+        return username === this.basicAuthUsername && password === this.basicAuthPassword;
+    }
+
     public async handleRpc(chainId: number, body: any) {
         try {
             if (isPlainObject(body)) {
@@ -58,7 +84,6 @@ export class RpcController {
             }
 
             if (isArray(body)) {
-                // Simple handle
                 const promises = body.map((item) => this.handlePlainBody(chainId, item));
                 return await Promise.all(promises);
             }
@@ -68,7 +93,9 @@ export class RpcController {
             console.error(error);
 
             if (!(error instanceof AppException) || error.errorCode === -32000) {
-                Alert.sendMessage(`Bundler RPC Error\nChainId: ${chainId}\nBody:${JSON.stringify(body)}\n${Helper.converErrorToString(error)}`);
+                this.larkService.sendMessage(
+                    `Bundler RPC Error\nChainId: ${chainId}\nBody:${JSON.stringify(body)}\n${Helper.converErrorToString(error)}`,
+                );
             }
 
             return JsonRPCResponse.createErrorResponse(body, error);

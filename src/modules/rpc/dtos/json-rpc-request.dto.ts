@@ -1,4 +1,4 @@
-import { IsArray, IsOptional, MinLength, validate } from 'class-validator';
+import { IsArray, IsBoolean, IsOptional, MinLength, validate } from 'class-validator';
 import { AppException } from '../../../common/app-exception';
 import { plainToInstance } from 'class-transformer';
 
@@ -14,6 +14,10 @@ export class JsonRPCRequestDto {
     @IsOptional()
     @IsArray()
     public readonly params: any[] = [];
+
+    @IsOptional()
+    @IsBoolean()
+    public readonly isAuth: boolean = false;
 
     public static async fromPlainAndCheck(body: any): Promise<JsonRPCRequestDto> {
         const jsonRPCRequestDto: any = plainToInstance(JsonRPCRequestDto, body);

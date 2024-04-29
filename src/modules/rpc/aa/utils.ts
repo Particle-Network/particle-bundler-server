@@ -1,27 +1,24 @@
 import { isEmpty } from 'lodash';
-import { BigNumber } from '../../../common/bignumber';
-import { AbiCoder, BytesLike, JsonRpcProvider, Network, hexlify, keccak256 } from 'ethers';
+import { AbiCoder, BytesLike, JsonRpcProvider, Network, hexlify, keccak256, toBeHex } from 'ethers';
 import { GAS_FEE_LEVEL } from '../../../common/common-types';
-import { EVM_CHAIN_ID, MINIMUM_GAS_FEE, PARTICLE_PUBLIC_RPC_URL } from '../../../configs/bundler-common';
+import { PARTICLE_PUBLIC_RPC_URL, getBundlerChainConfig } from '../../../configs/bundler-common';
+import { TransactionFactory, TypedTransaction } from '@ethereumjs/tx';
+import { AppException } from '../../../common/app-exception';
+import { EVM_CHAIN_ID, SUPPORT_EIP_1559 } from '../../../common/chains';
 
-export function calcUserOpTotalGasLimit(userOp: any, chainId: number): BigNumber {
-    const mul = 3;
-    let magicExtraGas = 1000000;
+// TODO need to test
+export function calcUserOpTotalGasLimit(userOp: any, chainId: number): bigint {
+    const mul = 3n;
+    const g1 = BigInt(userOp.callGasLimit) + BigInt(userOp.verificationGasLimit) * mul + BigInt(userOp.preVerificationGas) + 5000n;
+
+    let magicExtraGas = 1000000n;
     // HACK
     if (chainId === EVM_CHAIN_ID.MERLIN_CHAIN_MAINNET || chainId === EVM_CHAIN_ID.MERLIN_CHAIN_TESTNET) {
-        magicExtraGas = 200000;
+        magicExtraGas = 200000n;
     }
-    const g1 = BigNumber.from(userOp.callGasLimit)
-        .add(BigNumber.from(userOp.verificationGasLimit).mul(mul))
-        .add(BigNumber.from(userOp.preVerificationGas))
-        .add(BigNumber.from(5000));
+    const g2 = BigInt(userOp.callGasLimit) + BigInt(userOp.verificationGasLimit) + BigInt(userOp.preVerificationGas) + magicExtraGas;
 
-    const g2 = BigNumber.from(userOp.callGasLimit)
-        .add(BigNumber.from(userOp.verificationGasLimit))
-        .add(BigNumber.from(userOp.preVerificationGas))
-        .add(BigNumber.from(magicExtraGas));
-
-    return BigNumber.from(g1.lt(g2) ? g1 : g2); // return min(g1, g2)
+    return g1 < g2 ? g1 : g2; // return min(g1, g2)
 }
 
 export function isUserOpValid(userOp: any, requireSignature = true, requireGasParams = true): boolean {
@@ -65,7 +62,7 @@ export function deepHexlify(obj: any): any {
     if (obj == null || typeof obj === 'string' || typeof obj === 'boolean') {
         return obj;
     } else if (typeof obj === 'bigint' || typeof obj === 'number') {
-        return BigNumber.from(obj).toHexString();
+        return toBeHex(obj);
     } else if (obj._isBigNumber !== null && obj.toHexString) {
         return obj.toHexString();
     } else if (typeof obj !== 'object') {
@@ -84,7 +81,7 @@ export function deepHexlify(obj: any): any {
 }
 
 export async function getFeeDataFromParticle(chainId: number, level: string = GAS_FEE_LEVEL.MEDIUM) {
-    const network = new Network('', chainId);
+    const network = Network.from(chainId);
     const provider = new JsonRpcProvider(`${PARTICLE_PUBLIC_RPC_URL}?chainId=${chainId}`, network, {
         batchMaxCount: 1,
         staticNetwork: network,
@@ -92,44 +89,7 @@ export async function getFeeDataFromParticle(chainId: number, level: string = GA
 
     const particleFeeData = await provider.send('particle_suggestedGasFees', []);
 
-    if ([EVM_CHAIN_ID.COMBO_MAINNET, EVM_CHAIN_ID.COMBO_TESTNET, EVM_CHAIN_ID.OPBNB_MAINNET, EVM_CHAIN_ID.OPBNB_TESTNET].includes(chainId)) {
-        return {
-            maxPriorityFeePerGas: 1001,
-            maxFeePerGas: 1001,
-            gasPrice: 1001,
-            baseFee: Math.ceil(Number(particleFeeData?.baseFee ?? 0) * 10 ** 9),
-        };
-    }
-
-    if ([EVM_CHAIN_ID.MERLIN_CHAIN_MAINNET].includes(chainId)) {
-        return {
-            maxPriorityFeePerGas: 0.06 * 1000000000,
-            maxFeePerGas: 0.06 * 1000000000,
-            gasPrice: 0.06 * 1000000000,
-            baseFee: 0,
-        };
-    }
-
-    if ([EVM_CHAIN_ID.BEVM_CANARY_MAINNET, EVM_CHAIN_ID.BEVM_CANARY_TESTNET, EVM_CHAIN_ID.BEVM_TESTNET].includes(chainId)) {
-        return {
-            maxPriorityFeePerGas: 50000000,
-            maxFeePerGas: 50000000,
-            gasPrice: 50000000,
-            baseFee: 0,
-        };
-    }
-
-    // B^2 Mainnet: 0.0011 Gwei
-    if ([EVM_CHAIN_ID.BSQUARED_MAINNET].includes(chainId)) {
-        return {
-            maxPriorityFeePerGas: 1100000,
-            maxFeePerGas: 1100000,
-            gasPrice: 1100000,
-            baseFee: 0,
-        };
-    }
-
-    if (EVM_CHAIN_ID.TAIKO_TESTNET_KATLA === chainId || EVM_CHAIN_ID.TAIKO_TESTNET_HEKLA === chainId) {
+    if (EVM_CHAIN_ID.TAIKO_TESTNET_KATLA === chainId) {
         particleFeeData.baseFee = 0.000000001; // 1 wei
     }
 
@@ -144,38 +104,49 @@ export async function getFeeDataFromParticle(chainId: number, level: string = GA
         result.maxPriorityFeePerGas = 1;
     }
 
-    if (MINIMUM_GAS_FEE[chainId]) {
-        if (MINIMUM_GAS_FEE[chainId]?.gasPrice) {
-            if (BigNumber.from(MINIMUM_GAS_FEE[chainId].gasPrice).gt(result.gasPrice)) {
-                result.gasPrice = BigNumber.from(MINIMUM_GAS_FEE[chainId].gasPrice).toNumber();
-            }
-        }
-        if (MINIMUM_GAS_FEE[chainId]?.maxFeePerGas) {
-            if (BigNumber.from(MINIMUM_GAS_FEE[chainId].maxFeePerGas).gt(result.maxFeePerGas)) {
-                result.maxFeePerGas = BigNumber.from(MINIMUM_GAS_FEE[chainId].maxFeePerGas).toNumber();
-                result.maxPriorityFeePerGas = result.maxFeePerGas;
-            }
-        }
+    const bundlerConfig = getBundlerChainConfig(chainId);
+    if (!!bundlerConfig?.minGasFee?.maxPriorityFeePerGas && result.maxPriorityFeePerGas < Number(bundlerConfig.minGasFee.maxPriorityFeePerGas)) {
+        result.maxPriorityFeePerGas = Number(bundlerConfig.minGasFee.maxPriorityFeePerGas);
+    }
+    if (!!bundlerConfig?.minGasFee?.maxFeePerGas && result.maxFeePerGas < Number(bundlerConfig.minGasFee.maxFeePerGas)) {
+        result.maxFeePerGas = Number(bundlerConfig.minGasFee.maxFeePerGas);
+    }
+    if (!!bundlerConfig?.minGasFee?.gasPrice && result.gasPrice < Number(bundlerConfig.minGasFee.gasPrice)) {
+        result.gasPrice = Number(bundlerConfig.minGasFee.gasPrice);
+    }
+    if (!!bundlerConfig?.minGasFee?.baseFee && result.baseFee < Number(bundlerConfig.minGasFee.baseFee)) {
+        result.baseFee = Number(bundlerConfig.minGasFee.baseFee);
+    }
+    if (!!bundlerConfig?.maxGasFee?.maxPriorityFeePerGas && result.maxPriorityFeePerGas > Number(bundlerConfig.maxGasFee.maxPriorityFeePerGas)) {
+        result.maxPriorityFeePerGas = Number(bundlerConfig.maxGasFee.maxPriorityFeePerGas);
+    }
+    if (!!bundlerConfig?.maxGasFee?.maxFeePerGas && result.maxFeePerGas > Number(bundlerConfig.maxGasFee.maxFeePerGas)) {
+        result.maxFeePerGas = Number(bundlerConfig.maxGasFee.maxFeePerGas);
+    }
+    if (!!bundlerConfig?.maxGasFee?.gasPrice && result.gasPrice > Number(bundlerConfig.maxGasFee.gasPrice)) {
+        result.gasPrice = Number(bundlerConfig.maxGasFee.gasPrice);
+    }
+    if (!!bundlerConfig?.maxGasFee?.baseFee && result.baseFee > Number(bundlerConfig.maxGasFee.baseFee)) {
+        result.baseFee = Number(bundlerConfig.maxGasFee.baseFee);
     }
 
     return result;
 }
 
-export function calcUserOpGasPrice(feeData: any, baseFee = 0): number {
-    return Math.min(BigNumber.from(feeData.maxFeePerGas).toNumber(), BigNumber.from(feeData.maxPriorityFeePerGas).toNumber() + baseFee);
+export function calcUserOpGasPrice(feeData: any, baseFee: number = 0): number {
+    return Math.min(Number(BigInt(feeData.maxFeePerGas)), Number(BigInt(feeData.maxPriorityFeePerGas)) + baseFee);
 }
 
 export function splitOriginNonce(originNonce: string) {
-    const bn = BigNumber.from(originNonce);
-    const key = bn.shr(64);
-
-    let valueString = bn.toHexString();
-    if (!key.eq(0)) {
+    const bn = BigInt(originNonce);
+    const key = bn >> 64n;
+    let valueString = toBeHex(bn);
+    if (key !== 0n) {
         valueString = valueString.slice(34);
         valueString = `0x${valueString}`;
     }
 
-    return { nonceKey: key.toHexString(), nonceValue: BigNumber.from(valueString).toHexString() };
+    return { nonceKey: toBeHex(key), nonceValue: toBeHex(valueString) };
 }
 
 export function getUserOpHash(chainId: number, userOp: any, entryPoint: string) {
@@ -223,4 +194,34 @@ export function packUserOp(userOp: any, forSignature = true): string {
             ],
         );
     }
+}
+
+export async function waitSeconds(seconds: number) {
+    await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
+}
+
+export function tryParseSignedTx(signedTx: string): TypedTransaction {
+    let tx: TypedTransaction;
+    try {
+        tx = TransactionFactory.fromSerializedData(Buffer.from(signedTx.substring(2), 'hex'));
+    } catch (error) {
+        throw new AppException(10002, `Invalid transaction: ${error.message}`);
+    }
+
+    return tx;
+}
+
+export function createTxGasData(chainId: number, feeData: any) {
+    if (!SUPPORT_EIP_1559.includes(chainId)) {
+        return {
+            type: 0,
+            gasPrice: feeData.gasPrice ?? 0,
+        };
+    }
+
+    return {
+        type: 2,
+        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ?? 0,
+        maxFeePerGas: feeData.maxFeePerGas ?? 0,
+    };
 }

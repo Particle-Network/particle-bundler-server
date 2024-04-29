@@ -7,6 +7,12 @@ export class UserOperationEvent {
     public chainId: number;
 
     @Prop({ required: true, type: Schema.Types.String })
+    public blockHash: string;
+
+    @Prop({ required: true, type: Schema.Types.Number })
+    public blockNumber: number;
+
+    @Prop({ required: true, type: Schema.Types.String })
     public contractAddress: string;
 
     @Prop({ required: true, type: Schema.Types.String })
@@ -34,7 +40,6 @@ UserOperationEventSchema.set('toJSON', {
 
 UserOperationEventSchema.index(
     {
-        chainId: 1,
         userOperationHash: 1,
     },
     {

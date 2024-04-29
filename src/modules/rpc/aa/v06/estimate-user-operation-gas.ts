@@ -1,99 +1,87 @@
-import { AbiCoder, JsonRpcProvider, getAddress, isAddress } from 'ethers';
-import { JsonRPCRequestDto } from '../dtos/json-rpc-request.dto';
-import { RpcService } from '../services/rpc.service';
-import { Helper } from '../../../common/helper';
+import { AbiCoder, JsonRpcProvider, getAddress, isHexString, toBeHex } from 'ethers';
 import { calcPreVerificationGas } from '@account-abstraction/sdk';
-import { calcUserOpGasPrice, deepHexlify, hexConcat, isUserOpValid } from './utils';
-import { BigNumber } from '../../../common/bignumber';
-import {
-    AppException,
-    AppExceptionMessages,
-    MESSAGE_32602_INVALID_ENTRY_POINT_ADDRESS,
-    MESSAGE_32602_INVALID_USEROP_TYPE,
-} from '../../../common/app-exception';
-import { EVM_CHAIN_ID, L2_GAS_ORACLE, SUPPORT_EIP_1559, getBundlerConfig } from '../../../configs/bundler-common';
 import { Logger } from '@nestjs/common';
-import { DUMMY_SIGNATURE } from '../../../common/common-types';
+import { hexConcat } from '@ethersproject/bytes';
+import { RpcService } from '../../services/rpc.service';
+import { Helper } from '../../../../common/helper';
+import { calcUserOpGasPrice, isUserOpValid } from '../utils';
+import { AppException } from '../../../../common/app-exception';
+import { JsonRPCRequestDto } from '../../dtos/json-rpc-request.dto';
+import { DUMMY_SIGNATURE } from '../../../../common/common-types';
 import { getL2ExtraFee, simulateHandleOpAndGetGasCost } from './send-user-operation';
-import { deserializeUserOpCalldata as deserializeUserOpCallData } from './deserialize-user-op';
+import { EVM_CHAIN_ID, L2_GAS_ORACLE, SUPPORT_EIP_1559, USE_PROXY_CONTRACT_TO_ESTIMATE_GAS } from '../../../../common/chains';
+import { deserializeUserOpCalldata } from '../deserialize-user-op';
 
-const abiCoder = AbiCoder.defaultAbiCoder();
 export async function estimateUserOperationGas(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
-    Helper.assertTrue(typeof body.params[0] === 'object', -32602, MESSAGE_32602_INVALID_USEROP_TYPE);
-    Helper.assertTrue(typeof body.params[1] === 'string' && isAddress(body.params[1]), -32602, MESSAGE_32602_INVALID_ENTRY_POINT_ADDRESS);
+    Helper.assertTrue(typeof body.params[0] === 'object', -32602, 'Invalid params: userop must be an object');
 
     const userOp = body.params[0];
     const entryPoint = getAddress(body.params[1]);
-    const bundlerConfig = getBundlerConfig(chainId);
-    Helper.assertTrue(bundlerConfig.SUPPORTED_ENTRYPOINTS.includes(entryPoint), -32003);
 
     // Init default value
-    userOp.maxFeePerGas = '0x1';
-    userOp.maxPriorityFeePerGas = '0x1';
-    userOp.verificationGasLimit = BigNumber.from(1000000).toHexString();
-    userOp.callGasLimit = BigNumber.from(10000000).toHexString();
-    userOp.preVerificationGas = '0x0';
-    userOp.paymasterAndData = userOp.paymasterAndData ?? '0x';
-    userOp.signature = userOp.signature ?? '0x';
+    userOp.maxFeePerGas = '0x01';
+    userOp.maxPriorityFeePerGas = '0x01';
+    userOp.verificationGasLimit = toBeHex(1000000);
+    userOp.callGasLimit = toBeHex(10000000);
+    userOp.preVerificationGas = '0x00';
+
+    const paymasterAddress = await rpcService.getValidPaymasterAddress(chainId);
+    if (!userOp.paymasterAndData || userOp.paymasterAndData === '0x') {
+        // paymaster dummy signature
+        const abiCoder = AbiCoder.defaultAbiCoder();
+        userOp.paymasterAndData = hexConcat([paymasterAddress, abiCoder.encode(['uint48', 'uint48'], ['0x0', '0x0']), DUMMY_SIGNATURE]);
+    }
 
     if (!userOp.signature || userOp.signature === '0x') {
         userOp.signature = DUMMY_SIGNATURE;
     }
 
-    const paymasterAddress = await rpcService.getValidPaymasterAddress(chainId);
-    if (!!paymasterAddress && userOp.paymasterAndData === '0x') {
-        // dummy signature
-        userOp.paymasterAndData = hexConcat([paymasterAddress, abiCoder.encode(['uint48', 'uint48'], ['0x0', '0x0']), DUMMY_SIGNATURE]);
-    }
+    Helper.assertTrue(isHexString(userOp.paymasterAndData), -32602, 'Invalid params: paymasterAndData must be hex string');
+    Helper.assertTrue(isHexString(userOp.signature), -32602, 'Invalid params: signature must be hex string');
 
-    userOp.preVerificationGas = BigNumber.from(calcPreVerificationGas(userOp)).add(5000).toHexString();
-    Helper.assertTrue(isUserOpValid(userOp), -32602, AppExceptionMessages.messageExtend(-32602, `Invalid userOp`));
+    userOp.preVerificationGas = toBeHex(calcPreVerificationGas(userOp) + 5000);
+    Helper.assertTrue(isUserOpValid(userOp), -32602, 'Invalid userOp');
 
     const provider = rpcService.getJsonRpcProvider(chainId);
     const [{ callGasLimit, initGas }, { maxFeePerGas, maxPriorityFeePerGas, gasCostInContract, gasCostWholeTransaction, verificationGasLimit }] =
         await Promise.all([
             estimateGasLimit(provider, entryPoint, userOp),
             calculateGasPrice(rpcService, chainId, userOp, entryPoint),
-            tryEstimateGasForFirstAccount(chainId, provider, userOp),
+            tryEstimateGasForFirstAccount(provider, userOp),
         ]);
 
-    userOp.preVerificationGas = BigNumber.from(calcPreVerificationGas(userOp)).add(5000).toHexString();
+    userOp.preVerificationGas = toBeHex(calcPreVerificationGas(userOp) + 5000);
     userOp.verificationGasLimit = verificationGasLimit;
-    userOp.callGasLimit = BigNumber.from(callGasLimit).toHexString();
+    userOp.callGasLimit = toBeHex(callGasLimit);
     userOp.maxFeePerGas = maxFeePerGas;
     userOp.maxPriorityFeePerGas = maxPriorityFeePerGas;
 
-    if (initGas > 0n && BigNumber.from(gasCostInContract).gt(initGas)) {
-        userOp.callGasLimit = BigNumber.from(gasCostInContract).sub(initGas).toHexString();
+    if (initGas > 0n && gasCostInContract > initGas) {
+        userOp.callGasLimit = toBeHex(gasCostInContract - initGas);
     }
 
-    if (gasCostWholeTransaction.gt(gasCostInContract)) {
-        userOp.preVerificationGas = gasCostWholeTransaction.sub(gasCostInContract).toHexString();
+    if (USE_PROXY_CONTRACT_TO_ESTIMATE_GAS.includes(chainId) && gasCostWholeTransaction > gasCostInContract) {
+        userOp.preVerificationGas = toBeHex(gasCostWholeTransaction - gasCostInContract);
     }
 
     // For mantle, because the gas estimation is including L1 extra fee, so we can not use it directly
     // TODO recheck ARBITRUM
     if ([EVM_CHAIN_ID.MANTLE_MAINNET, EVM_CHAIN_ID.MANTLE_SEPOLIA_TESTNET].includes(chainId)) {
-        userOp.callGasLimit = BigNumber.from(gasCostInContract).toHexString();
-        userOp.preVerificationGas = BigNumber.from(gasCostWholeTransaction)
-            .mul(initGas > 0n ? 2 : 1)
-            .toHexString();
+        userOp.callGasLimit = toBeHex(gasCostInContract);
+        userOp.preVerificationGas = toBeHex(gasCostWholeTransaction * (initGas > 0n ? 2n : 1n));
     }
 
-    Helper.assertTrue(
-        BigNumber.from(userOp.maxFeePerGas).gt(0),
-        -32602,
-        AppExceptionMessages.messageExtend(-32602, `maxFeePerGas must be larger than 0 during gas estimation`),
-    );
+    Helper.assertTrue(BigInt(userOp.maxFeePerGas) > 0n, -32602, 'maxFeePerGas must be larger than 0 during gas estimation');
 
     try {
-        return deepHexlify({
+        return {
+            gasCostWholeTransaction: toBeHex(gasCostWholeTransaction),
             maxFeePerGas: userOp.maxFeePerGas,
             maxPriorityFeePerGas: userOp.maxPriorityFeePerGas,
             preVerificationGas: userOp.preVerificationGas,
             verificationGasLimit: userOp.verificationGasLimit,
             callGasLimit: userOp.callGasLimit,
-        });
+        };
     } catch (error) {
         Logger.error(error);
 
@@ -126,19 +114,28 @@ async function estimateGasLimit(provider: JsonRpcProvider, entryPoint: string, u
                 data: userOp.callData,
             });
         }
+
+        // It happens in contract call, so we can ignore the init gas
+        if (initGas > 21000n) {
+            initGas -= 21000n;
+        }
+
+        if (callGasLimit > 21000n) {
+            callGasLimit -= 21000n;
+        }
     } catch (error) {
-        throw new AppException(-32005, AppExceptionMessages.messageExtend(-32005, error?.shortMessage ?? error?.message));
+        throw new AppException(-32005, `Estimate gas failed: ${error?.shortMessage ?? error?.message}`);
     }
 
     return { callGasLimit, initGas };
 }
 
-async function tryEstimateGasForFirstAccount(chainId: number, provider: JsonRpcProvider, userOp: any) {
+async function tryEstimateGasForFirstAccount(provider: JsonRpcProvider, userOp: any) {
     if (userOp.initCode?.length <= 2) {
         return;
     }
 
-    const txs = deserializeUserOpCallData(userOp.callData);
+    const txs = deserializeUserOpCalldata(userOp.callData);
 
     try {
         await Promise.all(
@@ -152,7 +149,7 @@ async function tryEstimateGasForFirstAccount(chainId: number, provider: JsonRpcP
             }),
         );
     } catch (error) {
-        throw new AppException(-32005, AppExceptionMessages.messageExtend(-32005, error?.shortMessage ?? error?.message));
+        throw new AppException(-32005, `Estimate gas failed: ${error?.shortMessage ?? error?.message}`);
     }
 }
 
@@ -163,16 +160,19 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
         getL2ExtraFee(rpcService, chainId, userOp, entryPoint),
     ]);
 
-    const gasCostInContract = BigNumber.from(rSimulation.gasCostInContract);
-    const gasCostWholeTransaction = BigNumber.from(rSimulation.gasCostWholeTransaction);
-    const gasCost = gasCostWholeTransaction.gt(gasCostInContract) ? gasCostWholeTransaction : gasCostInContract;
+    const gasCostInContract = BigInt(rSimulation.gasCostInContract);
+    const gasCostWholeTransaction = BigInt(rSimulation.gasCostWholeTransaction);
+    const gasCost = USE_PROXY_CONTRACT_TO_ESTIMATE_GAS.includes(chainId)
+        ? gasCostWholeTransaction > gasCostInContract
+            ? gasCostWholeTransaction
+            : gasCostInContract
+        : gasCostInContract;
 
-    userOp.maxFeePerGas = SUPPORT_EIP_1559.includes(chainId)
-        ? BigNumber.from(userOpFeeData.maxFeePerGas).toHexString()
-        : BigNumber.from(userOpFeeData.gasPrice).toHexString();
+    userOp.maxFeePerGas = SUPPORT_EIP_1559.includes(chainId) ? toBeHex(userOpFeeData.maxFeePerGas) : toBeHex(userOpFeeData.gasPrice);
     userOp.maxPriorityFeePerGas = SUPPORT_EIP_1559.includes(chainId)
-        ? BigNumber.from(userOpFeeData.maxPriorityFeePerGas).toHexString()
-        : BigNumber.from(userOpFeeData.gasPrice).toHexString();
+        ? toBeHex(userOpFeeData.maxPriorityFeePerGas)
+        : toBeHex(userOpFeeData.gasPrice);
+
     const userOpGasPrice = calcUserOpGasPrice(userOp, userOpFeeData.baseFee);
 
     const signerFeeData = userOpFeeData;
@@ -180,10 +180,10 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
         ? calcUserOpGasPrice(signerFeeData, signerFeeData.baseFee)
         : signerFeeData.gasPrice;
 
-    let minGasPrice = BigNumber.from(signerGasPrice).mul(105).div(100);
+    let minGasPrice = (BigInt(signerGasPrice) * 105n) / 100n;
     if (Object.keys(L2_GAS_ORACLE).includes(String(chainId))) {
-        const signerPaid = gasCost.add(5000).mul(signerGasPrice);
-        minGasPrice = BigNumber.from(extraFee).add(signerPaid).div(gasCost);
+        const signerPaid = gasCost + 5000n * BigInt(signerGasPrice);
+        minGasPrice = (BigInt(extraFee) + signerPaid) / gasCost;
     }
 
     if (
@@ -234,13 +234,13 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
             ratio = 1.6;
         }
 
-        minGasPrice = minGasPrice.mul(Math.round(ratio * 100)).div(100);
+        minGasPrice = (minGasPrice * BigInt(Math.round(ratio * 100))) / 100n;
     }
 
-    if (BigNumber.from(userOpGasPrice).lt(minGasPrice)) {
-        const diff = BigNumber.from(minGasPrice).sub(userOpGasPrice);
-        userOp.maxFeePerGas = BigNumber.from(userOp.maxFeePerGas).add(diff).toHexString();
-        userOp.maxPriorityFeePerGas = BigNumber.from(userOp.maxPriorityFeePerGas).add(diff).toHexString();
+    if (BigInt(userOpGasPrice) < minGasPrice) {
+        const diff = minGasPrice - BigInt(userOpGasPrice);
+        userOp.maxFeePerGas = toBeHex(BigInt(userOp.maxFeePerGas) + diff);
+        userOp.maxPriorityFeePerGas = toBeHex(BigInt(userOp.maxPriorityFeePerGas) + diff);
     }
 
     return {

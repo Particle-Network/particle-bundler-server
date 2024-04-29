@@ -3,36 +3,39 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { TRANSACTION_STATUS, Transaction, TransactionDocument } from '../schemas/transaction.schema';
 import { TypedTransaction } from '@ethereumjs/tx';
-import { tryParseSignedTx } from '../shared/handle-pending-transactions';
 import { getAddress } from 'ethers';
-import { BigNumber } from '../../../common/bignumber';
-import { EVM_CHAIN_ID } from '../../../configs/bundler-common';
+import { tryParseSignedTx } from '../aa/utils';
 
 @Injectable()
 export class TransactionService {
     public constructor(@InjectModel(Transaction.name) private readonly transactionModel: Model<TransactionDocument>) {}
 
-    public async getTransaction(chainId: number, txHash: string): Promise<TransactionDocument> {
-        return await this.transactionModel.findOne({ chainId, txHash });
+    public async getTransactionsByStatus(status: TRANSACTION_STATUS, limit: number): Promise<TransactionDocument[]> {
+        return await this.transactionModel.find({ status }).sort({ _id: 1 }).limit(limit);
     }
 
-    public async getTransactionsByStatus(status: TRANSACTION_STATUS, limit: number): Promise<TransactionDocument[]> {
+    public async getRecentTransactionsByStatusSortConfirmations(status: TRANSACTION_STATUS, limit: number): Promise<TransactionDocument[]> {
+        const recentData = new Date(Date.now() - 10000); // 10s ago
         return await this.transactionModel
-            .find({ status, chainId: { $ne: EVM_CHAIN_ID.MERLIN_CHAIN_MAINNET } })
-            .sort({ from: 1, nonce: 1 })
+            .find({ status, latestSentAt: { $gte: recentData } })
+            .sort({ confirmations: 1 })
             .limit(limit);
     }
 
-    public async getMerlinTransactionsByStatus(status: TRANSACTION_STATUS, limit: number): Promise<TransactionDocument[]> {
-        return await this.transactionModel.find({ status, chainId: EVM_CHAIN_ID.MERLIN_CHAIN_MAINNET }).sort({ from: 1, nonce: 1 }).limit(limit);
+    public async getLongAgoTransactionsByStatusSortConfirmations(status: TRANSACTION_STATUS, limit: number): Promise<TransactionDocument[]> {
+        const recentData = new Date(Date.now() - 10000); // 10s ago
+        return await this.transactionModel
+            .find({ status, latestSentAt: { $lt: recentData } })
+            .sort({ confirmations: 1 })
+            .limit(limit);
     }
 
-    public async getLatestTransaction(chainId: number, sender: string, statuses?: TRANSACTION_STATUS[]): Promise<TransactionDocument> {
-        if (statuses) {
-            return await this.transactionModel.findOne({ chainId, from: sender, status: { $in: statuses } }).sort({ nonce: -1 });
-        }
-
+    public async getLatestTransaction(chainId: number, sender: string): Promise<TransactionDocument> {
         return await this.transactionModel.findOne({ chainId, from: sender }).sort({ nonce: -1 });
+    }
+
+    public async getLatestTransactionByStatus(chainId: number, sender: string, status?: TRANSACTION_STATUS): Promise<TransactionDocument> {
+        return await this.transactionModel.findOne({ chainId, status: status, from: sender }).sort({ nonce: -1 });
     }
 
     public async getTransactionById(id: string): Promise<TransactionDocument> {
@@ -42,16 +45,16 @@ export class TransactionService {
     public async getPendingTransactionCountBySigner(chainId: number, signerAddress: string): Promise<number> {
         return await this.transactionModel.countDocuments({
             chainId,
-            from: signerAddress,
             status: { $in: [TRANSACTION_STATUS.PENDING, TRANSACTION_STATUS.LOCAL] },
+            from: signerAddress,
         });
     }
 
     public async getPendingTransactionsBySigner(chainId: number, signerAddress: string): Promise<TransactionDocument[]> {
         return await this.transactionModel.find({
             chainId,
-            from: signerAddress,
             status: { $in: [TRANSACTION_STATUS.PENDING, TRANSACTION_STATUS.LOCAL] },
+            from: signerAddress,
         });
     }
 
@@ -61,47 +64,33 @@ export class TransactionService {
 
         const transaction = new this.transactionModel({
             chainId,
+            userOperationHashes,
             from: getAddress(tx.getSenderAddress().toString()),
             to: getAddress(tx.to.toString()),
-            nonce: BigNumber.from(tx.nonce).toNumber(),
-            userOperationHashes,
-            inner: { [txHash]: tx.toJSON() },
+            nonce: Number(tx.nonce),
+            inners: { [txHash]: tx.toJSON() },
             signedTxs: { [txHash]: signedTx },
             status: TRANSACTION_STATUS.LOCAL,
-            txHash, // calculate tx hash in advance
             txHashes: [txHash],
+            confirmations: 0,
+            incrRetry: false,
             latestSentAt: new Date(),
         });
 
         return await transaction.save({ session });
     }
 
-    public async createDoneTransaction(
-        chainId: number,
-        userOperationHashes: string[],
-        txData: any,
-        txHash: string,
-        from: string,
-        to: string,
-        nonce: any,
-        status: TRANSACTION_STATUS,
-        session: any,
-    ): Promise<TransactionDocument> {
-        const transaction = new this.transactionModel({
-            chainId,
-            from: getAddress(from),
-            to: getAddress(to),
-            nonce: BigNumber.from(nonce).toNumber(),
-            userOperationHashes,
-            inner: { [txHash]: txData },
-            signedTxs: { [txHash]: '' },
-            status,
-            txHash, // calculate tx hash in advance
-            txHashes: [txHash],
-            latestSentAt: new Date(),
-        });
+    public async addTransactionsConfirmations(ids: string[]) {
+        if (ids.length === 0) {
+            return;
+        }
 
-        return await transaction.save({ session });
+        return await this.transactionModel.updateMany(
+            { _id: { $in: ids } },
+            {
+                $inc: { confirmations: 1 },
+            },
+        );
     }
 
     public async updateTransactionStatus(transaction: TransactionDocument, status: TRANSACTION_STATUS, session?: any) {
@@ -109,24 +98,25 @@ export class TransactionService {
         return await transaction.save({ session });
     }
 
-    public async replaceTransactionTxHash(transaction: TransactionDocument, newTxHash: string, newSignedTx: string, txData: any, session?: any) {
+    public async replaceTransactionTxHash(transaction: TransactionDocument, newSignedTx: string, session?: any) {
+        const tx: TypedTransaction = tryParseSignedTx(newSignedTx);
+        const newTxHash = `0x${Buffer.from(tx.hash()).toString('hex')}`;
+        const newTxData = tx.toJSON();
+
         const newSignedTxs = transaction.signedTxs;
         newSignedTxs[newTxHash] = newSignedTx;
-
-        const newInner = transaction.inner;
-        newInner[newTxHash] = txData;
-
+        const newInner = transaction.inners;
+        newInner[newTxHash] = newTxData;
         const newTxHashes = transaction.txHashes.concat(newTxHash);
 
         return await this.transactionModel.updateOne(
             { _id: transaction.id, status: TRANSACTION_STATUS.PENDING },
             {
                 $set: {
-                    txHash: newTxHash,
+                    incrRetry: false,
                     txHashes: newTxHashes,
-                    signedTx: newSignedTx,
                     signedTxs: newSignedTxs,
-                    inner: newInner,
+                    inners: newInner,
                     latestSentAt: new Date(),
                 },
             },

@@ -3,10 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { USER_OPERATION_STATUS, UserOperation, UserOperationDocument } from '../schemas/user-operation.schema';
 import { UserOperationEvent, UserOperationEventDocument } from '../schemas/user-operation-event.schema';
-import { BigNumber } from '../../../common/bignumber';
-import { getAddress } from 'ethers';
-import { TRANSACTION_STATUS, Transaction, TransactionDocument } from '../schemas/transaction.schema';
-import { AppException } from '../../../common/app-exception';
+import { Transaction, TransactionDocument } from '../schemas/transaction.schema';
 import { Helper } from '../../../common/helper';
 import { splitOriginNonce } from '../aa/utils';
 
@@ -18,34 +15,22 @@ export class UserOperationService {
         @InjectModel(Transaction.name) private readonly transactionModel: Model<TransactionDocument>,
     ) {}
 
-    // TODO: should use mongodb transaction
     public async createOrUpdateUserOperation(
         chainId: number,
         userOp: any,
         userOpHash: string,
         entryPoint: string,
-        userOpDoc?: UserOperationDocument,
-    ) {
-        const userOpSender = getAddress(userOp.sender);
+        userOpDoc: UserOperationDocument,
+    ): Promise<UserOperationDocument> {
         const { nonceKey, nonceValue } = splitOriginNonce(userOp.nonce);
 
-        const nonceValueString = BigNumber.from(nonceValue).toString();
-        Helper.assertTrue(nonceValueString.length <= 30, -32608);
+        const nonceValueString = BigInt(nonceValue).toString();
+        Helper.assertTrue(nonceValueString.length <= 30, -32608); // ensure nonce is less than Decimals(128)
 
-        userOpDoc = userOpDoc ?? (await this.getUserOperationByAddressNonce(chainId, userOpSender, nonceKey, nonceValueString));
-
-        // Allow to replace failed user operation, because the nonce of the user operation is not increased
         if (userOpDoc) {
-            Helper.assertTrue(userOpDoc.status === USER_OPERATION_STATUS.DONE, -32607);
+            Helper.assertTrue(await this.checkCanBeReplaced(userOpDoc), -32607);
 
-            const transaction = await this.transactionModel.findOne({ chainId, txHash: userOpDoc.txHash });
-            if (!userOpDoc.isOld() && (!transaction || transaction.status !== TRANSACTION_STATUS.FAILED)) {
-                throw new AppException(-32004);
-            }
-
-            return {
-                userOpDoc: await this.resetToLocal(userOpDoc, userOpHash, entryPoint, userOp),
-            };
+            return await this.resetToLocal(userOpDoc, userOpHash, entryPoint, userOp);
         }
 
         const userOperation = new this.userOperationModel({
@@ -59,32 +44,40 @@ export class UserOperationService {
             status: USER_OPERATION_STATUS.LOCAL,
         });
 
-        userOperation.save(); // async save
-
-        return {
-            userOpDoc: userOperation,
-        };
+        return await userOperation.save();
     }
 
-    public async deleteAllLocalUserOperations(chainId: number) {
-        await this.userOperationModel.deleteMany({
-            chainId,
-            status: { $in: [USER_OPERATION_STATUS.LOCAL, USER_OPERATION_STATUS.TO_BE_REPLACE] },
-        });
+    private async checkCanBeReplaced(userOpDoc: UserOperationDocument) {
+        if (userOpDoc.status === USER_OPERATION_STATUS.DONE) {
+            return true;
+        }
+
+        if (!userOpDoc.transactionId) {
+            return true;
+        }
+
+        const transaction = await this.transactionModel.findById(userOpDoc.transactionId);
+        if (!transaction) {
+            return true;
+        }
+
+        return false;
+    }
+
+    public async deleteUserOperationsByIds(ids: string[]) {
+        if (ids.length === 0) {
+            return;
+        }
+
+        return await this.userOperationModel.deleteMany({ _id: { $in: ids } });
     }
 
     public async getPendingUserOperationCount(chainId: number): Promise<number> {
-        return await this.userOperationModel.count({
-            chainId,
-            status: { $in: [USER_OPERATION_STATUS.LOCAL, USER_OPERATION_STATUS.TO_BE_REPLACE, USER_OPERATION_STATUS.PENDING] },
-        });
+        return await this.userOperationModel.count({ chainId });
     }
 
-    public async deleteUserOperationByUserOpHash(chainId: number, userOpHash: string) {
-        return await this.userOperationModel.deleteMany({
-            chainId,
-            userOpHash,
-        });
+    public async deleteUserOperationByUserOpHash(userOpHash: string) {
+        return await this.userOperationModel.deleteMany({ userOpHash });
     }
 
     public async getUserOperationByAddressNonce(
@@ -96,106 +89,70 @@ export class UserOperationService {
         return await this.userOperationModel.findOne({ chainId, userOpSender, userOpNonceKey, userOpNonce });
     }
 
-    public async getSuccessUserOperationNonce(chainId: number, userOpSender: string, userOpNonceKey: string): Promise<string> {
-        const userOpDoc = await this.userOperationModel
-            .findOne({ chainId, userOpSender, userOpNonceKey, status: USER_OPERATION_STATUS.DONE })
-            .sort({ userOpNonce: -1 });
-        if (!userOpDoc) {
-            return null;
-        }
-
-        const userOpEvent = await this.userOperationEventModel.findOne({ chainId, userOperationHash: userOpDoc.userOpHash });
-        if (!userOpEvent) {
-            return null;
-        }
-
-        return userOpDoc.userOpNonce.toString();
+    public async getUserOperationByHash(userOpHash: string): Promise<UserOperationDocument> {
+        return await this.userOperationModel.findOne({ userOpHash });
     }
 
-    public async getUserOperationByHash(chainId: number, userOpHash: string): Promise<UserOperationDocument> {
-        return await this.userOperationModel.findOne({ chainId, userOpHash });
+    public async getLocalUserOperations(limit: number = 1000): Promise<UserOperationDocument[]> {
+        return await this.userOperationModel.find({ status: USER_OPERATION_STATUS.LOCAL }).limit(limit);
     }
 
-    public async getUserOperationByHashes(chainId: number, userOpHashes: string[]): Promise<UserOperationDocument[]> {
-        return await this.userOperationModel.find({ chainId, userOpHash: { $in: userOpHashes } });
-    }
-
-    public async getLocalUserOperationsByDuration(chainId: number, startAt: number, endAt: number): Promise<UserOperationDocument[]> {
-        return await this.userOperationModel.find({
-            chainId,
-            status: USER_OPERATION_STATUS.LOCAL,
-            createdAt: { $gt: new Date(startAt), $lte: new Date(endAt) },
-        });
-    }
-
-    public async getLocalUserOperations(limit = 1000): Promise<UserOperationDocument[]> {
-        return await this.userOperationModel
-            .find({
-                status: USER_OPERATION_STATUS.LOCAL,
-            })
-            .limit(limit);
-    }
-
-    // Ensure nonce is sorted by asc
-    public async getLocalUserOperationsByChainIdAndSortByCreatedAt(
-        chainId: number,
-        entryPoint: string,
-        limit = 100,
-    ): Promise<UserOperationDocument[]> {
-        return await this.userOperationModel
-            .find({ chainId, status: USER_OPERATION_STATUS.LOCAL, entryPoint })
-            .sort({ createdAt: 1 })
-            .limit(limit);
-    }
-
-    public async transactionSetSpecialLocalUserOperationsAsPending(
+    public async setLocalUserOperationsAsPending(
         userOperationDocument: UserOperationDocument[],
-        txHash: string,
+        transaction: TransactionDocument,
         session: any,
     ) {
         const ids = userOperationDocument.map((u) => u._id);
 
         return await this.userOperationModel.updateMany(
             { _id: { $in: ids }, status: USER_OPERATION_STATUS.LOCAL },
-            { $set: { status: USER_OPERATION_STATUS.PENDING, txHash } },
+            { $set: { status: USER_OPERATION_STATUS.PENDING, transactionId: transaction.id } },
             { session },
         );
     }
 
-    public async transactionSetUserOperationsAsDone(
-        chainId: number,
-        userOpHashes: string[],
-        txHash: string,
-        blockNumber: number,
-        blockHash: string,
-        session: any = null,
-    ) {
+    public async setPendingUserOperationsToLocal(transactionId: string, session: any) {
         return await this.userOperationModel.updateMany(
-            { chainId, userOpHash: { $in: userOpHashes }, status: USER_OPERATION_STATUS.PENDING },
-            { $set: { status: USER_OPERATION_STATUS.DONE, txHash, blockNumber, blockHash } },
+            { transactionId, status: USER_OPERATION_STATUS.PENDING },
+            { $set: { status: USER_OPERATION_STATUS.LOCAL, transactionId: null } },
             { session },
         );
     }
 
-    public async getUserOperationEvent(chainId: number, userOperationHash: string): Promise<UserOperationEventDocument> {
-        return await this.userOperationEventModel.findOne({ chainId, userOperationHash });
+    public async setUserOperationsAsDone(userOpHashes: string[], txHash: string, blockNumber: number, blockHash: string) {
+        return await this.userOperationModel.updateMany(
+            { userOpHash: { $in: userOpHashes }, status: USER_OPERATION_STATUS.PENDING },
+            { $set: { status: USER_OPERATION_STATUS.DONE, txHash, blockNumber, blockHash } },
+        );
+    }
+
+    public async getUserOperationEvent(userOperationHash: string): Promise<UserOperationEventDocument> {
+        return await this.userOperationEventModel.findOne({ userOperationHash });
+    }
+
+    public async getLocalUserOperationsCountByChainId(chainId: number): Promise<number> {
+        return await this.userOperationModel.count({ status: USER_OPERATION_STATUS.LOCAL, chainId });
     }
 
     public async createOrGetUserOperationEvent(
         chainId: number,
+        blockHash: string,
+        blockNumber: number,
         userOperationHash: string,
         txHash: string,
         contractAddress: string,
         topic: string,
         args: any,
     ): Promise<UserOperationEventDocument> {
-        const event = await this.getUserOperationEvent(chainId, userOperationHash);
+        const event = await this.getUserOperationEvent(userOperationHash);
         if (event) {
             return event;
         }
 
         const userOperation = new this.userOperationEventModel({
             chainId,
+            blockHash,
+            blockNumber,
             txHash,
             contractAddress,
             userOperationHash,
@@ -212,6 +169,7 @@ export class UserOperationService {
         userOperationDocument.origin = userOp;
         userOperationDocument.status = USER_OPERATION_STATUS.LOCAL;
         userOperationDocument.createdAt = new Date();
+        userOperationDocument.transactionId = null;
         return await userOperationDocument.save();
     }
 }

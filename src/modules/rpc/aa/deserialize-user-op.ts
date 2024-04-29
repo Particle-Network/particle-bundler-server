@@ -1,5 +1,4 @@
 import { Interface } from 'ethers';
-import { BigNumber } from '../../../common/bignumber';
 
 interface Itx {
     to: string;
@@ -54,7 +53,7 @@ export function deserializeUserOpCalldata(callData: string): Itx[] {
                 for (let i = 0; i < dests.length; i++) {
                     txs.push({
                         to: dests[i],
-                        value: BigNumber.from(values[i]).toBigInt(),
+                        value: BigInt(values[i]),
                         data: funcs[i],
                     });
                 }
@@ -63,7 +62,7 @@ export function deserializeUserOpCalldata(callData: string): Itx[] {
             if (decoded.length >= 3) {
                 txs.push({
                     to: decoded[0],
-                    value: BigNumber.from(decoded[1]).toBigInt(),
+                    value: BigInt(decoded[1]),
                     data: decoded[2],
                 });
             }

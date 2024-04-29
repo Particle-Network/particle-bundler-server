@@ -2,13 +2,12 @@ import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import FastifyRawBody from 'fastify-raw-body';
 import { AppModule } from './app.module';
-import { Helper } from './common/helper';
 import { ConfigService } from '@nestjs/config';
-import { TaskService } from './modules/task/task.service';
-import { Alert } from './common/alert';
-import { AlertLarkService } from './common/alert-lark';
 import { IS_DEVELOPMENT, IS_PRODUCTION } from './common/common-types';
 import { initializeBundlerConfig } from './configs/bundler-common';
+import { LarkService } from './modules/common/services/lark.service';
+import { Helper } from './common/helper';
+import Mongoose from 'mongoose';
 
 async function bootstrap() {
     await initializeBundlerConfig();
@@ -26,32 +25,31 @@ async function bootstrap() {
         maxAge: 86400,
     });
 
-    // Mongoose.set('debug', !IS_PRODUCTION);
+    Mongoose.set('debug', IS_DEVELOPMENT);
 
     const configService = app.get(ConfigService);
-    const taskService = app.get(TaskService);
+    const larkService = app.get(LarkService);
 
     if (process.env.LARK_NOTICE_URL) {
-        Alert.setAlert(new AlertLarkService(process.env.LARK_NOTICE_URL));
-        Alert.sendMessage(`Particle Bundler Server Started, ENVIRONMENT: ${process.env.ENVIRONMENT}`);
+        larkService.sendMessage(`Particle Bundler Server Started, ENVIRONMENT: ${process.env.ENVIRONMENT}`);
     }
 
     const server = await app.listen(3000, '0.0.0.0');
 
     if (!IS_DEVELOPMENT) {
         process.on('uncaughtException', async (error) => {
-            await Alert.sendMessage(Helper.converErrorToString(error), 'Uncaught Exception');
+            larkService.sendMessage(Helper.converErrorToString(error), 'Uncaught Exception');
 
             process.exit(1); // exit application
         });
 
         process.on('SIGINT', (signal: any) => {
-            taskService.stop();
+            process.env.DISABLE_TASK = '1';
 
             server.close(async (error: any) => {
                 const nodeInstanceId = configService.get('NODE_APP_INSTANCE');
                 const err = { error, signal, nodeInstanceId };
-                await Alert.sendMessage(Helper.converErrorToString(err), `Server Close`);
+                await larkService.sendMessage(Helper.converErrorToString(err), `Server Close`);
 
                 if (error) {
                     process.exit(1);

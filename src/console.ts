@@ -6,9 +6,9 @@ import { TransactionService } from './modules/rpc/services/transaction.service';
 import { UserOperationService } from './modules/rpc/services/user-operation.service';
 
 // Execute In Pod
-// TEST_MODE=true ENVIRONMENT=dev node dist/console.js delete-transactions-by-signer chainId signerAddress
+// DISABLE_TASK=true ENVIRONMENT=dev node dist/console.js delete-transactions-by-signer chainId signerAddress
 async function bootstrap() {
-    process.env.TEST_MODE = 'true';
+    process.env.DISABLE_TASK = 'true';
     process.env.EXECUTE_MODE = 'console';
 
     const fastifyAdapter = new FastifyAdapter({ ignoreTrailingSlash: true });
@@ -30,7 +30,7 @@ async function bootstrap() {
         const pendingTransactions = await transactionService.getPendingTransactionsBySigner(chainId, signerAddress);
         for (const pendingTransaction of pendingTransactions) {
             for (const userOperationHash of pendingTransaction.userOperationHashes) {
-                const deleted = await userOperationService.deleteUserOperationByUserOpHash(chainId, userOperationHash);
+                const deleted = await userOperationService.deleteUserOperationByUserOpHash(userOperationHash);
                 console.log(`Deleted userOperation: ${userOperationHash}, deleted`, deleted);
             }
 
@@ -49,7 +49,7 @@ async function bootstrap() {
         const transaction = await transactionService.getTransactionById(transactionId);
         const userOperationService = app.get(UserOperationService);
         for (const userOperationHash of transaction.userOperationHashes) {
-            const deleted = await userOperationService.deleteUserOperationByUserOpHash(transaction.chainId, userOperationHash);
+            const deleted = await userOperationService.deleteUserOperationByUserOpHash(userOperationHash);
             console.log(`Deleted userOperation: ${userOperationHash}, deleted`, deleted);
         }
 

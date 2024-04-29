@@ -1,10 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { DEFAULT_ENTRY_POINT_ADDRESS, RPC_CONFIG } from '../../configs/bundler-common';
 import { Contract, Network, WebSocketProvider } from 'ethers';
 import entryPointAbi from '../rpc/aa/abis/entry-point-abi';
 import { TransactionDocument } from '../rpc/schemas/transaction.schema';
-import { Alert } from '../../common/alert';
 import { Helper } from '../../common/helper';
+import { LarkService } from '../common/services/lark.service';
+import { DEFAULT_ENTRY_POINT_ADDRESS, getBundlerChainConfig } from '../../configs/bundler-common';
+import { EVM_CHAIN_ID } from '../../common/chains';
+import { $enum } from 'ts-enum-util';
+import { LRUCache } from 'lru-cache';
 
 const WEBSOCKET_PING_INTERVAL = 5000;
 const WEBSOCKET_PONG_TIMEOUT = 3000;
@@ -12,24 +15,30 @@ const WEBSOCKET_RECONNECT_DELAY = 100;
 
 @Injectable()
 export class ListenerService {
-    private readonly wsProviders: Map<number, WebSocketProvider> = new Map();
-    private userOpHashPendingTransactionMap: Map<string, TransactionDocument> = new Map();
-    private eventHandler: (event: any, transaction: TransactionDocument) => {};
+    private readonly cacheUserOpHashPendingTransaction: LRUCache<string, any> = new LRUCache({
+        max: 100000,
+        ttl: 60 * 1000,
+    });
 
-    public initialize(eventHandler: (event: any, transaction: TransactionDocument) => {}) {
+    public constructor(private readonly larkService: LarkService) {}
+
+    private readonly wsProviders: Map<number, WebSocketProvider> = new Map();
+    private eventHandler: (event: any) => {};
+
+    public initialize(eventHandler: (event: any) => {}) {
         this.eventHandler = eventHandler;
 
-        const chains: any[] = Object.values(RPC_CONFIG);
-        for (const chainItem of chains) {
-            if (!!chainItem.wsUrl) {
-                this.listen(chainItem.chainId, chainItem.wsUrl);
+        const chains = $enum(EVM_CHAIN_ID).values();
+        for (const chainId of chains) {
+            const bundlerConfig = getBundlerChainConfig(chainId);
+            if (!!bundlerConfig.wsUrl) {
+                this.listen(chainId, bundlerConfig.wsUrl);
             }
         }
     }
 
     private async listen(chainId: number, wsUrl: string) {
-        const network = new Network('', chainId);
-        const wsProvider = new WebSocketProvider(wsUrl, network);
+        const wsProvider = new WebSocketProvider(wsUrl, Network.from(chainId));
         let pingInterval: NodeJS.Timeout | undefined;
         let pongTimeout: NodeJS.Timeout | undefined;
 
@@ -54,8 +63,7 @@ export class ListenerService {
         });
 
         (websocket as any).on('close', (code: number) => {
-            console.error('providerUrl', wsUrl);
-            console.error('WebSocketProvider websocket close', code);
+            console.error('WebSocketProvider websocket close', wsUrl, code);
 
             if (pingInterval) clearInterval(pingInterval);
             if (pongTimeout) clearTimeout(pongTimeout);
@@ -66,9 +74,11 @@ export class ListenerService {
         });
 
         (websocket as any).on('error', (data: any) => {
-            console.error('providerUrl', wsUrl);
-            console.error('WebSocketProvider websocket error', data);
-            Alert.sendMessage(`Url: ${wsUrl}\n${Helper.converErrorToString(data)}`, `WebSocketProvider Websocket Error On Chain ${chainId}`);
+            console.error('WebSocketProvider websocket error', wsUrl, data);
+            this.larkService.sendMessage(
+                `Url: ${wsUrl}\n${Helper.converErrorToString(data)}`,
+                `WebSocketProvider Websocket Error On Chain ${chainId}`,
+            );
         });
 
         this.wsProviders.set(chainId, wsProvider);
@@ -80,9 +90,9 @@ export class ListenerService {
             const userOpHash = event[0];
             const key = this.keyChainIdUserOpHash(chainId, userOpHash);
 
-            if (this.userOpHashPendingTransactionMap.has(key)) {
-                const transaction = this.userOpHashPendingTransactionMap.get(key);
-                this.eventHandler(event, transaction);
+            const transaction = this.cacheUserOpHashPendingTransaction.get(key);
+            if (!!transaction) {
+                this.eventHandler(event);
             }
         });
     }
@@ -92,11 +102,7 @@ export class ListenerService {
 
         for (const userOperationHash of userOperationHashes) {
             const key = this.keyChainIdUserOpHash(transaction.chainId, userOperationHash);
-            this.userOpHashPendingTransactionMap.set(key, transaction);
-
-            setTimeout(() => {
-                this.userOpHashPendingTransactionMap.delete(key);
-            }, 60000);
+            this.cacheUserOpHashPendingTransaction.set(key, transaction);
         }
     }
 

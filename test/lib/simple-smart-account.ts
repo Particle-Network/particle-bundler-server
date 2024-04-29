@@ -1,10 +1,12 @@
-import { BigNumberish, Contract, Interface, JsonRpcProvider, Wallet, getAddress, resolveProperties } from 'ethers';
-import { hexConcat } from '../utils';
-import entryPointAbi from '../abis/entry-point-abi';
-import { BigNumber } from '../../../../common/bignumber';
+import { BigNumberish, Contract, Interface, JsonRpcProvider, Wallet, getAddress, resolveProperties, toBeHex } from 'ethers';
 import { calcPreVerificationGas } from '@account-abstraction/sdk';
 import { arrayify } from '@ethersproject/bytes';
-import { IContractAccount } from '../interface-contract-account';
+import { IContractAccount } from './interface-contract-account';
+import entryPointAbi from '../../src/modules/rpc/aa/abis/entry-point-abi';
+import { hexConcat } from '@ethersproject/bytes';
+
+const FACTORY_ADDRESS = '0x9406cc6185a346906296840746125a0e44976454';
+const ENTRY_POINT = '0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789';
 
 export class SimpleSmartAccount implements IContractAccount {
     private accountAddress: string;
@@ -12,13 +14,12 @@ export class SimpleSmartAccount implements IContractAccount {
     private readonly provider: JsonRpcProvider;
     private readonly epContract: Contract;
     private readonly simpleAccountFactoryContract: Contract;
-    private readonly entryPointAddress: string;
+    private readonly entryPointAddress: string = ENTRY_POINT;
 
-    public constructor(private readonly owner: Wallet, factoryAddress: string, entryPointAddress: string) {
+    public constructor(private readonly owner: Wallet) {
         this.provider = owner.provider as JsonRpcProvider;
-        this.entryPointAddress = entryPointAddress;
         this.epContract = new Contract(this.entryPointAddress, entryPointAbi, owner);
-        this.simpleAccountFactoryContract = new Contract(factoryAddress, factoryAbi, owner);
+        this.simpleAccountFactoryContract = new Contract(FACTORY_ADDRESS, factoryAbi, owner);
     }
 
     public async getAccountAddress(): Promise<string> {
@@ -37,16 +38,14 @@ export class SimpleSmartAccount implements IContractAccount {
 
     public async createUnsignedUserOp(infos: TransactionDetailsForUserOp[], nonce?: any): Promise<any> {
         const { callData, callGasLimit } = await this.encodeUserOpCallDataAndGasLimit(infos);
-        nonce = BigNumber.from(nonce ?? (await this.getNonce())).toHexString();
+        nonce = toBeHex(nonce ?? (await this.getNonce()));
         let initCode = '0x';
-        if (BigNumber.from(nonce).eq(0)) {
+        if (BigInt(nonce) === 0n) {
             initCode = await this.createInitCode();
         }
 
-        const initGas = BigNumber.from(500000).toHexString();
-        const verificationGasLimit = BigNumber.from(await this.getVerificationGasLimit())
-            .add(initGas)
-            .toHexString();
+        const initGas = toBeHex(500000);
+        const verificationGasLimit = toBeHex(BigInt(await this.getVerificationGasLimit()) + BigInt(initGas));
 
         const partialUserOp: any = {
             sender: this.getAccountAddress(),
@@ -83,13 +82,12 @@ export class SimpleSmartAccount implements IContractAccount {
 
             callData = await this.encodeExecuteBatch(targets, datas);
         } else {
-            const value = BigNumber.from(detailsForUserOp[0].value ?? 0);
-            callData = await this.encodeExecute(detailsForUserOp[0].to, value.toHexString(), detailsForUserOp[0].data);
+            callData = await this.encodeExecute(detailsForUserOp[0].to, toBeHex(detailsForUserOp[0].value ?? 0), detailsForUserOp[0].data);
         }
 
         return {
             callData,
-            callGasLimit: BigNumber.from(500000).toHexString(),
+            callGasLimit: toBeHex(500000),
         };
     }
 
