@@ -1,12 +1,12 @@
 import { FetchRequest, JsonRpcProvider, Network, Wallet, parseEther } from 'ethers';
-import { RPC_CONFIG } from '../src/configs/bundler-common';
 import { PROVIDER_FETCH_TIMEOUT } from '../src/common/common-types';
+import { getBundlerChainConfig } from '../src/configs/bundler-common';
 
 const contractAddress = '0x4e59b44847b379578588920ca78fbf26c0b4956c';
 const factoryDeployer = '0x3fab184622dc19b6109349b94811493bf2a45362';
 
 export const deployDetermineDeployer = async (chainId: number, signer: Wallet) => {
-    const rpcUrl = RPC_CONFIG[String(chainId)].rpcUrl;
+    const rpcUrl = getBundlerChainConfig(chainId).rpcUrl;
     const network = new Network('', chainId);
     const fetchRequest = new FetchRequest(rpcUrl);
     fetchRequest.timeout = PROVIDER_FETCH_TIMEOUT;
