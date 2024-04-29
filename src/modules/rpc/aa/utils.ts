@@ -1,5 +1,5 @@
 import { isEmpty } from 'lodash';
-import { AbiCoder, BytesLike, JsonRpcProvider, Network, hexlify, keccak256, toBeHex } from 'ethers';
+import { AbiCoder, BigNumberish, BytesLike, JsonRpcProvider, Network, hexlify, keccak256, toBeHex } from 'ethers';
 import { GAS_FEE_LEVEL } from '../../../common/common-types';
 import { PARTICLE_PUBLIC_RPC_URL, getBundlerChainConfig } from '../../../configs/bundler-common';
 import { TransactionFactory, TypedTransaction } from '@ethereumjs/tx';
@@ -224,4 +224,13 @@ export function createTxGasData(chainId: number, feeData: any) {
         maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ?? 0,
         maxFeePerGas: feeData.maxFeePerGas ?? 0,
     };
+}
+
+export function toBeHexTrimZero(s: BigNumberish) {
+    const result = toBeHex(s);
+    if (result.startsWith('0x0')) {
+        return `0x${result.slice(3)}`;
+    }
+
+    return result;
 }

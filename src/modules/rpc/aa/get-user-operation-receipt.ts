@@ -5,7 +5,7 @@ import { USER_OPERATION_STATUS, UserOperationDocument } from '../schemas/user-op
 import { Contract } from 'ethers';
 import entryPointAbi from './abis/entry-point-abi';
 import { TRANSACTION_STATUS } from '../schemas/transaction.schema';
-import { deepHexlify } from './utils';
+import { deepHexlify, toBeHexTrimZero } from './utils';
 import P2PCache from '../../../common/p2p-cache';
 import { IS_PRODUCTION, keyCacheChainReceipt, keyCacheChainUserOpHashReceipt } from '../../../common/common-types';
 
@@ -24,14 +24,14 @@ export async function getUserOperationReceipt(rpcService: RpcService, chainId: n
     let receipt = P2PCache.get(keyCacheChainUserOpHashReceipt(userOperation.userOpHash));
     if (!!receipt) {
         console.log('keyCacheChainUserOpHashReceipt', receipt);
-        
+
         return formatReceipt(rpcService, userOperation, receipt);
     }
 
     receipt = P2PCache.get(keyCacheChainReceipt(userOperation.transactionId));
     if (!!receipt) {
         console.log('keyCacheChainReceipt', receipt);
-        
+
         return formatReceipt(rpcService, userOperation, receipt);
     }
 
@@ -86,9 +86,9 @@ export function formatReceipt(rpcService: RpcService, userOperation: UserOperati
         return deepHexlify({
             userOpHash: userOperation.userOpHash,
             sender: userOperation.userOpSender,
-            nonce: userOperation.origin?.nonce,
-            actualGasCost: userOperationEvent?.args[5] ?? 0,
-            actualGasUsed: userOperationEvent?.args[6] ?? 0,
+            nonce: toBeHexTrimZero(userOperation.origin?.nonce),
+            actualGasCost: toBeHexTrimZero(userOperationEvent?.args[5] ?? 0),
+            actualGasUsed: toBeHexTrimZero(userOperationEvent?.args[6] ?? 0),
             success: userOperationEvent?.args[4] ?? false,
             logs,
             receipt,
