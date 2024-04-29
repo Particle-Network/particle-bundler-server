@@ -53,7 +53,6 @@ export class RpcController {
             }
 
             Helper.assertTrue(!!getBundlerChainConfig(chainId), -32001, `Unsupported chainId: ${chainId}`);
-            Helper.assertTrue(!IS_PRODUCTION || chainId !== EVM_CHAIN_ID.PARTICLE_PANGU_TESTNET, -32001, `Unsupported chainId: ${chainId}`);
 
             result = await this.handleRpc(chainId, body);
         } catch (error) {
