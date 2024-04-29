@@ -73,7 +73,7 @@ export class UserOperationService {
     }
 
     public async getPendingUserOperationCount(chainId: number): Promise<number> {
-        return await this.userOperationModel.count({ chainId });
+        return await this.userOperationModel.count({ status: { $in: [USER_OPERATION_STATUS.LOCAL, USER_OPERATION_STATUS.PENDING] }, chainId });
     }
 
     public async deleteUserOperationByUserOpHash(userOpHash: string) {
