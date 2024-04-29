@@ -62,7 +62,7 @@ export function deepHexlify(obj: any): any {
     if (obj == null || typeof obj === 'string' || typeof obj === 'boolean') {
         return obj;
     } else if (typeof obj === 'bigint' || typeof obj === 'number') {
-        return toBeHex(obj);
+        return toBeHexTrimZero(obj);
     } else if (obj._isBigNumber !== null && obj.toHexString) {
         return obj.toHexString();
     } else if (typeof obj !== 'object') {
