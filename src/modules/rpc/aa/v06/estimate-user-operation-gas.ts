@@ -60,7 +60,10 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
         userOp.callGasLimit = toBeHexTrimZero(gasCostInContract - initGas);
     }
 
-    if (USE_PROXY_CONTRACT_TO_ESTIMATE_GAS.includes(chainId) && gasCostWholeTransaction > gasCostInContract) {
+    if (
+        USE_PROXY_CONTRACT_TO_ESTIMATE_GAS.includes(chainId) &&
+        gasCostWholeTransaction - gasCostInContract > BigInt(userOp.preVerificationGas)
+    ) {
         userOp.preVerificationGas = toBeHexTrimZero(gasCostWholeTransaction - gasCostInContract);
     }
 
