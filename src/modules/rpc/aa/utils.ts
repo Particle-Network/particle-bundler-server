@@ -89,7 +89,7 @@ export async function getFeeDataFromParticle(chainId: number, level: string = GA
 
     const particleFeeData = await provider.send('particle_suggestedGasFees', []);
 
-    if (EVM_CHAIN_ID.TAIKO_TESTNET_KATLA === chainId) {
+    if (EVM_CHAIN_ID.TAIKO_TESTNET_KATLA === chainId || EVM_CHAIN_ID.TAIKO_TESTNET_HEKLA === chainId) {
         particleFeeData.baseFee = 0.000000001; // 1 wei
     }
 
