@@ -76,11 +76,11 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
     try {
         return {
             gasCostWholeTransaction: toBeHexTrimZero(gasCostWholeTransaction),
-            maxFeePerGas: userOp.maxFeePerGas,
-            maxPriorityFeePerGas: userOp.maxPriorityFeePerGas,
-            preVerificationGas: userOp.preVerificationGas,
-            verificationGasLimit: userOp.verificationGasLimit,
-            callGasLimit: userOp.callGasLimit,
+            maxFeePerGas: toBeHexTrimZero(userOp.maxFeePerGas),
+            maxPriorityFeePerGas: toBeHexTrimZero(userOp.maxPriorityFeePerGas),
+            preVerificationGas: toBeHexTrimZero(userOp.preVerificationGas),
+            verificationGasLimit: toBeHexTrimZero(userOp.verificationGasLimit),
+            callGasLimit: toBeHexTrimZero(userOp.callGasLimit),
         };
     } catch (error) {
         Logger.error(error);
