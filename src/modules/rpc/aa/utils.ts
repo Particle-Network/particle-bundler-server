@@ -145,7 +145,7 @@ export function splitOriginNonce(originNonce: string) {
     originNonce = `0x${originNonce.slice(2).padStart(64, '0')}`;
     const bn = BigInt(originNonce);
     const key = bn >> 64n;
-    let valueString = '0x';
+    let valueString = toBeHex(bn);
     if (key !== 0n) {
         valueString = originNonce.slice(50);
         valueString = `0x${valueString}`;
