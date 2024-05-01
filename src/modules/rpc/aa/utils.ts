@@ -1,5 +1,5 @@
 import { isEmpty } from 'lodash';
-import { AbiCoder, BigNumberish, BytesLike, JsonRpcProvider, Network, hexlify, keccak256, toBeHex } from 'ethers';
+import { AbiCoder, BigNumberish, BytesLike, JsonRpcProvider, Network, hexlify, isHexString, keccak256, toBeHex } from 'ethers';
 import { GAS_FEE_LEVEL } from '../../../common/common-types';
 import { PARTICLE_PUBLIC_RPC_URL, getBundlerChainConfig } from '../../../configs/bundler-common';
 import { TransactionFactory, TypedTransaction } from '@ethereumjs/tx';
@@ -138,11 +138,16 @@ export function calcUserOpGasPrice(feeData: any, baseFee: number = 0): number {
 }
 
 export function splitOriginNonce(originNonce: string) {
+    if (originNonce.length > 66) {
+        throw new AppException(10002, 'Invalid origin nonce');
+    }
+
+    originNonce = `0x${originNonce.slice(2).padStart(64, '0')}`;
     const bn = BigInt(originNonce);
     const key = bn >> 64n;
-    let valueString = toBeHex(bn);
+    let valueString = '0x';
     if (key !== 0n) {
-        valueString = valueString.slice(34);
+        valueString = originNonce.slice(50);
         valueString = `0x${valueString}`;
     }
 
