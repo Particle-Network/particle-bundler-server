@@ -139,6 +139,11 @@ async function tryEstimateGasForFirstAccount(provider: JsonRpcProvider, userOp: 
     }
 
     const txs = deserializeUserOpCalldata(userOp.callData);
+    // If there are more than 1 txs, there may be some context that we can not estimate gas directly
+    // TODO use multicall3 to estimate gas
+    if (txs.length > 1) {
+        return;
+    }
 
     try {
         await Promise.all(
