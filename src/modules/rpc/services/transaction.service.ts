@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { TRANSACTION_STATUS, Transaction, TransactionDocument } from '../schemas/transaction.schema';
 import { TypedTransaction } from '@ethereumjs/tx';
 import { getAddress } from 'ethers';
@@ -58,11 +58,18 @@ export class TransactionService {
         });
     }
 
-    public async createTransaction(chainId: number, signedTx: any, userOperationHashes: string[], session: any): Promise<TransactionDocument> {
+    public async createTransaction(
+        transactionObjectId: Types.ObjectId,
+        chainId: number,
+        signedTx: any,
+        userOperationHashes: string[],
+        session?: any,
+    ): Promise<TransactionDocument> {
         const tx: TypedTransaction = tryParseSignedTx(signedTx);
         const txHash = `0x${Buffer.from(tx.hash()).toString('hex')}`;
 
         const transaction = new this.transactionModel({
+            _id: transactionObjectId,
             chainId,
             userOperationHashes,
             from: getAddress(tx.getSenderAddress().toString()),

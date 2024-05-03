@@ -1,5 +1,5 @@
 import { Prop, Schema as NestSchema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema } from 'mongoose';
+import { Document, ObjectId, Schema } from 'mongoose';
 import { PENDING_TRANSACTION_EXPIRED_TIME, PENDING_TRANSACTION_WAITING_TIME } from '../../../common/common-types';
 
 export enum TRANSACTION_STATUS {
@@ -10,6 +10,9 @@ export enum TRANSACTION_STATUS {
 
 @NestSchema({ versionKey: false, collection: 'transactions', timestamps: true })
 export class Transaction {
+    @Prop({ required: true, type: Schema.Types.ObjectId })
+    public _id: ObjectId;
+
     @Prop({ required: true, type: Schema.Types.Number })
     public chainId: number;
 

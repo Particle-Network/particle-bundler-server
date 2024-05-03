@@ -27,8 +27,6 @@ class P2PCacheInstance {
     }
 
     private onMessage(packet: any) {
-        console.log('p2pcache onMessage', packet);
-
         if (typeof packet !== 'object') {
             return;
         }

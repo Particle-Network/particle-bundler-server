@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { USER_OPERATION_STATUS, UserOperation, UserOperationDocument } from '../schemas/user-operation.schema';
 import { UserOperationEvent, UserOperationEventDocument } from '../schemas/user-operation-event.schema';
 import { Transaction, TransactionDocument } from '../schemas/transaction.schema';
@@ -99,14 +99,14 @@ export class UserOperationService {
 
     public async setLocalUserOperationsAsPending(
         userOperationDocument: UserOperationDocument[],
-        transaction: TransactionDocument,
-        session: any,
+        transactionObjectId: Types.ObjectId,
+        session?: any,
     ) {
         const ids = userOperationDocument.map((u) => u._id);
 
         return await this.userOperationModel.updateMany(
             { _id: { $in: ids }, status: USER_OPERATION_STATUS.LOCAL },
-            { $set: { status: USER_OPERATION_STATUS.PENDING, transactionId: transaction.id } },
+            { $set: { status: USER_OPERATION_STATUS.PENDING, transactionId: transactionObjectId.toString() } },
             { session },
         );
     }

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectConnection } from '@nestjs/mongoose';
-import { Connection } from 'mongoose';
+import { Connection, Types } from 'mongoose';
 import { Contract, Wallet } from 'ethers';
 import { UserOperationDocument } from '../rpc/schemas/user-operation.schema';
 import { RpcService } from '../rpc/services/rpc.service';
@@ -131,21 +131,13 @@ export class HandleLocalTransactionService {
                 P2PCache.set(keyCacheChainUserOpHashTxHash(userOpHash), txHash, CACHE_USEROPHASH_TXHASH_TIMEOUT);
             }
 
-            let localTransaction: TransactionDocument;
-            await Helper.startMongoTransaction(this.connection, async (session: any) => {
-                localTransaction = await this.transactionService.createTransaction(chainId, signedTx, userOpHashes, session);
-                const updateInfo = await this.userOperationService.setLocalUserOperationsAsPending(
-                    userOperationDocuments,
-                    localTransaction,
-                    session,
-                );
+            const transactionObjectId = new Types.ObjectId();
+            await this.userOperationService.setLocalUserOperationsAsPending(
+                userOperationDocuments,
+                transactionObjectId,
+            );
 
-                Helper.assertTrue(
-                    updateInfo.modifiedCount === userOperationDocuments.length,
-                    10001,
-                    `Failed to update user operations as pending\n${JSON.stringify(updateInfo)}\n${JSON.stringify(userOpHashes)}`,
-                );
-            });
+            const localTransaction = await this.transactionService.createTransaction(transactionObjectId, chainId, signedTx, userOpHashes);
 
             this.listenerService.appendUserOpHashPendingTransactionMap(localTransaction);
 

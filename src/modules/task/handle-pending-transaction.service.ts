@@ -364,8 +364,6 @@ export class HandlePendingTransactionService {
             const provider = this.rpcService.getJsonRpcProvider(pendingTransaction.chainId);
             const receiptPromises = pendingTransaction.txHashes.map((txHash) => this.rpcService.getTransactionReceipt(provider, txHash));
             const receipts = await Promise.all(receiptPromises);
-
-            console.log('getReceiptAndHandlePendingTransactions', receipts.length);
             if (receipts.some((r) => !!r)) {
                 console.log(
                     'receipts',
@@ -401,7 +399,7 @@ export class HandlePendingTransactionService {
 
             if (
                 bundlerConfig.canIncrGasPriceRetry &&
-                signerDoneTransactionMaxNonce + 1 === pendingTransaction.nonce &&
+                [signerDoneTransactionMaxNonce + 1, signerDoneTransactionMaxNonce].includes(pendingTransaction.nonce) &&
                 pendingTransaction.txHashes.length < bundlerConfig.canIncrGasPriceRetryMaxCount
             ) {
                 await this.tryIncrTransactionGasPriceAndReplace(pendingTransaction);
