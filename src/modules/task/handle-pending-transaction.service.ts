@@ -355,12 +355,6 @@ export class HandlePendingTransactionService {
 
     private async getReceiptAndHandlePendingTransactions(pendingTransaction: TransactionDocument, signerDoneTransactionMaxNonce?: number) {
         try {
-            // the pending transaction is too old, force to finish it
-            if (!!signerDoneTransactionMaxNonce && signerDoneTransactionMaxNonce > pendingTransaction.nonce && pendingTransaction.isOld()) {
-                await this.handlePendingTransaction(pendingTransaction, null);
-                return null;
-            }
-
             const provider = this.rpcService.getJsonRpcProvider(pendingTransaction.chainId);
             const receiptPromises = pendingTransaction.txHashes.map((txHash) => this.rpcService.getTransactionReceipt(provider, txHash));
             const receipts = await Promise.all(receiptPromises);
@@ -384,6 +378,12 @@ export class HandlePendingTransactionService {
                     await this.handlePendingTransaction(pendingTransaction, receipt);
                     return null;
                 }
+            }
+
+            // the pending transaction is too old, force to finish it
+            if (!!signerDoneTransactionMaxNonce && signerDoneTransactionMaxNonce > pendingTransaction.nonce) {
+                await this.handlePendingTransaction(pendingTransaction, null);
+                return null;
             }
 
             // force retry
