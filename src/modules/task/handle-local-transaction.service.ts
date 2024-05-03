@@ -157,6 +157,8 @@ export class HandleLocalTransactionService {
             }
 
             this.larkService.sendMessage(`Failed to create bundle transaction: ${Helper.converErrorToString(error)}`);
+
+            throw error;
         }
     }
 

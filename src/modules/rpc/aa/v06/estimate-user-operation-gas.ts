@@ -244,7 +244,7 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
             ratio = 1.6;
         }
         if ([EVM_CHAIN_ID.OPTIMISM_TESTNET_SEPOLIA, EVM_CHAIN_ID.BLAST_TESTNET_SEPOLIA, EVM_CHAIN_ID.BASE_TESTNET_SEPOLIA].includes(chainId)) {
-            ratio = 1.4;
+            ratio = 2;
         }
 
         minGasPrice = (minGasPrice * BigInt(Math.round(ratio * 100))) / 100n;
