@@ -88,7 +88,7 @@ export class HandleLocalTransactionService {
                 console.error(error);
             }
 
-            this.larkService.sendMessage(`Failed to handle local transaction: ${Helper.converErrorToString(error)}`);
+            this.larkService.sendMessage(`Failed to handle local transaction: ${localTransaction.id} | ${localTransaction._id?.toString()} | ${Helper.converErrorToString(error)}`);
         }
 
         this.lockedLocalTransactions.delete(localTransaction.id);
