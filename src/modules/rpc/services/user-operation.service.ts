@@ -57,7 +57,7 @@ export class UserOperationService {
         }
 
         const transaction = await this.transactionModel.findById(userOpDoc.transactionId);
-        if (!transaction) {
+        if (!transaction || transaction.status === USER_OPERATION_STATUS.DONE) {
             return true;
         }
 
