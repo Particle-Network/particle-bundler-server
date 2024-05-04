@@ -5,6 +5,7 @@ import { TRANSACTION_STATUS, Transaction, TransactionDocument } from '../schemas
 import { TypedTransaction } from '@ethereumjs/tx';
 import { getAddress } from 'ethers';
 import { tryParseSignedTx } from '../aa/utils';
+import { random } from 'lodash';
 
 @Injectable()
 export class TransactionService {
@@ -16,17 +17,33 @@ export class TransactionService {
 
     public async getRecentTransactionsByStatusSortConfirmations(status: TRANSACTION_STATUS, limit: number): Promise<TransactionDocument[]> {
         const recentData = new Date(Date.now() - 10000); // 10s ago
+
+        if (random(0, 1) === 0) {
+            return await this.transactionModel
+                .find({ status, latestSentAt: { $gte: recentData } })
+                .sort({ confirmations: 1 })
+                .limit(limit);
+        }
+
         return await this.transactionModel
             .find({ status, latestSentAt: { $gte: recentData } })
-            .sort({ confirmations: 1 })
+            .sort({ _id: 1 })
             .limit(limit);
     }
 
     public async getLongAgoTransactionsByStatusSortConfirmations(status: TRANSACTION_STATUS, limit: number): Promise<TransactionDocument[]> {
         const recentData = new Date(Date.now() - 10000); // 10s ago
+
+        if (random(0, 1) === 0) {
+            return await this.transactionModel
+                .find({ status, latestSentAt: { $lt: recentData } })
+                .sort({ confirmations: 1 })
+                .limit(limit);
+        }
+
         return await this.transactionModel
             .find({ status, latestSentAt: { $lt: recentData } })
-            .sort({ confirmations: 1 })
+            .sort({ _id: 1 })
             .limit(limit);
     }
 
