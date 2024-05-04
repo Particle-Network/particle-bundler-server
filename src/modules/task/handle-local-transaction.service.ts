@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { InjectConnection } from '@nestjs/mongoose';
-import { Connection, Types } from 'mongoose';
+import { Types } from 'mongoose';
 import { Contract, Wallet } from 'ethers';
 import { UserOperationDocument } from '../rpc/schemas/user-operation.schema';
 import { RpcService } from '../rpc/services/rpc.service';
@@ -32,7 +31,6 @@ export class HandleLocalTransactionService {
     private readonly lockedLocalTransactions: Set<string> = new Set();
 
     public constructor(
-        @InjectConnection() private readonly connection: Connection,
         private readonly rpcService: RpcService,
         private readonly configService: ConfigService,
         private readonly larkService: LarkService,

@@ -90,8 +90,7 @@ export class ListenerService {
             const userOpHash = event[0];
             const key = this.keyChainIdUserOpHash(chainId, userOpHash);
 
-            const transaction = this.cacheUserOpHashPendingTransaction.get(key);
-            if (!!transaction) {
+            if (!!this.cacheUserOpHashPendingTransaction.get(key)) {
                 this.eventHandler(event);
             }
         });
@@ -102,7 +101,7 @@ export class ListenerService {
 
         for (const userOperationHash of userOperationHashes) {
             const key = this.keyChainIdUserOpHash(transaction.chainId, userOperationHash);
-            this.cacheUserOpHashPendingTransaction.set(key, transaction);
+            this.cacheUserOpHashPendingTransaction.set(key, true);
         }
     }
 

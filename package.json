@@ -7,7 +7,7 @@
         "tsc": "nest build",
         "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
         "start": "nest start --watch",
-        "start:dev": "ENVIRONMENT=dev nest start --watch",
+        "start:dev": "ENVIRONMENT=dev nest start --debug --watch",
         "start:debug": "ENVIRONMENT=debug nest start --debug --watch",
         "start:prod": "ENVIRONMENT=production node dist/main",
         "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
