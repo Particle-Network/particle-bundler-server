@@ -164,7 +164,6 @@ export class HandleLocalUserOperationService {
                 const calcedGasLimit = calcUserOpTotalGasLimit(userOperation.origin, chainId);
                 if (calcedGasLimit > bundlerConfig.maxBundleGas) {
                     userOperationsToDelete.push(userOperation);
-                    console.log('delete userOperation', calcedGasLimit.toString(), userOperation.toJSON());
                     continue;
                 }
 

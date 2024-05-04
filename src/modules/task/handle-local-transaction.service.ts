@@ -102,8 +102,7 @@ export class HandleLocalTransactionService {
     ) {
         try {
             const beneficiary = signer.address;
-            const provider = this.rpcService.getJsonRpcProvider(chainId);
-            const entryPointContract = new Contract(entryPoint, entryPointAbi, provider);
+            const entryPointContract = new Contract(entryPoint, entryPointAbi, null);
             const userOps = userOperationDocuments.map((userOperationDocument) => userOperationDocument.origin);
             let gasLimit = (BigInt(bundleGasLimit) * 15n) / 10n;
 
