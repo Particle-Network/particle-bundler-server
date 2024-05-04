@@ -73,9 +73,8 @@ export class HandleLocalTransactionService {
         this.lockedLocalTransactions.add(localTransaction.id);
 
         try {
-            const provider = this.rpcService.getJsonRpcProvider(localTransaction.chainId);
             // local transaction should have only one txHash
-            const receipt = await this.rpcService.getTransactionReceipt(provider, localTransaction.txHashes[0]);
+            const receipt = await this.rpcService.getTransactionReceipt(localTransaction.chainId, localTransaction.txHashes[0]);
             if (!!receipt) {
                 await this.handlePendingTransactionService.handlePendingTransaction(localTransaction, receipt);
             } else {

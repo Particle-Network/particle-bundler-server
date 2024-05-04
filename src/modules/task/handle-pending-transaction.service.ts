@@ -149,12 +149,7 @@ export class HandlePendingTransactionService {
         }
 
         try {
-            const provider = this.rpcService.getJsonRpcProvider(transaction.chainId);
-            const bundlerConfig = getBundlerChainConfig(transaction.chainId);
-            const r = await provider.send(bundlerConfig.methodSendRawTransaction, [transaction.signedTxs[txHash]]);
-            if (!!r?.error) {
-                throw r.error;
-            }
+            await this.rpcService.sendRawTransaction(transaction.chainId, transaction.signedTxs[txHash]);
         } catch (error) {
             // insufficient funds for intrinsic transaction cost
             if (error?.message?.toLowerCase()?.includes('insufficient funds')) {
@@ -355,8 +350,9 @@ export class HandlePendingTransactionService {
 
     private async getReceiptAndHandlePendingTransactions(pendingTransaction: TransactionDocument, signerDoneTransactionMaxNonce?: number) {
         try {
-            const provider = this.rpcService.getJsonRpcProvider(pendingTransaction.chainId);
-            const receiptPromises = pendingTransaction.txHashes.map((txHash) => this.rpcService.getTransactionReceipt(provider, txHash));
+            const receiptPromises = pendingTransaction.txHashes.map((txHash) =>
+                this.rpcService.getTransactionReceipt(pendingTransaction.chainId, txHash),
+            );
             const receipts = await Promise.all(receiptPromises);
             if (receipts.some((r) => !!r)) {
                 console.log(
@@ -406,9 +402,10 @@ export class HandlePendingTransactionService {
             } else if (pendingTransaction.isOld()) {
                 try {
                     // Transactions may be discarded by the node tx pool and need to be reissued
-                    await provider.send(bundlerConfig.methodSendRawTransaction, [
+                    await this.rpcService.sendRawTransaction(
+                        pendingTransaction.chainId,
                         pendingTransaction.signedTxs[pendingTransaction.txHashes[pendingTransaction.txHashes.length - 1]],
-                    ]);
+                    );
                 } catch (error) {
                     if (!IS_PRODUCTION) {
                         console.error('trySendOldPendingTransaction error', error);
@@ -539,13 +536,7 @@ export class HandlePendingTransactionService {
 
             // if failed and it's ok, just generate a invalid tx hash
             await this.transactionService.replaceTransactionTxHash(transaction, signedTx);
-
-            const bundlerConfig = getBundlerChainConfig(transaction.chainId);
-            const provider = this.rpcService.getJsonRpcProvider(transaction.chainId);
-            const rTxHash = await provider.send(bundlerConfig.methodSendRawTransaction, [signedTx]);
-            if (!!rTxHash?.error) {
-                throw rTxHash.error;
-            }
+            await this.rpcService.sendRawTransaction(transaction.chainId, signedTx);
         } catch (error) {
             if (!IS_PRODUCTION) {
                 console.error(`Replace Transaction ${transaction.id} error on chain ${transaction.chainId}`, error, transaction);

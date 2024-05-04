@@ -32,8 +32,41 @@ export class RpcService {
         return this.jsonRpcProviders.get(chainId);
     }
 
-    public async getTransactionReceipt(provider: JsonRpcProvider, txHash: string) {
-        return await provider.send('eth_getTransactionReceipt', [txHash]);
+    public async getTransactionReceipt(chainId: number, txHash: string) {
+        const rpcUrl = getBundlerChainConfig(chainId).rpcUrl;
+        const response = await Axios.post(
+            rpcUrl,
+            {
+                jsonrpc: '2.0',
+                id: Date.now(),
+                method: 'eth_getTransactionReceipt',
+                params: [txHash],
+            },
+            { timeout: 12000 },
+        );
+
+        return response.data?.result;
+    }
+
+    public async sendRawTransaction(chainId: number, rawTransaction: string) {
+        const bundlerChainConfig = getBundlerChainConfig(chainId);
+        const rpcUrl = bundlerChainConfig.rpcUrl;
+        const response = await Axios.post(
+            rpcUrl,
+            {
+                jsonrpc: '2.0',
+                id: Date.now(),
+                method: bundlerChainConfig.methodSendRawTransaction,
+                params: [rawTransaction],
+            },
+            { timeout: 12000 },
+        );
+
+        if (!response.data?.result) {
+            throw new Error(`Failed to send raw transaction: ${Helper.converErrorToString(response.data)}`);
+        }
+
+        return response.data?.result;
     }
 
     public async getValidPaymasterAddress(chainId: number) {
