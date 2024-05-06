@@ -56,7 +56,9 @@ export class RpcController {
 
             result = await this.handleRpc(chainId, body);
         } catch (error) {
-            console.error(error);
+            if (!IS_PRODUCTION) {
+                console.error(error);
+            }
 
             result = JsonRPCResponse.createErrorResponse(body, error);
         }
@@ -89,7 +91,9 @@ export class RpcController {
 
             throw new AppException(-32600);
         } catch (error) {
-            console.error(error);
+            if (!IS_PRODUCTION) {
+                console.error(error);
+            }
 
             if (!(error instanceof AppException) || error.errorCode === -32000) {
                 this.larkService.sendMessage(
