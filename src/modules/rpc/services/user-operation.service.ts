@@ -144,23 +144,27 @@ export class UserOperationService {
         topic: string,
         args: any,
     ): Promise<UserOperationEventDocument> {
-        const event = await this.getUserOperationEvent(userOperationHash);
-        if (event) {
-            return event;
+        try {
+            const event = await this.getUserOperationEvent(userOperationHash);
+            if (event) {
+                return event;
+            }
+
+            const userOperation = new this.userOperationEventModel({
+                chainId,
+                blockHash,
+                blockNumber,
+                txHash,
+                contractAddress,
+                userOperationHash,
+                topic,
+                args,
+            });
+
+            return await userOperation.save();
+        } catch (error) {
+            // nothing
         }
-
-        const userOperation = new this.userOperationEventModel({
-            chainId,
-            blockHash,
-            blockNumber,
-            txHash,
-            contractAddress,
-            userOperationHash,
-            topic,
-            args,
-        });
-
-        return await userOperation.save();
     }
 
     public async resetToLocal(userOperationDocument: UserOperationDocument, userOpHash: string, entryPoint: string, userOp: any) {

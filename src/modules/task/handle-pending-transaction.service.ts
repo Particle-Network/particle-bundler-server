@@ -223,7 +223,7 @@ export class HandlePendingTransactionService {
                     }
 
                     const args = deepHexlify(parsed.args);
-                    await this.userOperationService.createOrGetUserOperationEvent(
+                    this.userOperationService.createOrGetUserOperationEvent(
                         chainId,
                         blockHash,
                         blockNumber,

@@ -85,7 +85,11 @@ export class HandleLocalTransactionService {
                 console.error(error);
             }
 
-            this.larkService.sendMessage(`Failed to handle local transaction: ${localTransaction.id} | ${localTransaction._id?.toString()} | ${Helper.converErrorToString(error)}`);
+            this.larkService.sendMessage(
+                `Failed to handle local transaction: ${localTransaction.id} | ${localTransaction._id?.toString()} | ${Helper.converErrorToString(
+                    error,
+                )}`,
+            );
         }
 
         this.lockedLocalTransactions.delete(localTransaction.id);
@@ -128,10 +132,7 @@ export class HandleLocalTransactionService {
             }
 
             const transactionObjectId = new Types.ObjectId();
-            await this.userOperationService.setLocalUserOperationsAsPending(
-                userOperationDocuments,
-                transactionObjectId,
-            );
+            await this.userOperationService.setLocalUserOperationsAsPending(userOperationDocuments, transactionObjectId);
 
             const localTransaction = await this.transactionService.createTransaction(transactionObjectId, chainId, signedTx, userOpHashes);
 
