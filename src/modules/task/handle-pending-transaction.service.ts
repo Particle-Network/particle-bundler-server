@@ -10,6 +10,7 @@ import {
     EVENT_ENTRY_POINT_USER_OPERATION,
     IS_DEVELOPMENT,
     IS_PRODUCTION,
+    IUserOperationEventObject,
     keyCacheChainReceipt,
     keyCacheChainSignerTransactionCount,
     keyCacheChainUserOpHashTxHash,
@@ -209,6 +210,7 @@ export class HandlePendingTransactionService {
 
         const chainId = transaction.chainId;
         const results = await this.checkAndHandleFailedReceipt(transaction, receipt);
+        const userOperationEventObjects: IUserOperationEventObject[] = [];
         for (const { receipt, userOpHashes } of results) {
             const txHash = receipt.transactionHash;
             const blockHash = receipt.blockHash;
@@ -223,24 +225,26 @@ export class HandlePendingTransactionService {
                     }
 
                     const args = deepHexlify(parsed.args);
-                    this.userOperationService.createOrGetUserOperationEvent(
+                    userOperationEventObjects.push({
                         chainId,
                         blockHash,
                         blockNumber,
-                        parsed.args.userOpHash,
-                        receipt.transactionHash,
-                        receipt.to,
-                        parsed.topic,
+                        userOperationHash: parsed.args.userOpHash,
+                        txHash: receipt.transactionHash,
+                        contractAddress: receipt.to,
+                        topic: parsed.topic,
                         args,
-                    );
+                    });
                 } catch (error) {
                     // May not be an EntryPoint event.
                     continue;
                 }
             }
 
+            // async send
+            this.userOperationService.createUserOperationEvents(userOperationEventObjects);
             await this.userOperationService.setUserOperationsAsDone(userOpHashes, txHash, blockNumber, blockHash);
-
+            
             transaction.receipts = transaction.receipts || {};
             transaction.receipts[txHash] = receipt;
             transaction.userOperationHashMapTxHash = transaction.userOperationHashMapTxHash || {};

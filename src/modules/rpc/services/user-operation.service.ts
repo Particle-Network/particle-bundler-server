@@ -6,6 +6,7 @@ import { UserOperationEvent, UserOperationEventDocument } from '../schemas/user-
 import { Transaction, TransactionDocument } from '../schemas/transaction.schema';
 import { Helper } from '../../../common/helper';
 import { splitOriginNonce } from '../aa/utils';
+import { IUserOperationEventObject } from '../../../common/common-types';
 
 @Injectable()
 export class UserOperationService {
@@ -134,34 +135,15 @@ export class UserOperationService {
         return await this.userOperationModel.count({ status: USER_OPERATION_STATUS.LOCAL, chainId });
     }
 
-    public async createOrGetUserOperationEvent(
-        chainId: number,
-        blockHash: string,
-        blockNumber: number,
-        userOperationHash: string,
-        txHash: string,
-        contractAddress: string,
-        topic: string,
-        args: any,
-    ): Promise<UserOperationEventDocument> {
+    public async createUserOperationEvents(userOperationEventObjects: IUserOperationEventObject[]) {
+        if (userOperationEventObjects.length <= 0) {
+            return;
+        }
+
         try {
-            const event = await this.getUserOperationEvent(userOperationHash);
-            if (event) {
-                return event;
-            }
-
-            const userOperation = new this.userOperationEventModel({
-                chainId,
-                blockHash,
-                blockNumber,
-                txHash,
-                contractAddress,
-                userOperationHash,
-                topic,
-                args,
+            await this.userOperationEventModel.insertMany(userOperationEventObjects, {
+                ordered: false,
             });
-
-            return await userOperation.save();
         } catch (error) {
             // nothing
         }
