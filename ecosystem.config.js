@@ -7,7 +7,7 @@ module.exports = {
             instances: process.env.ENVIRONMENT === 'production' ? 8 : 1,
             kill_timeout: 15000,
             exec_mode: 'cluster',
-            max_memory_restart: '8192M',
+            max_memory_restart: '2048M',
             env_development: {
                 ENVIRONMENT: 'dev',
                 TZ: 'UTC',
