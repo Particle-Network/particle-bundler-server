@@ -134,12 +134,15 @@ export class HandleLocalTransactionService {
             const transactionObjectId = new Types.ObjectId();
             await this.userOperationService.setLocalUserOperationsAsPending(userOperationDocuments, transactionObjectId);
 
-            const localTransaction = await this.transactionService.createTransaction(transactionObjectId, chainId, signedTx, userOpHashes);
+            // no need to await, if failed, the userops is abandoned
+            this.transactionService.createTransaction(transactionObjectId, chainId, signedTx, userOpHashes).then((localTransaction) => {
+                this.listenerService.appendUserOpHashPendingTransactionMap(localTransaction);
 
-            this.listenerService.appendUserOpHashPendingTransactionMap(localTransaction);
-
-            // no need to await
-            this.handlePendingTransactionService.trySendAndUpdateTransactionStatus(localTransaction, localTransaction.txHashes[0]);
+                // no need to await
+                this.handlePendingTransactionService.trySendAndUpdateTransactionStatus(localTransaction, localTransaction.txHashes[0]);
+            }).catch(error => {
+                // nothing
+            });
         } catch (error) {
             if (!IS_PRODUCTION) {
                 console.error('Failed to create bundle transaction', error);
