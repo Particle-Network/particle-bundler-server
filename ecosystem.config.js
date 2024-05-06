@@ -4,10 +4,10 @@ module.exports = {
             name: 'particle-bundler-server',
             script: './dist/main.js',
             time: true,
-            instances: process.env.ENVIRONMENT === 'production' ? 8 : 1,
+            instances: process.env.ENVIRONMENT === 'production' ? 4 : 1,
             kill_timeout: 15000,
             exec_mode: 'cluster',
-            max_memory_restart: '2048M',
+            max_memory_restart: '4096M',
             env_development: {
                 ENVIRONMENT: 'dev',
                 TZ: 'UTC',
