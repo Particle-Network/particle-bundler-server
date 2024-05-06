@@ -58,7 +58,11 @@ export class UserOperationService {
         }
 
         const transaction = await this.transactionModel.findById(userOpDoc.transactionId);
-        if (!transaction || transaction.status === USER_OPERATION_STATUS.DONE) {
+        if (!transaction) {
+            return userOpDoc.createdAt.getTime() < Date.now() - 1000 * 60;
+        }
+
+        if (transaction.status === USER_OPERATION_STATUS.DONE) {
             return true;
         }
 
@@ -155,7 +159,7 @@ export class UserOperationService {
         userOperationDocument.origin = userOp;
         userOperationDocument.status = USER_OPERATION_STATUS.LOCAL;
         userOperationDocument.createdAt = new Date();
-        userOperationDocument.transactionId = null;
+        userOperationDocument.transactionId = undefined;
         return await userOperationDocument.save();
     }
 }
