@@ -106,16 +106,20 @@ export class AAService {
         address: string,
         forceLatest: boolean = false,
     ): Promise<number> {
-        const cacheKey = keyCacheChainSignerTransactionCount(chainId, address);
-        let nonce = P2PCache.get(cacheKey);
-        if (!forceLatest && !!nonce) {
+        try {
+            const cacheKey = keyCacheChainSignerTransactionCount(chainId, address);
+            let nonce = P2PCache.get(cacheKey);
+            if (!forceLatest && !!nonce) {
+                return nonce;
+            }
+
+            nonce = await provider.getTransactionCount(address, 'latest');
+            P2PCache.set(cacheKey, nonce, CACHE_TRANSACTION_COUNT_TIMEOUT);
+
             return nonce;
+        } catch (error) {
+            return 0;
         }
-
-        nonce = await provider.getTransactionCount(address, 'latest');
-        P2PCache.set(cacheKey, nonce, CACHE_TRANSACTION_COUNT_TIMEOUT);
-
-        return nonce;
     }
 
     public trySetTransactionCountLocalCache(chainId: number, address: string, nonce: number) {

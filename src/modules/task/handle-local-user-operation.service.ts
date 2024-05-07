@@ -44,7 +44,7 @@ export class HandleLocalUserOperationService {
         }
 
         try {
-            let userOperations = userOpDocs ?? (await this.userOperationService.getLocalUserOperations());
+            let userOperations = userOpDocs ?? (await this.userOperationService.getLocalUserOperations(500));
             userOperations = this.tryLockUserOperationsAndGetUnuseds(userOperations);
             if (userOperations.length <= 0) {
                 return;
@@ -52,6 +52,7 @@ export class HandleLocalUserOperationService {
 
             const userOperationsByChainId: any = {};
             for (const userOperation of userOperations) {
+                userOperation.id = userOperation._id.toString();
                 if (!userOperationsByChainId[userOperation.chainId]) {
                     userOperationsByChainId[userOperation.chainId] = [];
                 }

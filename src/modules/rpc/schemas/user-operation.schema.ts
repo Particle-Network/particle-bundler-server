@@ -101,3 +101,8 @@ UserOperationSchema.index({
     status: 1,
     chainId: 1,
 });
+
+UserOperationSchema.index({
+    status: 1,
+    _id: -1,
+});

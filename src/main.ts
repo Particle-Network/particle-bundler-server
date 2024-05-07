@@ -34,13 +34,11 @@ async function bootstrap() {
         larkService.sendMessage(`Particle Bundler Server Started, ENVIRONMENT: ${process.env.ENVIRONMENT}`);
     }
 
-    const server = await app.listen(3000, '0.0.0.0');
+    const server = await app.listen(3001, '0.0.0.0');
 
     if (!IS_DEVELOPMENT) {
         process.on('uncaughtException', async (error) => {
-            larkService.sendMessage(Helper.converErrorToString(error), 'Uncaught Exception');
-
-            process.exit(1); // exit application
+            // nothing
         });
 
         process.on('SIGINT', (signal: any) => {

@@ -99,7 +99,7 @@ export class UserOperationService {
     }
 
     public async getLocalUserOperations(limit: number = 1000): Promise<UserOperationDocument[]> {
-        return await this.userOperationModel.find({ status: USER_OPERATION_STATUS.LOCAL }).limit(limit);
+        return await this.userOperationModel.aggregate([{ $match: { status: USER_OPERATION_STATUS.LOCAL } }, { $sample: { size: limit } }]);
     }
 
     public async setLocalUserOperationsAsPending(
