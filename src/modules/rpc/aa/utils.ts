@@ -239,3 +239,9 @@ export function toBeHexTrimZero(s: BigNumberish) {
 
     return result;
 }
+
+export function parsePaymasterAndDataAndGetExpiredAt(paymasterAndData: string): number {
+    const [expiredAt] = AbiCoder.defaultAbiCoder().decode(['uint48', 'uint48'], `0x${paymasterAndData.slice(42, 170)}`);
+
+    return Number(expiredAt);
+}
