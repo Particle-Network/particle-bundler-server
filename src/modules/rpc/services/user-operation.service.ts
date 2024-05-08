@@ -49,12 +49,12 @@ export class UserOperationService {
     }
 
     private async checkCanBeReplaced(userOpDoc: UserOperationDocument) {
-        if (userOpDoc.status === USER_OPERATION_STATUS.DONE) {
-            return true;
+        if (userOpDoc.updatedAt.getTime() > Date.now() - 1000 * 120) {
+            return false;
         }
 
-        if (userOpDoc.updatedAt.getTime() > Date.now() - 1000 * 60) {
-            return false;
+        if (userOpDoc.status === USER_OPERATION_STATUS.DONE) {
+            return true;
         }
 
         if (!userOpDoc.transactionId) {
