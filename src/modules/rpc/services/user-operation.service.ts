@@ -53,13 +53,17 @@ export class UserOperationService {
             return true;
         }
 
+        if (userOpDoc.updatedAt.getTime() > Date.now() - 1000 * 60) {
+            return false;
+        }
+
         if (!userOpDoc.transactionId) {
             return true;
         }
 
         const transaction = await this.transactionModel.findById(userOpDoc.transactionId);
         if (!transaction) {
-            return userOpDoc.createdAt.getTime() < Date.now() - 1000 * 60;
+            return true;
         }
 
         if (transaction.status === USER_OPERATION_STATUS.DONE) {
