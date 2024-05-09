@@ -14,7 +14,7 @@ import { canRunCron } from './modules/rpc/aa/utils';
 async function bootstrap() {
     await initializeBundlerConfig();
 
-    if (canRunCron()) {
+    if (canRunCron() && !IS_DEVELOPMENT) {
         const app = await NestFactory.createApplicationContext(AppModule);
         initApp(app);
         return;

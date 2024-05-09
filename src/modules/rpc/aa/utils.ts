@@ -260,5 +260,5 @@ export function canRunCron() {
         return process.env.NODE_APP_INSTANCE === '0';
     }
 
-    return Os.hostname() === PRODUCTION_HOSTNAME;
+    return process.env.NODE_APP_INSTANCE === '0' && Os.hostname() === PRODUCTION_HOSTNAME;
 }

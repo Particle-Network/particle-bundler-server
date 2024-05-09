@@ -1,14 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { AAService } from '../rpc/services/aa.service';
 import { TransactionService } from '../rpc/services/transaction.service';
-import { IS_PRODUCTION, PROCESS_EVENT_TYPE, keyLockSigner } from '../../common/common-types';
+import { IS_PRODUCTION, keyLockSigner } from '../../common/common-types';
 import { Helper } from '../../common/helper';
 import { UserOperationService } from '../rpc/services/user-operation.service';
 import { Cron } from '@nestjs/schedule';
 import { getBundlerChainConfig } from '../../configs/bundler-common';
 import { Wallet, toBeHex } from 'ethers';
 import { UserOperationDocument } from '../rpc/schemas/user-operation.schema';
-import { ProcessEventEmitter } from '../../common/process-event-emitter';
 import { LarkService } from '../common/services/lark.service';
 import { calcUserOpTotalGasLimit, canRunCron, waitSeconds } from '../rpc/aa/utils';
 import { HandlePendingUserOperationService } from './handle-pending-user-operation.service';
@@ -24,25 +23,16 @@ export class HandleLocalUserOperationService {
         private readonly larkService: LarkService,
         private readonly userOperationService: UserOperationService,
         private readonly handlePendingUserOperationService: HandlePendingUserOperationService,
-    ) {
-        ProcessEventEmitter.registerHandler(PROCESS_EVENT_TYPE.CREATE_USER_OPERATION, this.onSealUserOps.bind(this));
-    }
-
-    private onSealUserOps(packet: any) {
-        const userOpDoc = packet.data;
-        if (!!userOpDoc) {
-            this.sealUserOps([userOpDoc]);
-        }
-    }
+    ) {}
 
     @Cron('* * * * * *')
-    public async sealUserOps(userOpDocs?: any[]) {
+    public async sealUserOps() {
         if (!canRunCron()) {
             return;
         }
 
         try {
-            let userOperations = userOpDocs ?? (await this.userOperationService.getLocalUserOperations(500));
+            let userOperations = await this.userOperationService.getLocalUserOperations(500);
             userOperations = this.tryLockUserOperationsAndGetUnuseds(userOperations);
             if (userOperations.length <= 0) {
                 return;

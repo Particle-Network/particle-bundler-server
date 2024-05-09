@@ -9,7 +9,7 @@ if (process.env.ENVIRONMENT === 'production') {
         instances = 0;
     }
 } else {
-    instances = 3;
+    instances = 2;
 }
 
 let max_memory_restart = '2048M';

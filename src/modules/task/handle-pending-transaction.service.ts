@@ -10,7 +10,6 @@ import {
     IS_PRODUCTION,
     IUserOperationEventObject,
     keyCacheChainSignerTransactionCount,
-    keyCacheChainUserOpHashTxHash,
     keyLockPendingTransaction,
     keyLockSendingTransaction,
 } from '../../common/common-types';
@@ -249,10 +248,6 @@ export class HandlePendingTransactionService {
             for (const userOpHash of userOpHashes) {
                 transaction.userOperationHashMapTxHash[userOpHash] = txHash;
             }
-        }
-
-        for (const userOperationHash of transaction.userOperationHashes) {
-            P2PCache.delete(keyCacheChainUserOpHashTxHash(userOperationHash));
         }
 
         await this.transactionService.updateTransactionStatus(transaction, TRANSACTION_STATUS.DONE);

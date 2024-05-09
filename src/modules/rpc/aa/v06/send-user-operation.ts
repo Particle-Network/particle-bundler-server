@@ -2,7 +2,7 @@ import { Contract, ZeroAddress, getAddress, isAddress, toBeHex } from 'ethers';
 import { JsonRPCRequestDto } from '../../dtos/json-rpc-request.dto';
 import { RpcService } from '../../services/rpc.service';
 import { Helper } from '../../../../common/helper';
-import { IS_PRODUCTION, MULTI_CALL_3_ADDRESS, PROCESS_EVENT_TYPE } from '../../../../common/common-types';
+import { IS_PRODUCTION, MULTI_CALL_3_ADDRESS } from '../../../../common/common-types';
 import { AppException } from '../../../../common/app-exception';
 import {
     calcUserOpGasPrice,
@@ -26,7 +26,6 @@ import {
     SUPPORT_MULTCALL3,
     USE_PROXY_CONTRACT_TO_ESTIMATE_GAS,
 } from '../../../../common/chains';
-import { ProcessEventEmitter } from '../../../../common/process-event-emitter';
 
 export async function sendUserOperation(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
     Helper.assertTrue(typeof body.params[0] === 'object', -32602, 'Invalid params: userop must be an object');

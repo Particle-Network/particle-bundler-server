@@ -6,11 +6,7 @@ import { RpcService } from '../rpc/services/rpc.service';
 import { LarkService } from '../common/services/lark.service';
 import { Helper } from '../../common/helper';
 import {
-    CACHE_TRANSACTION_RECEIPT_TIMEOUT,
-    CACHE_USEROPHASH_TXHASH_TIMEOUT,
     IS_PRODUCTION,
-    keyCacheChainUserOpHashReceipt,
-    keyCacheChainUserOpHashTxHash,
 } from '../../common/common-types';
 import { EVM_CHAIN_ID } from '../../common/chains';
 import entryPointAbi from '../rpc/aa/abis/entry-point-abi';
@@ -19,10 +15,8 @@ import { TransactionService } from '../rpc/services/transaction.service';
 import { UserOperationService } from '../rpc/services/user-operation.service';
 import { HandlePendingTransactionService } from './handle-pending-transaction.service';
 import { Cron } from '@nestjs/schedule';
-import { canRunCron, createTxGasData, tryParseSignedTx } from '../rpc/aa/utils';
+import { canRunCron, createTxGasData } from '../rpc/aa/utils';
 import { ListenerService } from './listener.service';
-import P2PCache from '../../common/p2p-cache';
-import { TypedTransaction } from '@ethereumjs/tx';
 
 @Injectable()
 export class HandleLocalTransactionService {
@@ -121,13 +115,7 @@ export class HandleLocalTransactionService {
             finalizedTx.chainId = BigInt(chainId);
             const signedTx = await signer.signTransaction(finalizedTx);
 
-            const tx: TypedTransaction = tryParseSignedTx(signedTx);
-            const txHash = `0x${Buffer.from(tx.hash()).toString('hex')}`;
             const userOpHashes = userOperationDocuments.map((userOperationDocument) => userOperationDocument.userOpHash);
-            for (const userOpHash of userOpHashes) {
-                P2PCache.set(keyCacheChainUserOpHashTxHash(userOpHash), txHash, CACHE_USEROPHASH_TXHASH_TIMEOUT);
-            }
-
             const transactionObjectId = new Types.ObjectId();
             await this.userOperationService.setLocalUserOperationsAsPending(userOperationDocuments, transactionObjectId);
 
@@ -165,7 +153,5 @@ export class HandleLocalTransactionService {
             logs: [userOpEvent.log],
             isEvent: true,
         };
-
-        P2PCache.set(keyCacheChainUserOpHashReceipt(userOpHash), receipt, CACHE_TRANSACTION_RECEIPT_TIMEOUT);
     }
 }
