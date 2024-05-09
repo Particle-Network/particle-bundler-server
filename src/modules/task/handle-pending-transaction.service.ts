@@ -350,16 +350,6 @@ export class HandlePendingTransactionService {
                 }
             }
 
-            if (pendingTransaction.id === '663c27eb55a229a6ce6e7f64') {
-                console.log(
-                    'getReceiptAndHandlePendingTransactions',
-                    pendingTransaction.id,
-                    pendingTransaction.nonce,
-                    signerDoneTransactionMaxNonce,
-                    pendingTransaction.incrRetry,
-                );
-            }
-
             // the pending transaction is too old, force to finish it
             if (!!signerDoneTransactionMaxNonce && signerDoneTransactionMaxNonce > pendingTransaction.nonce) {
                 await this.handlePendingTransaction(pendingTransaction, null);

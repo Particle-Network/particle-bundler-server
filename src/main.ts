@@ -9,11 +9,12 @@ import { LarkService } from './modules/common/services/lark.service';
 import { Helper } from './common/helper';
 import Mongoose from 'mongoose';
 import { INestApplication, INestApplicationContext } from '@nestjs/common';
+import { canRunCron } from './modules/rpc/aa/utils';
 
 async function bootstrap() {
     await initializeBundlerConfig();
 
-    if (process.env.NODE_APP_INSTANCE === '0') {
+    if (canRunCron()) {
         const app = await NestFactory.createApplicationContext(AppModule);
         initApp(app);
         return;
