@@ -5,10 +5,8 @@ import { UserOperationDocument } from '../rpc/schemas/user-operation.schema';
 import { RpcService } from '../rpc/services/rpc.service';
 import { LarkService } from '../common/services/lark.service';
 import { Helper } from '../../common/helper';
-import {
-    IS_PRODUCTION,
-} from '../../common/common-types';
-import { EVM_CHAIN_ID } from '../../common/chains';
+import { IS_PRODUCTION } from '../../common/common-types';
+import { EVM_CHAIN_ID, PARTICLE_CHAINS } from '../../common/chains';
 import entryPointAbi from '../rpc/aa/abis/entry-point-abi';
 import { TRANSACTION_STATUS, TransactionDocument } from '../rpc/schemas/transaction.schema';
 import { TransactionService } from '../rpc/services/transaction.service';
@@ -99,7 +97,10 @@ export class HandleLocalTransactionService {
             const beneficiary = signer.address;
             const entryPointContract = new Contract(entryPoint, entryPointAbi, null);
             const userOps = userOperationDocuments.map((userOperationDocument) => userOperationDocument.origin);
-            let gasLimit = (BigInt(bundleGasLimit) * 15n) / 10n;
+            let gasLimit = BigInt(bundleGasLimit);
+            if (!PARTICLE_CHAINS.includes(chainId)) {
+                gasLimit = (BigInt(bundleGasLimit) * 15n) / 10n;
+            }
 
             // TODO can we remove this?
             if ([EVM_CHAIN_ID.MANTLE_MAINNET, EVM_CHAIN_ID.MANTLE_SEPOLIA_TESTNET].includes(chainId)) {
