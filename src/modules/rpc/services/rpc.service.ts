@@ -50,7 +50,7 @@ export class RpcService {
 
     public async sendRawTransaction(chainId: number, rawTransaction: string) {
         const bundlerChainConfig = getBundlerChainConfig(chainId);
-        const rpcUrl = bundlerChainConfig.rpcUrl;
+        const rpcUrl = bundlerChainConfig.sendRawTransactionRpcUrl ?? bundlerChainConfig.rpcUrl;
         const response = await Axios.post(
             rpcUrl,
             {
