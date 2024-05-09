@@ -8,7 +8,6 @@ import { Helper } from '../../common/helper';
 import {
     CACHE_TRANSACTION_RECEIPT_TIMEOUT,
     CACHE_USEROPHASH_TXHASH_TIMEOUT,
-    IS_DEVELOPMENT,
     IS_PRODUCTION,
     keyCacheChainUserOpHashReceipt,
     keyCacheChainUserOpHashTxHash,
@@ -20,8 +19,7 @@ import { TransactionService } from '../rpc/services/transaction.service';
 import { UserOperationService } from '../rpc/services/user-operation.service';
 import { HandlePendingTransactionService } from './handle-pending-transaction.service';
 import { Cron } from '@nestjs/schedule';
-import { ConfigService } from '@nestjs/config';
-import { createTxGasData, tryParseSignedTx } from '../rpc/aa/utils';
+import { canRunCron, createTxGasData, tryParseSignedTx } from '../rpc/aa/utils';
 import { ListenerService } from './listener.service';
 import P2PCache from '../../common/p2p-cache';
 import { TypedTransaction } from '@ethereumjs/tx';
@@ -32,21 +30,20 @@ export class HandleLocalTransactionService {
 
     public constructor(
         private readonly rpcService: RpcService,
-        private readonly configService: ConfigService,
         private readonly larkService: LarkService,
         private readonly transactionService: TransactionService,
         private readonly userOperationService: UserOperationService,
         private readonly listenerService: ListenerService,
         private readonly handlePendingTransactionService: HandlePendingTransactionService,
     ) {
-        if (this.canRunCron()) {
+        if (canRunCron()) {
             this.listenerService.initialize(this.handlePendingTransactionByEvent.bind(this));
         }
     }
 
     @Cron('* * * * * *')
     public async handleLocalTransactions() {
-        if (!this.canRunCron()) {
+        if (!canRunCron()) {
             return;
         }
 
@@ -135,14 +132,17 @@ export class HandleLocalTransactionService {
             await this.userOperationService.setLocalUserOperationsAsPending(userOperationDocuments, transactionObjectId);
 
             // no need to await, if failed, the userops is abandoned
-            this.transactionService.createTransaction(transactionObjectId, chainId, signedTx, userOpHashes).then((localTransaction) => {
-                this.listenerService.appendUserOpHashPendingTransactionMap(localTransaction);
+            this.transactionService
+                .createTransaction(transactionObjectId, chainId, signedTx, userOpHashes)
+                .then((localTransaction) => {
+                    this.listenerService.appendUserOpHashPendingTransactionMap(localTransaction);
 
-                // no need to await
-                this.handlePendingTransactionService.trySendAndUpdateTransactionStatus(localTransaction, localTransaction.txHashes[0]);
-            }).catch(error => {
-                // nothing
-            });
+                    // no need to await
+                    this.handlePendingTransactionService.trySendAndUpdateTransactionStatus(localTransaction, localTransaction.txHashes[0]);
+                })
+                .catch((error) => {
+                    // nothing
+                });
         } catch (error) {
             if (!IS_PRODUCTION) {
                 console.error('Failed to create bundle transaction', error);
@@ -167,17 +167,5 @@ export class HandleLocalTransactionService {
         };
 
         P2PCache.set(keyCacheChainUserOpHashReceipt(userOpHash), receipt, CACHE_TRANSACTION_RECEIPT_TIMEOUT);
-    }
-
-    private canRunCron() {
-        if (!!process.env.DISABLE_TASK) {
-            return false;
-        }
-
-        if (IS_DEVELOPMENT) {
-            return true;
-        }
-
-        return this.configService.get('NODE_APP_INSTANCE') === '0';
     }
 }

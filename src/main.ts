@@ -8,9 +8,16 @@ import { initializeBundlerConfig } from './configs/bundler-common';
 import { LarkService } from './modules/common/services/lark.service';
 import { Helper } from './common/helper';
 import Mongoose from 'mongoose';
+import { INestApplication, INestApplicationContext } from '@nestjs/common';
 
 async function bootstrap() {
     await initializeBundlerConfig();
+
+    if (process.env.NODE_APP_INSTANCE === '0') {
+        const app = await NestFactory.createApplicationContext(AppModule);
+        initApp(app);
+        return;
+    }
 
     const fastifyAdapter = new FastifyAdapter({ ignoreTrailingSlash: true });
     fastifyAdapter.register(FastifyRawBody as any, {
@@ -19,21 +26,15 @@ async function bootstrap() {
     });
 
     const app = await NestFactory.create<NestFastifyApplication>(AppModule, fastifyAdapter);
-
     app.enableCors({
         origin: '*',
         maxAge: 86400,
     });
 
-    Mongoose.set('debug', IS_DEVELOPMENT);
+    initApp(app);
 
     const configService = app.get(ConfigService);
     const larkService = app.get(LarkService);
-
-    if (process.env.LARK_NOTICE_URL) {
-        larkService.sendMessage(`Particle Bundler Server Started, ENVIRONMENT: ${process.env.ENVIRONMENT}`);
-    }
-
     const server = await app.listen(3001, '0.0.0.0');
 
     if (!IS_DEVELOPMENT) {
@@ -64,4 +65,14 @@ async function bootstrap() {
         });
     }
 }
+
+function initApp(app: INestApplication | INestApplicationContext) {
+    Mongoose.set('debug', IS_DEVELOPMENT);
+    const larkService = app.get(LarkService);
+
+    if (process.env.LARK_NOTICE_URL) {
+        larkService.sendMessage(`Particle Bundler Server Started, ENVIRONMENT: ${process.env.ENVIRONMENT}`);
+    }
+}
+
 bootstrap();

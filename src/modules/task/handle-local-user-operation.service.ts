@@ -1,8 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { AAService } from '../rpc/services/aa.service';
 import { TransactionService } from '../rpc/services/transaction.service';
-import { IS_DEVELOPMENT, IS_PRODUCTION, PROCESS_EVENT_TYPE, keyLockSigner } from '../../common/common-types';
+import { IS_PRODUCTION, PROCESS_EVENT_TYPE, keyLockSigner } from '../../common/common-types';
 import { Helper } from '../../common/helper';
 import { UserOperationService } from '../rpc/services/user-operation.service';
 import { Cron } from '@nestjs/schedule';
@@ -11,7 +10,7 @@ import { Wallet, toBeHex } from 'ethers';
 import { UserOperationDocument } from '../rpc/schemas/user-operation.schema';
 import { ProcessEventEmitter } from '../../common/process-event-emitter';
 import { LarkService } from '../common/services/lark.service';
-import { calcUserOpTotalGasLimit, waitSeconds } from '../rpc/aa/utils';
+import { calcUserOpTotalGasLimit, canRunCron, waitSeconds } from '../rpc/aa/utils';
 import { HandlePendingUserOperationService } from './handle-pending-user-operation.service';
 
 @Injectable()
@@ -20,7 +19,6 @@ export class HandleLocalUserOperationService {
     private readonly lockChainSigner: Set<string> = new Set();
 
     public constructor(
-        private readonly configService: ConfigService,
         private readonly aaService: AAService,
         private readonly transactionService: TransactionService,
         private readonly larkService: LarkService,
@@ -39,7 +37,7 @@ export class HandleLocalUserOperationService {
 
     @Cron('* * * * * *')
     public async sealUserOps(userOpDocs?: any[]) {
-        if (!this.canRunCron()) {
+        if (!canRunCron()) {
             return;
         }
 
@@ -217,17 +215,5 @@ export class HandleLocalUserOperationService {
         for (const userOperation of userOperations) {
             this.lockedUserOperationHashes.delete(userOperation.userOpHash);
         }
-    }
-
-    private canRunCron() {
-        if (!!process.env.DISABLE_TASK) {
-            return false;
-        }
-
-        if (IS_DEVELOPMENT) {
-            return true;
-        }
-
-        return this.configService.get('NODE_APP_INSTANCE') === '0';
     }
 }

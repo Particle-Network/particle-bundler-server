@@ -6,12 +6,9 @@ import { LarkService } from '../common/services/lark.service';
 import { Helper } from '../../common/helper';
 import {
     BLOCK_SIGNER_REASON,
-    CACHE_TRANSACTION_RECEIPT_TIMEOUT,
     EVENT_ENTRY_POINT_USER_OPERATION,
-    IS_DEVELOPMENT,
     IS_PRODUCTION,
     IUserOperationEventObject,
-    keyCacheChainReceipt,
     keyCacheChainSignerTransactionCount,
     keyCacheChainUserOpHashTxHash,
     keyLockPendingTransaction,
@@ -25,7 +22,7 @@ import { getBundlerChainConfig } from '../../configs/bundler-common';
 import P2PCache from '../../common/p2p-cache';
 import { Contract, toBeHex } from 'ethers';
 import entryPointAbi from '../rpc/aa/abis/entry-point-abi';
-import { createTxGasData, deepHexlify, tryParseSignedTx } from '../rpc/aa/utils';
+import { canRunCron, createTxGasData, deepHexlify, tryParseSignedTx } from '../rpc/aa/utils';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { FeeMarketEIP1559Transaction, LegacyTransaction } from '@ethereumjs/tx';
@@ -48,7 +45,7 @@ export class HandlePendingTransactionService {
 
     @Cron('*/5 * * * * *')
     public async handleLongPendingTransactions() {
-        if (!this.canRunCron()) {
+        if (!canRunCron()) {
             return;
         }
 
@@ -83,7 +80,7 @@ export class HandlePendingTransactionService {
 
     @Cron('* * * * * *')
     public async handleRecentPendingTransactions() {
-        if (!this.canRunCron()) {
+        if (!canRunCron()) {
             return;
         }
 
@@ -245,7 +242,7 @@ export class HandlePendingTransactionService {
             // async send
             this.userOperationService.createUserOperationEvents(userOperationEventObjects);
             await this.userOperationService.setUserOperationsAsDone(userOpHashes, txHash, blockNumber, blockHash);
-            
+
             transaction.receipts = transaction.receipts || {};
             transaction.receipts[txHash] = receipt;
             transaction.userOperationHashMapTxHash = transaction.userOperationHashMapTxHash || {};
@@ -351,6 +348,16 @@ export class HandlePendingTransactionService {
                     await this.handlePendingTransaction(pendingTransaction, receipt);
                     return null;
                 }
+            }
+
+            if (pendingTransaction.id === '663c27eb55a229a6ce6e7f64') {
+                console.log(
+                    'getReceiptAndHandlePendingTransactions',
+                    pendingTransaction.id,
+                    pendingTransaction.nonce,
+                    signerDoneTransactionMaxNonce,
+                    pendingTransaction.incrRetry,
+                );
             }
 
             // the pending transaction is too old, force to finish it
@@ -514,17 +521,5 @@ export class HandlePendingTransactionService {
         }
 
         this.lockPendingTransactions.delete(keyLock);
-    }
-
-    private canRunCron() {
-        if (!!process.env.DISABLE_TASK) {
-            return false;
-        }
-
-        if (IS_DEVELOPMENT) {
-            return true;
-        }
-
-        return this.configService.get('NODE_APP_INSTANCE') === '0';
     }
 }
