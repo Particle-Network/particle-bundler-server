@@ -54,8 +54,6 @@ class P2PCacheInstance {
             return;
         }
 
-        console.log('p2pcache set', key, value, ttl, nodeIds);
-
         for (const nodeId of nodeIds) {
             pm2.sendDataToProcessId(
                 nodeId,
@@ -92,8 +90,6 @@ class P2PCacheInstance {
             this.onMessage({ type: 'delete', data: { key } });
             return;
         }
-
-        console.log('p2pcache delete', key, nodeIds);
 
         for (const nodeId of nodeIds) {
             pm2.sendDataToProcessId(

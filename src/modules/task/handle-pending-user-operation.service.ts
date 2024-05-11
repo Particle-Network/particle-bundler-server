@@ -34,8 +34,6 @@ export class HandlePendingUserOperationService {
 
             this.larkService.sendMessage(`Handle Local Ops Error On Chain ${chainId}: ${Helper.converErrorToString(error)}`);
         }
-
-        console.log(`handleLocalUserOperations Finish release on chain ${chainId} with ${signer.address}`);
     }
 
     private async handleLocalUserOperationBundlesAction(
@@ -51,6 +49,10 @@ export class HandlePendingUserOperationService {
                 this.aaService.getTransactionCountWithCache(provider, chainId, signer.address),
                 this.aaService.getFeeData(chainId),
             ]);
+
+            if (!feeData) {
+                throw new Error('Failed to get fee data');
+            }
         } catch (error) {
             // should be network error, can try again
 
@@ -70,7 +72,6 @@ export class HandlePendingUserOperationService {
         const localLatestNonce = (latestTransaction ? latestTransaction.nonce : -1) + 1;
         let finalizedNonce = localLatestNonce > latestNonce ? localLatestNonce : latestNonce;
 
-        const newFeeData: any = feeData;
         for (const bundle of packedBundles) {
             await this.handleLocalTransactionService.createBundleTransaction(
                 chainId,
@@ -79,7 +80,7 @@ export class HandlePendingUserOperationService {
                 bundle.gasLimit,
                 signer,
                 finalizedNonce,
-                newFeeData,
+                feeData,
             );
 
             finalizedNonce++;

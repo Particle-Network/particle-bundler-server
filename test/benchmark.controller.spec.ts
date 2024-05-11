@@ -12,7 +12,7 @@ import { AppModule } from '../src/app.module';
 import Axios from 'axios';
 import { INestApplication } from '@nestjs/common';
 
-const BUNDLER_URL = 'http://localhost:3000';
+const BUNDLER_URL = 'http://localhost:3001';
 
 let rpcController: RpcController;
 let rpcService: RpcService;

@@ -3,20 +3,19 @@ import { Wallet, parseEther } from 'ethers';
 import { RpcService } from '../rpc/services/rpc.service';
 import { LarkService } from '../common/services/lark.service';
 import { Helper } from '../../common/helper';
-import { IS_DEVELOPMENT, IS_PRODUCTION } from '../../common/common-types';
+import { IS_PRODUCTION } from '../../common/common-types';
 import { AAService } from '../rpc/services/aa.service';
-import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { $enum } from 'ts-enum-util';
 import { EVM_CHAIN_ID } from '../../common/chains';
 import { getBundlerChainConfig } from '../../configs/bundler-common';
+import { canRunCron } from '../rpc/aa/utils';
 
 @Injectable()
 export class FillSignerBalanceService {
     private inCheckingSignerBalance: boolean = false;
 
     public constructor(
-        private readonly configService: ConfigService,
         private readonly larkService: LarkService,
         private readonly aaService: AAService,
         private readonly rpcService: RpcService,
@@ -24,7 +23,7 @@ export class FillSignerBalanceService {
 
     @Cron('0 * * * * *')
     public async checkAndFillSignerBalance() {
-        if (!this.canRunCron() || this.inCheckingSignerBalance || !process.env.PAYMENT_SIGNER) {
+        if (!canRunCron() || this.inCheckingSignerBalance || !process.env.PAYMENT_SIGNER) {
             return;
         }
 
@@ -94,17 +93,5 @@ export class FillSignerBalanceService {
         }
 
         this.inCheckingSignerBalance = false;
-    }
-
-    private canRunCron() {
-        if (!!process.env.DISABLE_TASK) {
-            return false;
-        }
-
-        if (IS_DEVELOPMENT) {
-            return false;
-        }
-
-        return this.configService.get('NODE_APP_INSTANCE') === '0';
     }
 }

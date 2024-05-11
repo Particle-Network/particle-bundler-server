@@ -1,10 +1,11 @@
 import { isEmpty } from 'lodash';
 import { AbiCoder, BigNumberish, BytesLike, JsonRpcProvider, Network, hexlify, isHexString, keccak256, toBeHex } from 'ethers';
-import { GAS_FEE_LEVEL } from '../../../common/common-types';
+import { GAS_FEE_LEVEL, IS_DEBUG, IS_DEVELOPMENT, PRODUCTION_HOSTNAME } from '../../../common/common-types';
 import { PARTICLE_PUBLIC_RPC_URL, getBundlerChainConfig } from '../../../configs/bundler-common';
 import { TransactionFactory, TypedTransaction } from '@ethereumjs/tx';
 import { AppException } from '../../../common/app-exception';
 import { EVM_CHAIN_ID, SUPPORT_EIP_1559 } from '../../../common/chains';
+import * as Os from 'os';
 
 // TODO need to test
 export function calcUserOpTotalGasLimit(userOp: any, chainId: number): bigint {
@@ -89,7 +90,7 @@ export async function getFeeDataFromParticle(chainId: number, level: string = GA
 
     const particleFeeData = await provider.send('particle_suggestedGasFees', []);
 
-    if (EVM_CHAIN_ID.TAIKO_TESTNET_KATLA === chainId || EVM_CHAIN_ID.TAIKO_TESTNET_HEKLA === chainId) {
+    if (EVM_CHAIN_ID.TAIKO_TESTNET_HEKLA === chainId) {
         particleFeeData.baseFee = 0.000000001; // 1 wei
     }
 
@@ -238,4 +239,26 @@ export function toBeHexTrimZero(s: BigNumberish) {
     }
 
     return result;
+}
+
+export function parsePaymasterAndDataAndGetExpiredAt(paymasterAndData: string): number {
+    const [expiredAt] = AbiCoder.defaultAbiCoder().decode(['uint48', 'uint48'], `0x${paymasterAndData.slice(42, 170)}`);
+
+    return Number(expiredAt);
+}
+
+export function canRunCron() {
+    if (!!process.env.DISABLE_TASK) {
+        return false;
+    }
+
+    if (IS_DEVELOPMENT) {
+        return true;
+    }
+
+    if (IS_DEBUG) {
+        return process.env.NODE_APP_INSTANCE === '0';
+    }
+
+    return process.env.NODE_APP_INSTANCE === '0' && Os.hostname() === PRODUCTION_HOSTNAME;
 }

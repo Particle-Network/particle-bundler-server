@@ -6,6 +6,7 @@ export let BUNDLER_CONFIG_MAP: BundlerConfig;
 export let PARTICLE_PAYMASTER_URL: string;
 export let PARTICLE_PUBLIC_RPC_URL: string;
 export let FORBIDDEN_PAYMASTER: string[] = [];
+export let PAYMASTER_CHECK: string[] = [];
 
 export async function initializeBundlerConfig() {
     let bc: any;
@@ -22,6 +23,10 @@ export async function initializeBundlerConfig() {
 
     if (bc.FORBIDDEN_PAYMASTER) {
         FORBIDDEN_PAYMASTER = bc.FORBIDDEN_PAYMASTER;
+    }
+
+    if (bc.PAYMASTER_CHECK) {
+        PAYMASTER_CHECK = bc.PAYMASTER_CHECK;
     }
 }
 

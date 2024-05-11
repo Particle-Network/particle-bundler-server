@@ -6,6 +6,7 @@ import { UserOperationEvent, UserOperationEventDocument } from '../schemas/user-
 import { Transaction, TransactionDocument } from '../schemas/transaction.schema';
 import { Helper } from '../../../common/helper';
 import { splitOriginNonce } from '../aa/utils';
+import { IUserOperationEventObject } from '../../../common/common-types';
 
 @Injectable()
 export class UserOperationService {
@@ -48,6 +49,10 @@ export class UserOperationService {
     }
 
     private async checkCanBeReplaced(userOpDoc: UserOperationDocument) {
+        if (userOpDoc.updatedAt.getTime() > Date.now() - 1000 * 120) {
+            return false;
+        }
+
         if (userOpDoc.status === USER_OPERATION_STATUS.DONE) {
             return true;
         }
@@ -58,6 +63,10 @@ export class UserOperationService {
 
         const transaction = await this.transactionModel.findById(userOpDoc.transactionId);
         if (!transaction) {
+            return true;
+        }
+
+        if (transaction.status === USER_OPERATION_STATUS.DONE) {
             return true;
         }
 
@@ -94,7 +103,7 @@ export class UserOperationService {
     }
 
     public async getLocalUserOperations(limit: number = 1000): Promise<UserOperationDocument[]> {
-        return await this.userOperationModel.find({ status: USER_OPERATION_STATUS.LOCAL }).limit(limit);
+        return await this.userOperationModel.aggregate([{ $match: { status: USER_OPERATION_STATUS.LOCAL } }, { $sample: { size: limit } }]);
     }
 
     public async setLocalUserOperationsAsPending(
@@ -134,33 +143,18 @@ export class UserOperationService {
         return await this.userOperationModel.count({ status: USER_OPERATION_STATUS.LOCAL, chainId });
     }
 
-    public async createOrGetUserOperationEvent(
-        chainId: number,
-        blockHash: string,
-        blockNumber: number,
-        userOperationHash: string,
-        txHash: string,
-        contractAddress: string,
-        topic: string,
-        args: any,
-    ): Promise<UserOperationEventDocument> {
-        const event = await this.getUserOperationEvent(userOperationHash);
-        if (event) {
-            return event;
+    public async createUserOperationEvents(userOperationEventObjects: IUserOperationEventObject[]) {
+        if (userOperationEventObjects.length <= 0) {
+            return;
         }
 
-        const userOperation = new this.userOperationEventModel({
-            chainId,
-            blockHash,
-            blockNumber,
-            txHash,
-            contractAddress,
-            userOperationHash,
-            topic,
-            args,
-        });
-
-        return await userOperation.save();
+        try {
+            await this.userOperationEventModel.insertMany(userOperationEventObjects, {
+                ordered: false,
+            });
+        } catch (error) {
+            // nothing
+        }
     }
 
     public async resetToLocal(userOperationDocument: UserOperationDocument, userOpHash: string, entryPoint: string, userOp: any) {
@@ -169,7 +163,7 @@ export class UserOperationService {
         userOperationDocument.origin = userOp;
         userOperationDocument.status = USER_OPERATION_STATUS.LOCAL;
         userOperationDocument.createdAt = new Date();
-        userOperationDocument.transactionId = null;
+        userOperationDocument.transactionId = undefined;
         return await userOperationDocument.save();
     }
 }

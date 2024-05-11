@@ -6,8 +6,7 @@ import { Contract } from 'ethers';
 import entryPointAbi from './abis/entry-point-abi';
 import { TRANSACTION_STATUS } from '../schemas/transaction.schema';
 import { deepHexlify, toBeHexTrimZero } from './utils';
-import P2PCache from '../../../common/p2p-cache';
-import { IS_PRODUCTION, keyCacheChainReceipt, keyCacheChainUserOpHashReceipt } from '../../../common/common-types';
+import { IS_PRODUCTION } from '../../../common/common-types';
 
 export async function getUserOperationReceipt(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
     Helper.assertTrue(body.params.length === 1, -32602);
@@ -21,20 +20,6 @@ export async function getUserOperationReceipt(rpcService: RpcService, chainId: n
         return null;
     }
 
-    let receipt = P2PCache.get(keyCacheChainUserOpHashReceipt(userOperation.userOpHash));
-    if (!!receipt) {
-        console.log('keyCacheChainUserOpHashReceipt', receipt);
-
-        return formatReceipt(rpcService, userOperation, receipt);
-    }
-
-    receipt = P2PCache.get(keyCacheChainReceipt(userOperation.transactionId));
-    if (!!receipt) {
-        console.log('keyCacheChainReceipt', receipt);
-
-        return formatReceipt(rpcService, userOperation, receipt);
-    }
-
     if (userOperation.status !== USER_OPERATION_STATUS.DONE) {
         return null;
     }
@@ -44,7 +29,7 @@ export async function getUserOperationReceipt(rpcService: RpcService, chainId: n
         return null;
     }
 
-    receipt = transaction.receipts[transaction.userOperationHashMapTxHash[userOperation.userOpHash]];
+    const receipt = transaction.receipts[transaction.userOperationHashMapTxHash[userOperation.userOpHash]];
     if (!receipt) {
         return null;
     }

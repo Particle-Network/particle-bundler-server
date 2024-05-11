@@ -8,9 +8,17 @@ import { initializeBundlerConfig } from './configs/bundler-common';
 import { LarkService } from './modules/common/services/lark.service';
 import { Helper } from './common/helper';
 import Mongoose from 'mongoose';
+import { INestApplication, INestApplicationContext } from '@nestjs/common';
+import { canRunCron } from './modules/rpc/aa/utils';
 
 async function bootstrap() {
     await initializeBundlerConfig();
+
+    if (canRunCron() && !IS_DEVELOPMENT) {
+        const app = await NestFactory.createApplicationContext(AppModule);
+        initApp(app);
+        return;
+    }
 
     const fastifyAdapter = new FastifyAdapter({ ignoreTrailingSlash: true });
     fastifyAdapter.register(FastifyRawBody as any, {
@@ -19,28 +27,20 @@ async function bootstrap() {
     });
 
     const app = await NestFactory.create<NestFastifyApplication>(AppModule, fastifyAdapter);
-
     app.enableCors({
         origin: '*',
         maxAge: 86400,
     });
 
-    Mongoose.set('debug', IS_DEVELOPMENT);
+    initApp(app);
 
     const configService = app.get(ConfigService);
     const larkService = app.get(LarkService);
-
-    if (process.env.LARK_NOTICE_URL) {
-        larkService.sendMessage(`Particle Bundler Server Started, ENVIRONMENT: ${process.env.ENVIRONMENT}`);
-    }
-
-    const server = await app.listen(3000, '0.0.0.0');
+    const server = await app.listen(3001, '0.0.0.0');
 
     if (!IS_DEVELOPMENT) {
         process.on('uncaughtException', async (error) => {
-            larkService.sendMessage(Helper.converErrorToString(error), 'Uncaught Exception');
-
-            process.exit(1); // exit application
+            // nothing
         });
 
         process.on('SIGINT', (signal: any) => {
@@ -66,4 +66,14 @@ async function bootstrap() {
         });
     }
 }
+
+function initApp(app: INestApplication | INestApplicationContext) {
+    Mongoose.set('debug', IS_DEVELOPMENT);
+    const larkService = app.get(LarkService);
+
+    if (process.env.LARK_NOTICE_URL) {
+        larkService.sendMessage(`Particle Bundler Server Started, ENVIRONMENT: ${process.env.ENVIRONMENT}`);
+    }
+}
+
 bootstrap();

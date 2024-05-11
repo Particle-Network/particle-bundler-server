@@ -6,13 +6,10 @@ import { LarkService } from '../common/services/lark.service';
 import { Helper } from '../../common/helper';
 import {
     BLOCK_SIGNER_REASON,
-    CACHE_TRANSACTION_RECEIPT_TIMEOUT,
     EVENT_ENTRY_POINT_USER_OPERATION,
-    IS_DEVELOPMENT,
     IS_PRODUCTION,
-    keyCacheChainReceipt,
+    IUserOperationEventObject,
     keyCacheChainSignerTransactionCount,
-    keyCacheChainUserOpHashTxHash,
     keyLockPendingTransaction,
     keyLockSendingTransaction,
 } from '../../common/common-types';
@@ -24,7 +21,7 @@ import { getBundlerChainConfig } from '../../configs/bundler-common';
 import P2PCache from '../../common/p2p-cache';
 import { Contract, toBeHex } from 'ethers';
 import entryPointAbi from '../rpc/aa/abis/entry-point-abi';
-import { createTxGasData, deepHexlify, tryParseSignedTx } from '../rpc/aa/utils';
+import { canRunCron, createTxGasData, deepHexlify, tryParseSignedTx } from '../rpc/aa/utils';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { FeeMarketEIP1559Transaction, LegacyTransaction } from '@ethereumjs/tx';
@@ -47,7 +44,7 @@ export class HandlePendingTransactionService {
 
     @Cron('*/5 * * * * *')
     public async handleLongPendingTransactions() {
-        if (!this.canRunCron()) {
+        if (!canRunCron()) {
             return;
         }
 
@@ -82,7 +79,7 @@ export class HandlePendingTransactionService {
 
     @Cron('* * * * * *')
     public async handleRecentPendingTransactions() {
-        if (!this.canRunCron()) {
+        if (!canRunCron()) {
             return;
         }
 
@@ -125,17 +122,11 @@ export class HandlePendingTransactionService {
 
         const keyLock = keyLockSendingTransaction(transaction.id);
         if (this.lockSendingTransactions.has(keyLock)) {
-            console.log(`trySendAndUpdateTransactionStatus already acquired; Hash: ${txHash} On Chain ${transaction.chainId}`);
             return;
         }
 
         this.lockSendingTransactions.add(keyLock);
-        console.log(`trySendAndUpdateTransactionStatus acquire; Hash: ${txHash} On Chain ${transaction.chainId}`);
-
         if (this.aaService.isBlockedSigner(transaction.chainId, transaction.from)) {
-            console.log(
-                `trySendAndUpdateTransactionStatus release isBlockedSigner ${transaction.from} On ${transaction.chainId}; Hash: ${txHash}, TransactionId: ${transaction.id}`,
-            );
             this.lockSendingTransactions.delete(keyLock);
             return;
         }
@@ -143,18 +134,12 @@ export class HandlePendingTransactionService {
         // It's possible that when you grab the lock, the previous call has already been made, so you need to check it again
         transaction = await this.transactionService.getTransactionById(transaction.id);
         if (!transaction || !transaction.isLocal()) {
-            console.log(`trySendAndUpdateTransactionStatus release !transaction.isLocal(); Hash: ${txHash} On Chain ${transaction?.chainId}`);
             this.lockSendingTransactions.delete(keyLock);
             return;
         }
 
         try {
-            const provider = this.rpcService.getJsonRpcProvider(transaction.chainId);
-            const bundlerConfig = getBundlerChainConfig(transaction.chainId);
-            const r = await provider.send(bundlerConfig.methodSendRawTransaction, [transaction.signedTxs[txHash]]);
-            if (!!r?.error) {
-                throw r.error;
-            }
+            await this.rpcService.sendRawTransaction(transaction.chainId, transaction.signedTxs[txHash]);
         } catch (error) {
             // insufficient funds for intrinsic transaction cost
             if (error?.message?.toLowerCase()?.includes('insufficient funds')) {
@@ -191,25 +176,22 @@ export class HandlePendingTransactionService {
 
         // not in transaction db, may error is send succss and here is panic, There is a high probability that it will not appear
         await this.transactionService.updateTransactionStatus(transaction, TRANSACTION_STATUS.PENDING);
-
-        console.log(`trySendAndUpdateTransactionStatus release hash: ${txHash} On Chain ${transaction.chainId}`);
         this.lockSendingTransactions.delete(keyLock);
     }
 
     // There is a concurrency conflict and locks need to be added
     public async handlePendingTransaction(transaction: TransactionDocument, receipt: any) {
-        P2PCache.set(keyCacheChainReceipt(transaction.id), receipt, CACHE_TRANSACTION_RECEIPT_TIMEOUT);
+        // need a lot of memory, so we don't cache it
+        // P2PCache.set(keyCacheChainReceipt(transaction.id), receipt, CACHE_TRANSACTION_RECEIPT_TIMEOUT);
         const keyLock = keyLockPendingTransaction(transaction.id);
         if (this.lockPendingTransactions.has(keyLock)) {
-            console.log('handlePendingTransaction already acquired', transaction.id);
             return;
         }
 
         this.lockPendingTransactions.add(keyLock);
 
         transaction = await this.transactionService.getTransactionById(transaction.id);
-        if (transaction.isDone()) {
-            console.log('handlePendingTransaction release in advance');
+        if (!transaction || transaction.isDone()) {
             this.lockPendingTransactions.delete(keyLock);
             return;
         }
@@ -225,9 +207,8 @@ export class HandlePendingTransactionService {
 
         const chainId = transaction.chainId;
         const results = await this.checkAndHandleFailedReceipt(transaction, receipt);
+        const userOperationEventObjects: IUserOperationEventObject[] = [];
         for (const { receipt, userOpHashes } of results) {
-            console.log('Transaction done', receipt.transactionHash, userOpHashes);
-
             const txHash = receipt.transactionHash;
             const blockHash = receipt.blockHash;
             const blockNumber = receipt.blockNumber;
@@ -241,22 +222,24 @@ export class HandlePendingTransactionService {
                     }
 
                     const args = deepHexlify(parsed.args);
-                    await this.userOperationService.createOrGetUserOperationEvent(
+                    userOperationEventObjects.push({
                         chainId,
                         blockHash,
                         blockNumber,
-                        parsed.args.userOpHash,
-                        receipt.transactionHash,
-                        receipt.to,
-                        parsed.topic,
+                        userOperationHash: parsed.args.userOpHash,
+                        txHash: receipt.transactionHash,
+                        contractAddress: receipt.to,
+                        topic: parsed.topic,
                         args,
-                    );
+                    });
                 } catch (error) {
                     // May not be an EntryPoint event.
                     continue;
                 }
             }
 
+            // async send
+            this.userOperationService.createUserOperationEvents(userOperationEventObjects);
             await this.userOperationService.setUserOperationsAsDone(userOpHashes, txHash, blockNumber, blockHash);
 
             transaction.receipts = transaction.receipts || {};
@@ -265,10 +248,6 @@ export class HandlePendingTransactionService {
             for (const userOpHash of userOpHashes) {
                 transaction.userOperationHashMapTxHash[userOpHash] = txHash;
             }
-        }
-
-        for (const userOperationHash of transaction.userOperationHashes) {
-            P2PCache.delete(keyCacheChainUserOpHashTxHash(userOperationHash));
         }
 
         await this.transactionService.updateTransactionStatus(transaction, TRANSACTION_STATUS.DONE);
@@ -355,24 +334,10 @@ export class HandlePendingTransactionService {
 
     private async getReceiptAndHandlePendingTransactions(pendingTransaction: TransactionDocument, signerDoneTransactionMaxNonce?: number) {
         try {
-            const provider = this.rpcService.getJsonRpcProvider(pendingTransaction.chainId);
-            const receiptPromises = pendingTransaction.txHashes.map((txHash) => this.rpcService.getTransactionReceipt(provider, txHash));
+            const receiptPromises = pendingTransaction.txHashes.map((txHash) =>
+                this.rpcService.getTransactionReceipt(pendingTransaction.chainId, txHash),
+            );
             const receipts = await Promise.all(receiptPromises);
-            if (receipts.some((r) => !!r)) {
-                console.log(
-                    'receipts',
-                    receipts.map((r: any, index: number) => {
-                        return {
-                            result: !!r,
-                            txHash: pendingTransaction.txHashes[index],
-                            chainId: pendingTransaction.chainId,
-                            from: pendingTransaction.from,
-                            nonce: pendingTransaction.nonce,
-                        };
-                    }),
-                );
-            }
-
             for (const receipt of receipts) {
                 if (!!receipt) {
                     await this.handlePendingTransaction(pendingTransaction, receipt);
@@ -406,9 +371,10 @@ export class HandlePendingTransactionService {
             } else if (pendingTransaction.isOld()) {
                 try {
                     // Transactions may be discarded by the node tx pool and need to be reissued
-                    await provider.send(bundlerConfig.methodSendRawTransaction, [
+                    await this.rpcService.sendRawTransaction(
+                        pendingTransaction.chainId,
                         pendingTransaction.signedTxs[pendingTransaction.txHashes[pendingTransaction.txHashes.length - 1]],
-                    ]);
+                    );
                 } catch (error) {
                     if (!IS_PRODUCTION) {
                         console.error('trySendOldPendingTransaction error', error);
@@ -437,10 +403,8 @@ export class HandlePendingTransactionService {
     }
 
     private async tryIncrTransactionGasPriceAndReplace(transaction: TransactionDocument) {
-        console.log('tryIncrTransactionGasPriceAndReplace Start', transaction.id);
         const keyLock = keyLockPendingTransaction(transaction.id);
         if (this.lockPendingTransactions.has(keyLock)) {
-            console.log('tryIncrTransactionGasPrice already acquired', transaction.id);
             return;
         }
 
@@ -448,7 +412,6 @@ export class HandlePendingTransactionService {
 
         transaction = await this.transactionService.getTransactionById(transaction.id);
         if (transaction.isDone()) {
-            console.log('tryIncrTransactionGasPriceAndReplace release in advance');
             this.lockPendingTransactions.delete(keyLock);
             return;
         }
@@ -457,7 +420,6 @@ export class HandlePendingTransactionService {
             const provider = this.rpcService.getJsonRpcProvider(transaction.chainId);
             const remoteNonce = await this.aaService.getTransactionCountWithCache(provider, transaction.chainId, transaction.from, true);
             if (remoteNonce != transaction.nonce) {
-                console.log('tryIncrTransactionGasPrice release', 'remoteNonce != transaction.nonce', remoteNonce, transaction.nonce);
                 this.lockPendingTransactions.delete(keyLock);
                 return;
             }
@@ -473,7 +435,6 @@ export class HandlePendingTransactionService {
         }
 
         if (!transaction.isPendingTimeout()) {
-            console.log('tryIncrTransactionGasPrice release', 'transaction is not pending timeout', transaction.id);
             this.lockPendingTransactions.delete(keyLock);
             return;
         }
@@ -481,7 +442,6 @@ export class HandlePendingTransactionService {
         const allValidSigners = this.aaService.getRandomValidSigners(transaction.chainId);
         const signer = allValidSigners.find((signer) => signer.address.toLowerCase() === transaction.from.toLowerCase());
         if (!signer) {
-            console.log(`Not found valid signer for ${transaction.from}`);
             this.lockPendingTransactions.delete(keyLock);
             return;
         }
@@ -513,10 +473,6 @@ export class HandlePendingTransactionService {
 
                 txData.maxPriorityFeePerGas = toBeHex((bnMaxPriorityFeePerGas * BigInt(coefficient * 10)) / 10n);
                 txData.maxFeePerGas = toBeHex((bnMaxFeePerGas * BigInt(coefficient * 10)) / 10n);
-
-                console.log(
-                    `Replace Transaction, Old maxPriorityFeePerGas: ${tx.maxPriorityFeePerGas}, New maxPriorityFeePerGas: ${txData.maxPriorityFeePerGas}`,
-                );
             }
 
             if (tx instanceof LegacyTransaction) {
@@ -525,7 +481,6 @@ export class HandlePendingTransactionService {
                 }
 
                 txData.gasPrice = (BigInt(tx.gasPrice) * BigInt(coefficient * 10)) / 10n;
-                console.log(`Replace Transaction, Old gasPrice: ${tx.gasPrice}, New gasPrice: ${txData.gasPrice}`);
             }
 
             const signedTx = await signer.signTransaction({
@@ -539,13 +494,7 @@ export class HandlePendingTransactionService {
 
             // if failed and it's ok, just generate a invalid tx hash
             await this.transactionService.replaceTransactionTxHash(transaction, signedTx);
-
-            const bundlerConfig = getBundlerChainConfig(transaction.chainId);
-            const provider = this.rpcService.getJsonRpcProvider(transaction.chainId);
-            const rTxHash = await provider.send(bundlerConfig.methodSendRawTransaction, [signedTx]);
-            if (!!rTxHash?.error) {
-                throw rTxHash.error;
-            }
+            await this.rpcService.sendRawTransaction(transaction.chainId, signedTx);
         } catch (error) {
             if (!IS_PRODUCTION) {
                 console.error(`Replace Transaction ${transaction.id} error on chain ${transaction.chainId}`, error, transaction);
@@ -557,17 +506,5 @@ export class HandlePendingTransactionService {
         }
 
         this.lockPendingTransactions.delete(keyLock);
-    }
-
-    private canRunCron() {
-        if (!!process.env.DISABLE_TASK) {
-            return false;
-        }
-
-        if (IS_DEVELOPMENT) {
-            return true;
-        }
-
-        return this.configService.get('NODE_APP_INSTANCE') === '0';
     }
 }

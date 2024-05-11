@@ -1,6 +1,7 @@
 export const IS_DEVELOPMENT = process.env.ENVIRONMENT === 'dev' || !process.env.ENVIRONMENT;
 export const IS_DEBUG = process.env.ENVIRONMENT === 'debug';
 export const IS_PRODUCTION = process.env.ENVIRONMENT === 'production';
+export const PRODUCTION_HOSTNAME = 'particle-bundler-server-handler';
 
 export const BUNDLE_LIMIT = 100;
 
@@ -29,6 +30,7 @@ export interface IBundlerChainConfig {
     canIncrGasPriceRetry?: boolean;
     canIncrGasPriceRetryMaxCount?: number;
     userOperationLocalPoolMaxCount?: number;
+    sendRawTransactionRpcUrl?: string;
     minGasFee?: {
         gasPrice?: string;
         maxFeePerGas?: string;
@@ -100,3 +102,14 @@ export const EVENT_ENTRY_POINT_USER_OPERATION = '0x49628fd1471006c1482da88028e9c
 
 export const DUMMY_SIGNATURE =
     '0x3054659b5e29460a8f3ac9afc3d5fcbe4b76f92aed454b944e9b29e55d80fde807716530b739540e95cfa4880d69f710a9d45910f2951a227675dc1fb0fdf2c71c';
+
+export interface IUserOperationEventObject {
+    chainId: number;
+    blockHash: string;
+    blockNumber: number;
+    userOperationHash: string;
+    txHash: string;
+    contractAddress: string;
+    topic: string;
+    args: any;
+}

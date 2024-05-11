@@ -39,6 +39,7 @@ export class AppExceptionMessages {
         [-32607, 'You have a transaction in pending status. Please try again later'],
         [-32608, 'The nonce is too big'],
         [-32609, 'The user operation pool is full, Please try again later'],
+        [-32610, 'Invalid account nonce, please try again later'],
     ]);
 
     public static get(errorCode: number) {
