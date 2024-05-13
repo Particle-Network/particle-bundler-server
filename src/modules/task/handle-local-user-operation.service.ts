@@ -32,7 +32,7 @@ export class HandleLocalUserOperationService {
         }
 
         try {
-            let userOperations = await this.userOperationService.getLocalUserOperations(500);
+            let userOperations = await this.userOperationService.getLocalUserOperations(1000);
             userOperations = this.tryLockUserOperationsAndGetUnuseds(userOperations);
             if (userOperations.length <= 0) {
                 return;
