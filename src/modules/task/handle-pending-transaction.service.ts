@@ -22,7 +22,6 @@ import P2PCache from '../../common/p2p-cache';
 import { Contract, toBeHex } from 'ethers';
 import entryPointAbi from '../rpc/aa/abis/entry-point-abi';
 import { canRunCron, createTxGasData, deepHexlify, tryParseSignedTx } from '../rpc/aa/utils';
-import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { FeeMarketEIP1559Transaction, LegacyTransaction } from '@ethereumjs/tx';
 
@@ -34,7 +33,6 @@ export class HandlePendingTransactionService {
 
     public constructor(
         @InjectConnection() private readonly connection: Connection,
-        private readonly configService: ConfigService,
         private readonly rpcService: RpcService,
         private readonly larkService: LarkService,
         private readonly transactionService: TransactionService,

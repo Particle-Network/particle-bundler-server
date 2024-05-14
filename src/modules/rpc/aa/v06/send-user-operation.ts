@@ -26,6 +26,7 @@ import {
     SUPPORT_MULTCALL3,
     USE_PROXY_CONTRACT_TO_ESTIMATE_GAS,
 } from '../../../../common/chains';
+import { UserOperationDocument } from '../../schemas/user-operation.schema';
 
 export async function sendUserOperation(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
     Helper.assertTrue(typeof body.params[0] === 'object', -32602, 'Invalid params: userop must be an object');
@@ -66,29 +67,42 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
         }
     }
 
-    const [rSimulation, extraFee, signerFeeData, userOpDoc, localUserOperationsCount] = await Promise.all([
-        simulateHandleOpAndGetGasCost(rpcService, chainId, userOp, entryPoint),
-        getL2ExtraFee(rpcService, chainId, userOp, entryPoint),
-        rpcService.aaService.getFeeData(chainId),
-        rpcService.aaService.userOperationService.getUserOperationByAddressNonce(chainId, userOpSender, nonceKey, BigInt(nonceValue).toString()),
-        rpcService.aaService.userOperationService.getLocalUserOperationsCountByChainId(chainId),
-        // do not care return value
-        checkUserOpCanExecutedSucceed(rpcService, chainId, userOp, entryPoint),
-    ]);
+    let userOperationDocument: UserOperationDocument;
+    if (!body.isAuth) {
+        const [rSimulation, extraFee, signerFeeData, userOpDoc, localUserOperationsCount] = await Promise.all([
+            simulateHandleOpAndGetGasCost(rpcService, chainId, userOp, entryPoint),
+            getL2ExtraFee(rpcService, chainId, userOp, entryPoint),
+            rpcService.aaService.getFeeData(chainId),
+            rpcService.aaService.userOperationService.getUserOperationByAddressNonce(
+                chainId,
+                userOpSender,
+                nonceKey,
+                BigInt(nonceValue).toString(),
+            ),
+            rpcService.aaService.userOperationService.getLocalUserOperationsCountByChainId(chainId),
+            // do not care return value
+            checkUserOpCanExecutedSucceed(rpcService, chainId, userOp, entryPoint),
+        ]);
 
-    Helper.assertTrue(localUserOperationsCount < bundlerConfig.userOperationLocalPoolMaxCount, -32609);
+        Helper.assertTrue(localUserOperationsCount < bundlerConfig.userOperationLocalPoolMaxCount, -32609);
 
-    const gasCostInContract = BigInt(rSimulation.gasCostInContract);
-    const gasCostWholeTransaction = BigInt(rSimulation.gasCostWholeTransaction);
-    const gasCost = USE_PROXY_CONTRACT_TO_ESTIMATE_GAS.includes(chainId)
-        ? gasCostWholeTransaction > gasCostInContract
-            ? gasCostWholeTransaction
-            : gasCostInContract
-        : gasCostInContract;
+        const gasCostInContract = BigInt(rSimulation.gasCostInContract);
+        const gasCostWholeTransaction = BigInt(rSimulation.gasCostWholeTransaction);
+        const gasCost = USE_PROXY_CONTRACT_TO_ESTIMATE_GAS.includes(chainId)
+            ? gasCostWholeTransaction > gasCostInContract
+                ? gasCostWholeTransaction
+                : gasCostInContract
+            : gasCostInContract;
 
-    // auth && particle chain can skip gas price check
-    if (!body.isAuth || !PARTICLE_CHAINS.includes(chainId)) {
         checkUserOpGasPriceIsSatisfied(chainId, userOp, gasCost, extraFee, signerFeeData);
+        userOperationDocument = userOpDoc;
+    } else {
+        userOperationDocument = await rpcService.aaService.userOperationService.getUserOperationByAddressNonce(
+            chainId,
+            userOpSender,
+            nonceKey,
+            BigInt(nonceValue).toString(),
+        );
     }
 
     const newUserOpDoc = await rpcService.aaService.userOperationService.createOrUpdateUserOperation(
@@ -96,7 +110,7 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
         userOp,
         userOpHash,
         entryPoint,
-        userOpDoc,
+        userOperationDocument,
     );
 
     // temp disable event emitter
