@@ -4,12 +4,12 @@ import { RpcService } from '../rpc/services/rpc.service';
 import { LarkService } from '../common/services/lark.service';
 import { Helper } from '../../common/helper';
 import { IS_PRODUCTION } from '../../common/common-types';
-import { AAService } from '../rpc/services/aa.service';
 import { Cron } from '@nestjs/schedule';
 import { $enum } from 'ts-enum-util';
 import { EVM_CHAIN_ID } from '../../common/chains';
 import { getBundlerChainConfig } from '../../configs/bundler-common';
-import { canRunCron } from '../rpc/aa/utils';
+import { canRunCron, getFeeDataWithCache } from '../rpc/aa/utils';
+import { SignerService } from '../rpc/services/signer.service';
 
 @Injectable()
 export class FillSignerBalanceService {
@@ -17,7 +17,7 @@ export class FillSignerBalanceService {
 
     public constructor(
         private readonly larkService: LarkService,
-        private readonly aaService: AAService,
+        private readonly signerService: SignerService,
         private readonly rpcService: RpcService,
     ) {}
 
@@ -44,7 +44,7 @@ export class FillSignerBalanceService {
                 const provider = this.rpcService.getJsonRpcProvider(currentChainId);
 
                 const minSignerBalance = bundlerConfig.minSignerBalance;
-                const signers = this.aaService.getChainSigners(currentChainId);
+                const signers = this.signerService.getChainSigners(currentChainId);
                 for (const signer of signers) {
                     currentAddress = signer.address;
                     const balance = await provider.getBalance(currentAddress);
@@ -56,7 +56,7 @@ export class FillSignerBalanceService {
                         const etherToSend = (minSignerBalance - balanceEther).toFixed(10);
                         console.log(`[Send ether to signer] chainId=${currentChainId}, address=${currentAddress}, etherToSend=${etherToSend}`);
                         const signerToPay = new Wallet(process.env.PAYMENT_SIGNER, provider);
-                        const feeData: any = await this.aaService.getFeeData(currentChainId);
+                        const feeData: any = await getFeeDataWithCache(currentChainId);
 
                         // force use gas price
                         const tx = await signerToPay.sendTransaction({
@@ -77,7 +77,7 @@ export class FillSignerBalanceService {
                             `Fill Signer Success`,
                         );
                     } else {
-                        this.aaService.UnblockedSigner(Number(chainId), currentAddress);
+                        this.signerService.UnblockedSigner(Number(chainId), currentAddress);
                     }
                 }
             } catch (error) {

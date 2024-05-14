@@ -21,9 +21,10 @@ import { getBundlerChainConfig } from '../../configs/bundler-common';
 import P2PCache from '../../common/p2p-cache';
 import { Contract, toBeHex } from 'ethers';
 import entryPointAbi from '../rpc/aa/abis/entry-point-abi';
-import { canRunCron, createTxGasData, deepHexlify, tryParseSignedTx } from '../rpc/aa/utils';
+import { canRunCron, createTxGasData, deepHexlify, getFeeDataWithCache, tryParseSignedTx } from '../rpc/aa/utils';
 import { Cron } from '@nestjs/schedule';
 import { FeeMarketEIP1559Transaction, LegacyTransaction } from '@ethereumjs/tx';
+import { SignerService } from '../rpc/services/signer.service';
 
 @Injectable()
 export class HandlePendingTransactionService {
@@ -38,6 +39,7 @@ export class HandlePendingTransactionService {
         private readonly transactionService: TransactionService,
         private readonly userOperationService: UserOperationService,
         private readonly aaService: AAService,
+        private readonly signerService: SignerService,
     ) {}
 
     @Cron('*/5 * * * * *')
@@ -67,7 +69,7 @@ export class HandlePendingTransactionService {
             const provider = this.rpcService.getJsonRpcProvider(Number(chainId));
             for (const from of chainIdFromMap[chainId]) {
                 // async update signer nonce
-                this.aaService.getTransactionCountWithCache(provider, Number(chainId), from, true);
+                this.signerService.getTransactionCountWithCache(provider, Number(chainId), from, true);
             }
         }
 
@@ -124,7 +126,7 @@ export class HandlePendingTransactionService {
         }
 
         this.lockSendingTransactions.add(keyLock);
-        if (this.aaService.isBlockedSigner(transaction.chainId, transaction.from)) {
+        if (this.signerService.isBlockedSigner(transaction.chainId, transaction.from)) {
             this.lockSendingTransactions.delete(keyLock);
             return;
         }
@@ -141,7 +143,7 @@ export class HandlePendingTransactionService {
         } catch (error) {
             // insufficient funds for intrinsic transaction cost
             if (error?.message?.toLowerCase()?.includes('insufficient funds')) {
-                this.aaService.setBlockedSigner(transaction.chainId, transaction.from, BLOCK_SIGNER_REASON.INSUFFICIENT_BALANCE, {
+                this.signerService.setBlockedSigner(transaction.chainId, transaction.from, BLOCK_SIGNER_REASON.INSUFFICIENT_BALANCE, {
                     transactionId: transaction.id,
                 });
             }
@@ -151,7 +153,7 @@ export class HandlePendingTransactionService {
                 error?.message?.toLowerCase()?.includes('replacement transaction underpriced')
             ) {
                 // delete transaction and recover user op
-                this.aaService.trySetTransactionCountLocalCache(transaction.chainId, transaction.from, transaction.nonce + 1);
+                this.signerService.trySetTransactionCountLocalCache(transaction.chainId, transaction.from, transaction.nonce + 1);
                 await Helper.startMongoTransaction(this.connection, async (session: any) => {
                     await Promise.all([
                         transaction.delete({ session }),
@@ -198,6 +200,7 @@ export class HandlePendingTransactionService {
             const userOpHashes = transaction.userOperationHashes;
             await this.userOperationService.setUserOperationsAsDone(userOpHashes, '', 0, '');
             await this.transactionService.updateTransactionStatus(transaction, TRANSACTION_STATUS.DONE);
+            this.signerService.decrChainSignerPendingTxCount(transaction.chainId, transaction.from);
 
             this.lockPendingTransactions.delete(keyLock);
             return;
@@ -416,7 +419,7 @@ export class HandlePendingTransactionService {
 
         try {
             const provider = this.rpcService.getJsonRpcProvider(transaction.chainId);
-            const remoteNonce = await this.aaService.getTransactionCountWithCache(provider, transaction.chainId, transaction.from, true);
+            const remoteNonce = await this.signerService.getTransactionCountWithCache(provider, transaction.chainId, transaction.from, true);
             if (remoteNonce != transaction.nonce) {
                 this.lockPendingTransactions.delete(keyLock);
                 return;
@@ -437,7 +440,7 @@ export class HandlePendingTransactionService {
             return;
         }
 
-        const allValidSigners = this.aaService.getRandomValidSigners(transaction.chainId);
+        const allValidSigners = this.signerService.getRandomValidSigners(transaction.chainId);
         const signer = allValidSigners.find((signer) => signer.address.toLowerCase() === transaction.from.toLowerCase());
         if (!signer) {
             this.lockPendingTransactions.delete(keyLock);
@@ -451,7 +454,7 @@ export class HandlePendingTransactionService {
             const tx = tryParseSignedTx(currentSignedTx);
             const txData: any = tx.toJSON();
 
-            const feeData = await this.aaService.getFeeData(transaction.chainId);
+            const feeData = await getFeeDataWithCache(transaction.chainId);
             if (tx instanceof FeeMarketEIP1559Transaction) {
                 if (BigInt(feeData.maxFeePerGas) > BigInt(tx.maxFeePerGas)) {
                     txData.maxFeePerGas = toBeHex(feeData.maxFeePerGas);

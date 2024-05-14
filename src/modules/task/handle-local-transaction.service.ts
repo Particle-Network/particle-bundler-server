@@ -15,6 +15,7 @@ import { HandlePendingTransactionService } from './handle-pending-transaction.se
 import { Cron } from '@nestjs/schedule';
 import { canRunCron, createTxGasData } from '../rpc/aa/utils';
 import { ListenerService } from './listener.service';
+import { SignerService } from '../rpc/services/signer.service';
 
 @Injectable()
 export class HandleLocalTransactionService {
@@ -26,6 +27,7 @@ export class HandleLocalTransactionService {
         private readonly transactionService: TransactionService,
         private readonly userOperationService: UserOperationService,
         private readonly listenerService: ListenerService,
+        private readonly signerService: SignerService,
         private readonly handlePendingTransactionService: HandlePendingTransactionService,
     ) {
         if (canRunCron()) {
@@ -123,6 +125,7 @@ export class HandleLocalTransactionService {
             // no need to await, if failed, the userops is abandoned
             const localTransaction = await this.transactionService.createTransaction(transactionObjectId, chainId, signedTx, userOpHashes);
             this.listenerService.appendUserOpHashPendingTransactionMap(localTransaction);
+            this.signerService.incrChainSignerPendingTxCount(chainId, signer.address);
 
             // no need to await
             this.handlePendingTransactionService.trySendAndUpdateTransactionStatus(localTransaction, localTransaction.txHashes[0]);

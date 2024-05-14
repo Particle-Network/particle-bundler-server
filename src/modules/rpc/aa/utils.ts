@@ -1,11 +1,19 @@
 import { isEmpty } from 'lodash';
 import { AbiCoder, BigNumberish, BytesLike, JsonRpcProvider, Network, hexlify, isHexString, keccak256, toBeHex } from 'ethers';
-import { GAS_FEE_LEVEL, IS_DEBUG, IS_DEVELOPMENT, PRODUCTION_HOSTNAME } from '../../../common/common-types';
+import {
+    CACHE_GAS_FEE_TIMEOUT,
+    GAS_FEE_LEVEL,
+    IS_DEBUG,
+    IS_DEVELOPMENT,
+    PRODUCTION_HOSTNAME,
+    keyCacheChainFeeData,
+} from '../../../common/common-types';
 import { PARTICLE_PUBLIC_RPC_URL, getBundlerChainConfig } from '../../../configs/bundler-common';
 import { TransactionFactory, TypedTransaction } from '@ethereumjs/tx';
 import { AppException } from '../../../common/app-exception';
 import { EVM_CHAIN_ID, SUPPORT_EIP_1559 } from '../../../common/chains';
 import * as Os from 'os';
+import P2PCache from '../../../common/p2p-cache';
 
 // TODO need to test
 export function calcUserOpTotalGasLimit(userOp: any, chainId: number): bigint {
@@ -79,6 +87,19 @@ export function deepHexlify(obj: any): any {
         }),
         {},
     );
+}
+
+export async function getFeeDataWithCache(chainId: number) {
+    const cacheKey = keyCacheChainFeeData(chainId);
+    let feeData = P2PCache.get(cacheKey);
+    if (!!feeData) {
+        return feeData;
+    }
+
+    feeData = await getFeeDataFromParticle(chainId, GAS_FEE_LEVEL.MEDIUM);
+    P2PCache.set(cacheKey, feeData, CACHE_GAS_FEE_TIMEOUT);
+
+    return feeData;
 }
 
 export async function getFeeDataFromParticle(chainId: number, level: string = GAS_FEE_LEVEL.MEDIUM) {

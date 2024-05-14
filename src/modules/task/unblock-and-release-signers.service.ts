@@ -10,6 +10,7 @@ import { getBundlerChainConfig } from '../../configs/bundler-common';
 import { TransactionService } from '../rpc/services/transaction.service';
 import { HandleLocalTransactionService } from './handle-local-transaction.service';
 import { TRANSACTION_STATUS } from '../rpc/schemas/transaction.schema';
+import { SignerService } from '../rpc/services/signer.service';
 
 @Injectable()
 export class UnblockAndReleaseSignersService {
@@ -19,6 +20,7 @@ export class UnblockAndReleaseSignersService {
         private readonly configService: ConfigService,
         private readonly larkService: LarkService,
         private readonly aaService: AAService,
+        private readonly signerService: SignerService,
         private readonly rpcService: RpcService,
         private readonly transactionService: TransactionService,
         private readonly handleLocalTransactionService: HandleLocalTransactionService,
@@ -31,7 +33,7 @@ export class UnblockAndReleaseSignersService {
         }
 
         this.inCheckingAndReleaseBlockSigners = true;
-        const blockedSigners = this.aaService.getAllBlockedSigners();
+        const blockedSigners = this.signerService.getAllBlockedSigners();
         if (blockedSigners.length <= 0) {
             this.inCheckingAndReleaseBlockSigners = false;
             return;
@@ -49,7 +51,7 @@ export class UnblockAndReleaseSignersService {
 
                 const minEtherBalance = parseEther(bundlerConfig.minSignerBalance.toString());
                 if (balance >= minEtherBalance) {
-                    this.aaService.UnblockedSigner(blockedSigner.chainId, blockedSigner.signerAddress);
+                    this.signerService.UnblockedSigner(blockedSigner.chainId, blockedSigner.signerAddress);
                     this.larkService.sendMessage(`Balance is enough, unblock signer ${blockedSigner.signerAddress}`);
                     const transaction = await this.transactionService.getTransactionById(blockedSigner.info.transactionId);
                     if (transaction.status !== TRANSACTION_STATUS.LOCAL) {

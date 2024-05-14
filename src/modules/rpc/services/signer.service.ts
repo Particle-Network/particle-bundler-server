@@ -88,19 +88,6 @@ export class SignerService {
         return this.blockedSigners.has(`${chainId}-${signerAddress}`);
     }
 
-    public async getFeeData(chainId: number) {
-        const cacheKey = keyCacheChainFeeData(chainId);
-        let feeData = P2PCache.get(cacheKey);
-        if (!!feeData) {
-            return feeData;
-        }
-
-        feeData = await getFeeDataFromParticle(chainId, GAS_FEE_LEVEL.MEDIUM);
-        P2PCache.set(cacheKey, feeData, CACHE_GAS_FEE_TIMEOUT);
-
-        return feeData;
-    }
-
     public async getTransactionCountWithCache(
         provider: JsonRpcProvider,
         chainId: number,

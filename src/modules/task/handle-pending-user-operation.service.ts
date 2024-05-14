@@ -5,10 +5,11 @@ import { RpcService } from '../rpc/services/rpc.service';
 import { LarkService } from '../common/services/lark.service';
 import { Helper } from '../../common/helper';
 import { IS_PRODUCTION } from '../../common/common-types';
-import { waitSeconds } from '../rpc/aa/utils';
+import { getFeeDataWithCache, waitSeconds } from '../rpc/aa/utils';
 import { AAService } from '../rpc/services/aa.service';
 import { TransactionService } from '../rpc/services/transaction.service';
 import { HandleLocalTransactionService } from './handle-local-transaction.service';
+import { SignerService } from '../rpc/services/signer.service';
 
 @Injectable()
 export class HandlePendingUserOperationService {
@@ -16,6 +17,7 @@ export class HandlePendingUserOperationService {
         private readonly rpcService: RpcService,
         private readonly larkService: LarkService,
         private readonly aaService: AAService,
+        private readonly signerService: SignerService,
         private readonly transactionService: TransactionService,
         private readonly handleLocalTransactionService: HandleLocalTransactionService,
     ) {}
@@ -46,8 +48,8 @@ export class HandlePendingUserOperationService {
         try {
             [latestTransaction, latestNonce, feeData] = await Promise.all([
                 this.transactionService.getLatestTransaction(chainId, signer.address),
-                this.aaService.getTransactionCountWithCache(provider, chainId, signer.address),
-                this.aaService.getFeeData(chainId),
+                this.signerService.getTransactionCountWithCache(provider, chainId, signer.address),
+                getFeeDataWithCache(chainId),
             ]);
 
             if (!feeData) {
