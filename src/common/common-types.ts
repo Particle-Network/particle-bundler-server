@@ -1,3 +1,6 @@
+import { Wallet } from 'ethers';
+import { UserOperationDocument } from '../modules/rpc/schemas/user-operation.schema';
+
 export const IS_DEVELOPMENT = process.env.ENVIRONMENT === 'dev' || !process.env.ENVIRONMENT;
 export const IS_DEBUG = process.env.ENVIRONMENT === 'debug';
 export const IS_PRODUCTION = process.env.ENVIRONMENT === 'production';
@@ -112,4 +115,21 @@ export interface IUserOperationEventObject {
     contractAddress: string;
     topic: string;
     args: any;
+}
+
+export interface SignerWithPendingTxCount {
+    signer: Wallet;
+    pendingTxCount: number;
+}
+
+export interface IPackedBundle {
+    signer: Wallet;
+    address: string;
+    bundles: IBundle[];
+}
+
+export interface IBundle {
+    entryPoint: string;
+    userOperations: UserOperationDocument[];
+    gasLimit: string;
 }

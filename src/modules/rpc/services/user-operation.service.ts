@@ -102,6 +102,7 @@ export class UserOperationService {
         return await this.userOperationModel.findOne({ userOpHash });
     }
 
+    // Warning: can cause user nonce is not continuous
     public async getLocalUserOperations(limit: number = 1000): Promise<UserOperationDocument[]> {
         return await this.userOperationModel.aggregate([{ $match: { status: USER_OPERATION_STATUS.LOCAL } }, { $sample: { size: limit } }]);
     }
