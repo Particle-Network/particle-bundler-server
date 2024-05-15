@@ -6,7 +6,7 @@ import { RpcService } from '../rpc/services/rpc.service';
 import { LarkService } from '../common/services/lark.service';
 import { Helper } from '../../common/helper';
 import { IS_PRODUCTION } from '../../common/common-types';
-import { EVM_CHAIN_ID, PARTICLE_CHAINS } from '../../common/chains';
+import { PARTICLE_CHAINS, USE_PROXY_CONTRACT_TO_ESTIMATE_GAS } from '../../common/chains';
 import entryPointAbi from '../rpc/aa/abis/entry-point-abi';
 import { TRANSACTION_STATUS, TransactionDocument } from '../rpc/schemas/transaction.schema';
 import { TransactionService } from '../rpc/services/transaction.service';
@@ -103,7 +103,7 @@ export class HandleLocalTransactionService {
             }
 
             // TODO can we remove this?
-            if ([EVM_CHAIN_ID.MANTLE_MAINNET, EVM_CHAIN_ID.MANTLE_SEPOLIA_TESTNET].includes(chainId)) {
+            if (USE_PROXY_CONTRACT_TO_ESTIMATE_GAS.includes(chainId)) {
                 gasLimit *= 4n;
             }
 

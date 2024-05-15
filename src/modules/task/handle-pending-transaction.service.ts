@@ -168,8 +168,12 @@ export class HandlePendingTransactionService {
                 `Send Transaction Error On Chain ${transaction.chainId} And Transaction ${transaction.id}: ${Helper.converErrorToString(error)}`,
             );
 
-            this.lockSendingTransactions.delete(keyLock);
-            return;
+            if (error?.message?.toLowerCase()?.includes('already known')) {
+                // already send ?? can skip return
+            } else {
+                this.lockSendingTransactions.delete(keyLock);
+                return;
+            }
         }
 
         try {
