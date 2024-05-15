@@ -21,6 +21,7 @@ import MultiCall3Abi from '../abis/multi-call-3-abi';
 import {
     EVM_CHAIN_ID,
     L2_GAS_ORACLE,
+    PARTICLE_CHAINS,
     SUPPORT_EIP_1559,
     SUPPORT_MULTCALL3,
     USE_PROXY_CONTRACT_TO_ESTIMATE_GAS,
@@ -67,7 +68,7 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
     }
 
     let userOperationDocument: UserOperationDocument;
-    if (!body.isAuth) {
+    if (!body.isAuth || !PARTICLE_CHAINS.includes(chainId)) {
         const [rSimulation, extraFee, signerFeeData, userOpDoc, localUserOperationsCount] = await Promise.all([
             simulateHandleOpAndGetGasCost(rpcService, chainId, userOp, entryPoint),
             getL2ExtraFee(rpcService, chainId, userOp, entryPoint),
