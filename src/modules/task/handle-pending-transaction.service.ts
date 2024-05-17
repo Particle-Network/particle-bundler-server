@@ -131,14 +131,14 @@ export class HandlePendingTransactionService {
             return;
         }
 
-        // It's possible that when you grab the lock, the previous call has already been made, so you need to check it again
-        transaction = await this.transactionService.getTransactionById(transaction.id);
-        if (!transaction || !transaction.isLocal()) {
-            this.lockSendingTransactions.delete(keyLock);
-            return;
-        }
-
         try {
+            // It's possible that when you grab the lock, the previous call has already been made, so you need to check it again
+            transaction = await this.transactionService.getTransactionById(transaction.id);
+            if (!transaction || !transaction.isLocal()) {
+                this.lockSendingTransactions.delete(keyLock);
+                return;
+            }
+
             await this.rpcService.sendRawTransaction(transaction.chainId, transaction.signedTxs[txHash]);
         } catch (error) {
             // insufficient funds for intrinsic transaction cost
@@ -170,12 +170,22 @@ export class HandlePendingTransactionService {
                 `Send Transaction Error On Chain ${transaction.chainId} And Transaction ${transaction.id}: ${Helper.converErrorToString(error)}`,
             );
 
-            this.lockSendingTransactions.delete(keyLock);
-            return;
+            if (error?.message?.toLowerCase()?.includes('already known')) {
+                // already send ?? can skip return
+            } else {
+                this.lockSendingTransactions.delete(keyLock);
+                return;
+            }
         }
 
-        // not in transaction db, may error is send succss and here is panic, There is a high probability that it will not appear
-        await this.transactionService.updateTransactionStatus(transaction, TRANSACTION_STATUS.PENDING);
+        try {
+            // not in transaction db, may error is send succss and here is panic, There is a high probability that it will not appear
+            await this.transactionService.updateTransactionStatus(transaction, TRANSACTION_STATUS.PENDING);
+        } catch (error) {
+            this.lockSendingTransactions.delete(keyLock);
+            throw error;
+        }
+
         this.lockSendingTransactions.delete(keyLock);
     }
 

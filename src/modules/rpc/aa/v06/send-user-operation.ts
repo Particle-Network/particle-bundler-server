@@ -70,7 +70,7 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
     }
 
     let userOperationDocument: UserOperationDocument;
-    if (!body.isAuth) {
+    if (!body.isAuth || !PARTICLE_CHAINS.includes(chainId)) {
         const [rSimulation, extraFee, signerFeeData, userOpDoc, localUserOperationsCount] = await Promise.all([
             simulateHandleOpAndGetGasCost(rpcService, chainId, userOp, entryPoint),
             getL2ExtraFee(rpcService, chainId, userOp, entryPoint),
