@@ -1,12 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { AAService } from '../rpc/services/aa.service';
-import { TransactionService } from '../rpc/services/transaction.service';
 import { IBundle, IPackedBundle, IS_PRODUCTION, SignerWithPendingTxCount, keyLockSigner } from '../../common/common-types';
 import { Helper } from '../../common/helper';
 import { UserOperationService } from '../rpc/services/user-operation.service';
 import { Cron } from '@nestjs/schedule';
 import { getBundlerChainConfig } from '../../configs/bundler-common';
-import { Wallet, toBeHex } from 'ethers';
+import { toBeHex } from 'ethers';
 import { UserOperationDocument } from '../rpc/schemas/user-operation.schema';
 import { LarkService } from '../common/services/lark.service';
 import { calcUserOpTotalGasLimit, canRunCron, waitSeconds } from '../rpc/aa/utils';
@@ -19,9 +17,7 @@ export class HandleLocalUserOperationService {
     private readonly lockChainSigner: Set<string> = new Set();
 
     public constructor(
-        private readonly aaService: AAService,
         private readonly signerService: SignerService,
-        private readonly transactionService: TransactionService,
         private readonly larkService: LarkService,
         private readonly userOperationService: UserOperationService,
         private readonly handlePendingUserOperationService: HandlePendingUserOperationService,

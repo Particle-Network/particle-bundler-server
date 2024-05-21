@@ -1,23 +1,19 @@
 import { Injectable } from '@nestjs/common';
 import { Wallet } from 'ethers';
 import { UserOperationDocument } from '../rpc/schemas/user-operation.schema';
-import { RpcService } from '../rpc/services/rpc.service';
 import { LarkService } from '../common/services/lark.service';
 import { Helper } from '../../common/helper';
 import { IS_PRODUCTION } from '../../common/common-types';
-import { getFeeDataWithCache, waitSeconds } from '../rpc/aa/utils';
-import { AAService } from '../rpc/services/aa.service';
+import { waitSeconds } from '../rpc/aa/utils';
 import { TransactionService } from '../rpc/services/transaction.service';
 import { HandleLocalTransactionService } from './handle-local-transaction.service';
-import { SignerService } from '../rpc/services/signer.service';
+import { ChainService } from '../rpc/services/chain.service';
 
 @Injectable()
 export class HandlePendingUserOperationService {
     public constructor(
-        private readonly rpcService: RpcService,
         private readonly larkService: LarkService,
-        private readonly aaService: AAService,
-        private readonly signerService: SignerService,
+        private readonly chainService: ChainService,
         private readonly transactionService: TransactionService,
         private readonly handleLocalTransactionService: HandleLocalTransactionService,
     ) {}
@@ -43,13 +39,12 @@ export class HandlePendingUserOperationService {
         signer: Wallet,
         packedBundles: { entryPoint: string; userOperations: UserOperationDocument[]; gasLimit: string }[],
     ) {
-        const provider = this.rpcService.getJsonRpcProvider(chainId);
         let latestTransaction: any, latestNonce: any, feeData: any;
         try {
             [latestTransaction, latestNonce, feeData] = await Promise.all([
                 this.transactionService.getLatestTransaction(chainId, signer.address),
-                this.signerService.getTransactionCountWithCache(provider, chainId, signer.address),
-                getFeeDataWithCache(chainId),
+                this.chainService.getTransactionCountIfCache(chainId, signer.address),
+                this.chainService.getFeeDataIfCache(chainId),
             ]);
 
             if (!feeData) {

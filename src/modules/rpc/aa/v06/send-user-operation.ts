@@ -7,7 +7,6 @@ import { AppException } from '../../../../common/app-exception';
 import {
     calcUserOpGasPrice,
     calcUserOpTotalGasLimit,
-    getFeeDataWithCache,
     getUserOpHash,
     isUserOpValid,
     parsePaymasterAndDataAndGetExpiredAt,
@@ -28,7 +27,6 @@ import {
     USE_PROXY_CONTRACT_TO_ESTIMATE_GAS,
 } from '../../../../common/chains';
 import { UserOperationDocument } from '../../schemas/user-operation.schema';
-import { Logger } from '@nestjs/common';
 
 export async function sendUserOperation(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
     Helper.assertTrue(typeof body.params[0] === 'object', -32602, 'Invalid params: userop must be an object');
@@ -74,14 +72,14 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
         const [rSimulation, extraFee, signerFeeData, userOpDoc, localUserOperationsCount] = await Promise.all([
             simulateHandleOpAndGetGasCost(rpcService, chainId, userOp, entryPoint),
             getL2ExtraFee(rpcService, chainId, userOp, entryPoint),
-            getFeeDataWithCache(chainId),
-            rpcService.aaService.userOperationService.getUserOperationByAddressNonce(
+            rpcService.chainService.getFeeDataIfCache(chainId),
+            rpcService.userOperationService.getUserOperationByAddressNonce(
                 chainId,
                 userOpSender,
                 nonceKey,
                 BigInt(nonceValue).toString(),
             ),
-            rpcService.aaService.userOperationService.getLocalUserOperationsCountByChainId(chainId),
+            rpcService.userOperationService.getLocalUserOperationsCountByChainId(chainId),
             // do not care return value
             checkUserOpCanExecutedSucceed(rpcService, chainId, userOp, entryPoint),
         ]);
@@ -99,7 +97,7 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
         checkUserOpGasPriceIsSatisfied(chainId, userOp, gasCost, extraFee, signerFeeData);
         userOperationDocument = userOpDoc;
     } else {
-        userOperationDocument = await rpcService.aaService.userOperationService.getUserOperationByAddressNonce(
+        userOperationDocument = await rpcService.userOperationService.getUserOperationByAddressNonce(
             chainId,
             userOpSender,
             nonceKey,
@@ -107,7 +105,7 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
         );
     }
 
-    const newUserOpDoc = await rpcService.aaService.userOperationService.createOrUpdateUserOperation(
+    const newUserOpDoc = await rpcService.userOperationService.createOrUpdateUserOperation(
         chainId,
         userOp,
         userOpHash,

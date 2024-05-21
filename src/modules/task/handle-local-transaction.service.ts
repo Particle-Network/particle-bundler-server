@@ -16,13 +16,14 @@ import { Cron } from '@nestjs/schedule';
 import { canRunCron, createTxGasData } from '../rpc/aa/utils';
 import { ListenerService } from './listener.service';
 import { SignerService } from '../rpc/services/signer.service';
+import { ChainService } from '../rpc/services/chain.service';
 
 @Injectable()
 export class HandleLocalTransactionService {
     private readonly lockedLocalTransactions: Set<string> = new Set();
 
     public constructor(
-        private readonly rpcService: RpcService,
+        private readonly chainService: ChainService,
         private readonly larkService: LarkService,
         private readonly transactionService: TransactionService,
         private readonly userOperationService: UserOperationService,
@@ -65,7 +66,7 @@ export class HandleLocalTransactionService {
 
         try {
             // local transaction should have only one txHash
-            const receipt = await this.rpcService.getTransactionReceipt(localTransaction.chainId, localTransaction.txHashes[0]);
+            const receipt = await this.chainService.getTransactionReceipt(localTransaction.chainId, localTransaction.txHashes[0]);
             if (!!receipt) {
                 await this.handlePendingTransactionService.handlePendingTransaction(localTransaction, receipt);
             } else {

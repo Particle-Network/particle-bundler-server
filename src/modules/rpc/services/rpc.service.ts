@@ -5,13 +5,14 @@ import { ENTRY_POINT_VERSION_MAP, PARTICLE_PAYMASTER_URL, getBundlerChainConfig 
 import { JsonRPCRequestDto, JsonRPCResponse } from './../dtos/json-rpc-request.dto';
 import { AppException } from '../../../common/app-exception';
 import * as AA from './../aa';
-import { AAService } from './aa.service';
 import { FetchRequest, JsonRpcProvider, Network, getAddress, isAddress } from 'ethers';
 import { AA_METHODS } from '../../../configs/bundler-common';
 import { PROVIDER_FETCH_TIMEOUT } from '../../../common/common-types';
 import { Helper } from '../../../common/helper';
 import { LarkService } from '../../common/services/lark.service';
 import { SignerService } from './signer.service';
+import { ChainService } from './chain.service';
+import { UserOperationService } from './user-operation.service';
 
 @Injectable()
 export class RpcService {
@@ -19,9 +20,10 @@ export class RpcService {
     private readonly cachedValidPaymasters: Map<number, string> = new Map();
 
     public constructor(
-        public readonly aaService: AAService,
         public readonly signerService: SignerService,
         public readonly larkService: LarkService,
+        public readonly chainService: ChainService,
+        public readonly userOperationService: UserOperationService,
     ) {}
 
     public getJsonRpcProvider(chainId: number): JsonRpcProvider {
@@ -35,22 +37,6 @@ export class RpcService {
         }
 
         return this.jsonRpcProviders.get(chainId);
-    }
-
-    public async getTransactionReceipt(chainId: number, txHash: string) {
-        const rpcUrl = getBundlerChainConfig(chainId).rpcUrl;
-        const response = await Axios.post(
-            rpcUrl,
-            {
-                jsonrpc: '2.0',
-                id: Date.now(),
-                method: 'eth_getTransactionReceipt',
-                params: [txHash],
-            },
-            { timeout: 12000 },
-        );
-
-        return response.data?.result;
     }
 
     public async sendRawTransaction(chainId: number, rawTransaction: string) {

@@ -2,24 +2,21 @@ import { Injectable } from '@nestjs/common';
 import { parseEther } from 'ethers';
 import { RpcService } from '../rpc/services/rpc.service';
 import { LarkService } from '../common/services/lark.service';
-import { BLOCK_SIGNER_REASON, IS_DEVELOPMENT } from '../../common/common-types';
-import { AAService } from '../rpc/services/aa.service';
-import { ConfigService } from '@nestjs/config';
+import { BLOCK_SIGNER_REASON } from '../../common/common-types';
 import { Cron } from '@nestjs/schedule';
 import { getBundlerChainConfig } from '../../configs/bundler-common';
 import { TransactionService } from '../rpc/services/transaction.service';
 import { HandleLocalTransactionService } from './handle-local-transaction.service';
 import { TRANSACTION_STATUS } from '../rpc/schemas/transaction.schema';
 import { SignerService } from '../rpc/services/signer.service';
+import { canRunCron } from '../rpc/aa/utils';
 
 @Injectable()
 export class UnblockAndReleaseSignersService {
     private inCheckingAndReleaseBlockSigners: boolean = false;
 
     public constructor(
-        private readonly configService: ConfigService,
         private readonly larkService: LarkService,
-        private readonly aaService: AAService,
         private readonly signerService: SignerService,
         private readonly rpcService: RpcService,
         private readonly transactionService: TransactionService,
@@ -28,7 +25,7 @@ export class UnblockAndReleaseSignersService {
 
     @Cron('* * * * * *')
     public async checkAndReleaseBlockSigners() {
-        if (!this.canRunCron() || this.inCheckingAndReleaseBlockSigners) {
+        if (!canRunCron() || this.inCheckingAndReleaseBlockSigners) {
             return;
         }
 
@@ -65,17 +62,5 @@ export class UnblockAndReleaseSignersService {
         }
 
         this.inCheckingAndReleaseBlockSigners = false;
-    }
-
-    private canRunCron() {
-        if (!!process.env.DISABLE_TASK) {
-            return false;
-        }
-
-        if (IS_DEVELOPMENT) {
-            return true;
-        }
-
-        return this.configService.get('NODE_APP_INSTANCE') === '0';
     }
 }

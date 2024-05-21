@@ -15,7 +15,9 @@ async function bootstrap() {
     await initializeBundlerConfig();
 
     if (canRunCron() && !IS_DEVELOPMENT) {
-        const app = await NestFactory.createApplicationContext(AppModule);
+        const app = await NestFactory.createApplicationContext(AppModule, {
+            logger: IS_DEVELOPMENT ? ['error', 'warn', 'log', 'debug', 'verbose'] : false,
+        });
         initApp(app);
         return;
     }

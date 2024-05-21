@@ -4,7 +4,7 @@ import { Logger } from '@nestjs/common';
 import { hexConcat } from '@ethersproject/bytes';
 import { RpcService } from '../../services/rpc.service';
 import { Helper } from '../../../../common/helper';
-import { calcUserOpGasPrice, getFeeDataWithCache, isUserOpValid, toBeHexTrimZero } from '../utils';
+import { calcUserOpGasPrice, isUserOpValid, toBeHexTrimZero } from '../utils';
 import { AppException } from '../../../../common/app-exception';
 import { JsonRPCRequestDto } from '../../dtos/json-rpc-request.dto';
 import { DUMMY_SIGNATURE } from '../../../../common/common-types';
@@ -164,7 +164,7 @@ async function tryEstimateGasForFirstAccount(provider: JsonRpcProvider, userOp: 
 async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string) {
     const [rSimulation, userOpFeeData, extraFee] = await Promise.all([
         simulateHandleOpAndGetGasCost(rpcService, chainId, userOp, entryPoint),
-        getFeeDataWithCache(chainId),
+        rpcService.chainService.getFeeDataIfCache(chainId),
         getL2ExtraFee(rpcService, chainId, userOp, entryPoint),
     ]);
 

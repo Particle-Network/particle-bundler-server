@@ -117,9 +117,9 @@ export class TransactionService {
         );
     }
 
-    public async updateTransactionStatus(transaction: TransactionDocument, status: TRANSACTION_STATUS, session?: any) {
+    public async updateTransactionStatus(transaction: TransactionDocument, status: TRANSACTION_STATUS) {
         transaction.status = status;
-        return await transaction.save({ session });
+        return await transaction.save();
     }
 
     public async replaceTransactionTxHash(transaction: TransactionDocument, newSignedTx: string, session?: any) {

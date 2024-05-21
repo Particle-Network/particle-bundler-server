@@ -7,17 +7,14 @@ import { UserOperation, UserOperationSchema } from '../src/modules/rpc/schemas/u
 import { mongodbConfigAsync } from '../src/configs/mongodb.config';
 import { configConfig } from '../src/configs/config.config';
 import { ConfigModule } from '@nestjs/config';
-import { Wallet, JsonRpcProvider, resolveProperties, parseEther } from 'ethers';
-import { AA_METHODS, initializeBundlerConfig, getBundlerChainConfig } from '../src/configs/bundler-common';
-import { deepHexlify, getFeeDataFromParticle, splitOriginNonce } from '../src/modules/rpc/aa/utils';
-import { IContractAccount } from '../src/modules/rpc/aa/interface-contract-account';
-import { ENTRY_POINT, gaslessSponsor } from './lib/common';
-import { deserializeUserOpCalldata } from '../src/modules/rpc/aa/deserialize-user-op';
-import { SimpleSmartAccount } from './lib/simple-smart-account';
+import { initializeBundlerConfig } from '../src/configs/bundler-common';
+import { splitOriginNonce } from '../src/modules/rpc/aa/utils';
 import { EVM_CHAIN_ID } from '../src/common/chains';
+import { ChainService } from '../src/modules/rpc/services/chain.service';
 
 let rpcController: RpcController;
 let rpcService: RpcService;
+let chainService: ChainService;
 
 describe('Common', () => {
     beforeEach(async () => {
@@ -43,11 +40,11 @@ describe('Common', () => {
     }, 60000);
 
     it('getFeeDataFromParticle', async () => {
-        let feeData = await getFeeDataFromParticle(EVM_CHAIN_ID.OPTIMISM_TESTNET_SEPOLIA);
+        let feeData = await chainService.getFeeDataIfCache(EVM_CHAIN_ID.OPTIMISM_TESTNET_SEPOLIA);
         console.log('feeData', feeData);
         expect(feeData.baseFee).toBe(1);
 
-        feeData = await getFeeDataFromParticle(EVM_CHAIN_ID.MERLIN_CHAIN_MAINNET);
+        feeData = await chainService.getFeeDataIfCache(EVM_CHAIN_ID.MERLIN_CHAIN_MAINNET);
         expect(feeData.maxPriorityFeePerGas).toBe(1001);
         expect(feeData.maxFeePerGas).toBe(1001);
         expect(feeData.gasPrice).toBe(1001);

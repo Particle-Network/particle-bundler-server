@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { RpcModule } from '../rpc/rpc.module';
-import { AAService } from '../rpc/services/aa.service';
 import { UserOperationService } from '../rpc/services/user-operation.service';
 import { UserOperation, UserOperationSchema } from '../rpc/schemas/user-operation.schema';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -38,7 +37,6 @@ import { UnblockAndReleaseSignersService } from './unblock-and-release-signers.s
         HandlePendingTransactionService,
         ListenerService,
         FillSignerBalanceService,
-        AAService,
         UserOperationService,
         TransactionService,
         RpcService,

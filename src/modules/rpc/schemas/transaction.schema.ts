@@ -121,3 +121,9 @@ TransactionSchema.index({
     latestSentAt: 1,
     confirmations: 1,
 });
+
+TransactionSchema.index({
+    status: 1,
+    latestSentAt: 1,
+    _id: 1,
+});

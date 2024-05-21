@@ -49,8 +49,9 @@ class P2PCacheInstance {
     }
 
     public set(key: string, value: any, ttl: number = ITEM_TTL) {
+        this.onMessage({ type: 'set', data: { key, value, ttl } });
+
         if (IS_DEVELOPMENT) {
-            this.onMessage({ type: 'set', data: { key, value, ttl } });
             return;
         }
 
@@ -73,21 +74,10 @@ class P2PCacheInstance {
         }
     }
 
-    public get(key: string) {
-        return this.cache.get(key);
-    }
-
-    public has(key: string): boolean {
-        return this.cache.has(key);
-    }
-
-    public ttl(key: string) {
-        return this.cache.getRemainingTTL(key);
-    }
-
     public delete(key: string) {
+        this.onMessage({ type: 'delete', data: { key } });
+
         if (IS_DEVELOPMENT) {
-            this.onMessage({ type: 'delete', data: { key } });
             return;
         }
 
@@ -106,6 +96,18 @@ class P2PCacheInstance {
                 },
             );
         }
+    }
+
+    public get(key: string) {
+        return this.cache.get(key);
+    }
+
+    public has(key: string): boolean {
+        return this.cache.has(key);
+    }
+
+    public ttl(key: string) {
+        return this.cache.getRemainingTTL(key);
     }
 }
 

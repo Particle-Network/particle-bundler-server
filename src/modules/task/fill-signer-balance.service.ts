@@ -8,8 +8,9 @@ import { Cron } from '@nestjs/schedule';
 import { $enum } from 'ts-enum-util';
 import { EVM_CHAIN_ID } from '../../common/chains';
 import { getBundlerChainConfig } from '../../configs/bundler-common';
-import { canRunCron, getFeeDataWithCache } from '../rpc/aa/utils';
+import { canRunCron } from '../rpc/aa/utils';
 import { SignerService } from '../rpc/services/signer.service';
+import { ChainService } from '../rpc/services/chain.service';
 
 @Injectable()
 export class FillSignerBalanceService {
@@ -19,6 +20,7 @@ export class FillSignerBalanceService {
         private readonly larkService: LarkService,
         private readonly signerService: SignerService,
         private readonly rpcService: RpcService,
+        private readonly chainService: ChainService,
     ) {}
 
     @Cron('0 * * * * *')
@@ -56,7 +58,7 @@ export class FillSignerBalanceService {
                         const etherToSend = (minSignerBalance - balanceEther).toFixed(10);
                         console.log(`[Send ether to signer] chainId=${currentChainId}, address=${currentAddress}, etherToSend=${etherToSend}`);
                         const signerToPay = new Wallet(process.env.PAYMENT_SIGNER, provider);
-                        const feeData: any = await getFeeDataWithCache(currentChainId);
+                        const feeData: any = await this.chainService.getFeeDataIfCache(currentChainId);
 
                         // force use gas price
                         const tx = await signerToPay.sendTransaction({

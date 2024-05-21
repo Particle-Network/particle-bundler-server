@@ -1,19 +1,10 @@
 import { isEmpty } from 'lodash';
-import { AbiCoder, BigNumberish, BytesLike, JsonRpcProvider, Network, hexlify, isHexString, keccak256, toBeHex } from 'ethers';
-import {
-    CACHE_GAS_FEE_TIMEOUT,
-    GAS_FEE_LEVEL,
-    IS_DEBUG,
-    IS_DEVELOPMENT,
-    PRODUCTION_HOSTNAME,
-    keyCacheChainFeeData,
-} from '../../../common/common-types';
-import { PARTICLE_PUBLIC_RPC_URL, getBundlerChainConfig } from '../../../configs/bundler-common';
+import { AbiCoder, BigNumberish, BytesLike, hexlify, keccak256, toBeHex } from 'ethers';
+import { IS_DEBUG, IS_DEVELOPMENT, PRODUCTION_HOSTNAME } from '../../../common/common-types';
 import { TransactionFactory, TypedTransaction } from '@ethereumjs/tx';
 import { AppException } from '../../../common/app-exception';
 import { EVM_CHAIN_ID, SUPPORT_EIP_1559 } from '../../../common/chains';
 import * as Os from 'os';
-import P2PCache from '../../../common/p2p-cache';
 
 // TODO need to test
 export function calcUserOpTotalGasLimit(userOp: any, chainId: number): bigint {
@@ -87,72 +78,6 @@ export function deepHexlify(obj: any): any {
         }),
         {},
     );
-}
-
-export async function getFeeDataWithCache(chainId: number) {
-    const cacheKey = keyCacheChainFeeData(chainId);
-    let feeData = P2PCache.get(cacheKey);
-    if (!!feeData) {
-        return feeData;
-    }
-
-    feeData = await getFeeDataFromParticle(chainId, GAS_FEE_LEVEL.MEDIUM);
-    P2PCache.set(cacheKey, feeData, CACHE_GAS_FEE_TIMEOUT);
-
-    return feeData;
-}
-
-export async function getFeeDataFromParticle(chainId: number, level: string = GAS_FEE_LEVEL.MEDIUM) {
-    const network = Network.from(chainId);
-    const provider = new JsonRpcProvider(`${PARTICLE_PUBLIC_RPC_URL}?chainId=${chainId}`, network, {
-        batchMaxCount: 1,
-        staticNetwork: network,
-    });
-
-    const particleFeeData = await provider.send('particle_suggestedGasFees', []);
-
-    if (EVM_CHAIN_ID.TAIKO_TESTNET_HEKLA === chainId) {
-        particleFeeData.baseFee = 0.000000001; // 1 wei
-    }
-
-    const result = {
-        maxPriorityFeePerGas: Math.ceil(Number(particleFeeData?.[level]?.maxPriorityFeePerGas ?? 0) * 10 ** 9),
-        maxFeePerGas: Math.ceil(Number(particleFeeData?.[level]?.maxFeePerGas ?? 0) * 10 ** 9),
-        gasPrice: Math.ceil(Number(particleFeeData?.[level]?.maxFeePerGas ?? 0) * 10 ** 9),
-        baseFee: Math.ceil(Number(particleFeeData?.baseFee ?? 0) * 10 ** 9),
-    };
-
-    if (chainId === EVM_CHAIN_ID.OPTIMISM_MAINNET && result.maxPriorityFeePerGas <= 0) {
-        result.maxPriorityFeePerGas = 1;
-    }
-
-    const bundlerConfig = getBundlerChainConfig(chainId);
-    if (!!bundlerConfig?.minGasFee?.maxPriorityFeePerGas && result.maxPriorityFeePerGas < Number(bundlerConfig.minGasFee.maxPriorityFeePerGas)) {
-        result.maxPriorityFeePerGas = Number(bundlerConfig.minGasFee.maxPriorityFeePerGas);
-    }
-    if (!!bundlerConfig?.minGasFee?.maxFeePerGas && result.maxFeePerGas < Number(bundlerConfig.minGasFee.maxFeePerGas)) {
-        result.maxFeePerGas = Number(bundlerConfig.minGasFee.maxFeePerGas);
-    }
-    if (!!bundlerConfig?.minGasFee?.gasPrice && result.gasPrice < Number(bundlerConfig.minGasFee.gasPrice)) {
-        result.gasPrice = Number(bundlerConfig.minGasFee.gasPrice);
-    }
-    if (!!bundlerConfig?.minGasFee?.baseFee && result.baseFee < Number(bundlerConfig.minGasFee.baseFee)) {
-        result.baseFee = Number(bundlerConfig.minGasFee.baseFee);
-    }
-    if (!!bundlerConfig?.maxGasFee?.maxPriorityFeePerGas && result.maxPriorityFeePerGas > Number(bundlerConfig.maxGasFee.maxPriorityFeePerGas)) {
-        result.maxPriorityFeePerGas = Number(bundlerConfig.maxGasFee.maxPriorityFeePerGas);
-    }
-    if (!!bundlerConfig?.maxGasFee?.maxFeePerGas && result.maxFeePerGas > Number(bundlerConfig.maxGasFee.maxFeePerGas)) {
-        result.maxFeePerGas = Number(bundlerConfig.maxGasFee.maxFeePerGas);
-    }
-    if (!!bundlerConfig?.maxGasFee?.gasPrice && result.gasPrice > Number(bundlerConfig.maxGasFee.gasPrice)) {
-        result.gasPrice = Number(bundlerConfig.maxGasFee.gasPrice);
-    }
-    if (!!bundlerConfig?.maxGasFee?.baseFee && result.baseFee > Number(bundlerConfig.maxGasFee.baseFee)) {
-        result.baseFee = Number(bundlerConfig.maxGasFee.baseFee);
-    }
-
-    return result;
 }
 
 export function calcUserOpGasPrice(feeData: any, baseFee: number = 0): number {

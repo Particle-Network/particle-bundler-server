@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectConnection } from '@nestjs/mongoose';
 import { Connection } from 'mongoose';
 import { RpcService } from '../rpc/services/rpc.service';
@@ -9,28 +9,25 @@ import {
     EVENT_ENTRY_POINT_USER_OPERATION,
     IS_PRODUCTION,
     IUserOperationEventObject,
-    keyCacheChainSignerTransactionCount,
     keyLockPendingTransaction,
     keyLockSendingTransaction,
 } from '../../common/common-types';
 import { TRANSACTION_STATUS, TransactionDocument } from '../rpc/schemas/transaction.schema';
 import { TransactionService } from '../rpc/services/transaction.service';
 import { UserOperationService } from '../rpc/services/user-operation.service';
-import { AAService } from '../rpc/services/aa.service';
 import { getBundlerChainConfig } from '../../configs/bundler-common';
-import P2PCache from '../../common/p2p-cache';
 import { Contract, toBeHex } from 'ethers';
 import entryPointAbi from '../rpc/aa/abis/entry-point-abi';
-import { canRunCron, createTxGasData, deepHexlify, getFeeDataWithCache, tryParseSignedTx } from '../rpc/aa/utils';
+import { canRunCron, createTxGasData, deepHexlify, tryParseSignedTx } from '../rpc/aa/utils';
 import { Cron } from '@nestjs/schedule';
 import { FeeMarketEIP1559Transaction, LegacyTransaction } from '@ethereumjs/tx';
 import { SignerService } from '../rpc/services/signer.service';
+import { ChainService } from '../rpc/services/chain.service';
 
 @Injectable()
 export class HandlePendingTransactionService {
     private readonly lockSendingTransactions: Set<string> = new Set();
     private readonly lockPendingTransactions: Set<string> = new Set();
-    private readonly signerDoneTransactionMaxNonce: Map<string, number> = new Map();
 
     public constructor(
         @InjectConnection() private readonly connection: Connection,
@@ -38,44 +35,9 @@ export class HandlePendingTransactionService {
         private readonly larkService: LarkService,
         private readonly transactionService: TransactionService,
         private readonly userOperationService: UserOperationService,
-        private readonly aaService: AAService,
         private readonly signerService: SignerService,
+        private readonly chainService: ChainService,
     ) {}
-
-    @Cron('*/5 * * * * *')
-    public async handleLongPendingTransactions() {
-        if (!canRunCron()) {
-            return;
-        }
-
-        const pendingTransactions = await this.transactionService.getLongAgoTransactionsByStatusSortConfirmations(
-            TRANSACTION_STATUS.PENDING,
-            500,
-        );
-
-        const chainIdFromMap: any = {};
-        for (const pendingTransaction of pendingTransactions) {
-            if (!chainIdFromMap[pendingTransaction.chainId]) {
-                chainIdFromMap[pendingTransaction.chainId] = [];
-            }
-
-            if (!chainIdFromMap[pendingTransaction.chainId].includes(pendingTransaction.from.toLowerCase())) {
-                chainIdFromMap[pendingTransaction.chainId].push(pendingTransaction.from);
-            }
-        }
-
-        const chainIds = Object.keys(chainIdFromMap);
-        for (const chainId of chainIds) {
-            const provider = this.rpcService.getJsonRpcProvider(Number(chainId));
-            for (const from of chainIdFromMap[chainId]) {
-                // async update signer nonce
-                this.signerService.getTransactionCountWithCache(provider, Number(chainId), from, true);
-            }
-        }
-
-        // async execute, no need to wait
-        this.handlePendingTransactionsAction(pendingTransactions);
-    }
 
     @Cron('* * * * * *')
     public async handleRecentPendingTransactions() {
@@ -83,10 +45,16 @@ export class HandlePendingTransactionService {
             return;
         }
 
-        const pendingTransactions = await this.transactionService.getRecentTransactionsByStatusSortConfirmations(
-            TRANSACTION_STATUS.PENDING,
-            500,
-        );
+        let pendingTransactions = await this.transactionService.getRecentTransactionsByStatusSortConfirmations(TRANSACTION_STATUS.PENDING, 500);
+
+        if (new Date().getSeconds() % 5 === 0) {
+            const longPendingTransactions = await this.transactionService.getLongAgoTransactionsByStatusSortConfirmations(
+                TRANSACTION_STATUS.PENDING,
+                500,
+            );
+
+            pendingTransactions = pendingTransactions.concat(longPendingTransactions);
+        }
 
         // async execute, no need to wait
         this.handlePendingTransactionsAction(pendingTransactions);
@@ -95,19 +63,7 @@ export class HandlePendingTransactionService {
     private async handlePendingTransactionsAction(pendingTransactions: TransactionDocument[]) {
         const promises = [];
         for (const pendingTransaction of pendingTransactions) {
-            const cacheKey1 = `${pendingTransaction.chainId}-${pendingTransaction.from.toLowerCase()}`;
-            const cacheKey2 = keyCacheChainSignerTransactionCount(pendingTransaction.chainId, pendingTransaction.from);
-
-            // local cache nonce directly
-            const signerDoneTransactionMaxNonceFromP2PCache = P2PCache.get(cacheKey2) ?? 0;
-            const signerDoneTransactionMaxNonce = this.signerDoneTransactionMaxNonce.get(cacheKey1) ?? 0;
-
-            promises.push(
-                this.getReceiptAndHandlePendingTransactions(
-                    pendingTransaction,
-                    Math.max(signerDoneTransactionMaxNonce, signerDoneTransactionMaxNonceFromP2PCache),
-                ),
-            );
+            promises.push(this.getReceiptAndHandlePendingTransactions(pendingTransaction));
         }
 
         const transactionsAddConfirmations = (await Promise.all(promises)).filter((t) => !!t);
@@ -153,7 +109,7 @@ export class HandlePendingTransactionService {
                 error?.message?.toLowerCase()?.includes('replacement transaction underpriced')
             ) {
                 // delete transaction and recover user op
-                this.signerService.trySetTransactionCountLocalCache(transaction.chainId, transaction.from, transaction.nonce + 1);
+                this.chainService.trySetTransactionCountLocalCache(transaction.chainId, transaction.from, transaction.nonce + 1);
                 await Helper.startMongoTransaction(this.connection, async (session: any) => {
                     await Promise.all([
                         transaction.delete({ session }),
@@ -187,84 +143,6 @@ export class HandlePendingTransactionService {
         }
 
         this.lockSendingTransactions.delete(keyLock);
-    }
-
-    // There is a concurrency conflict and locks need to be added
-    public async handlePendingTransaction(transaction: TransactionDocument, receipt: any) {
-        // need a lot of memory, so we don't cache it
-        // P2PCache.set(keyCacheChainReceipt(transaction.id), receipt, CACHE_TRANSACTION_RECEIPT_TIMEOUT);
-        const keyLock = keyLockPendingTransaction(transaction.id);
-        if (this.lockPendingTransactions.has(keyLock)) {
-            return;
-        }
-
-        this.lockPendingTransactions.add(keyLock);
-
-        transaction = await this.transactionService.getTransactionById(transaction.id);
-        if (!transaction || transaction.isDone()) {
-            this.lockPendingTransactions.delete(keyLock);
-            return;
-        }
-
-        if (!receipt) {
-            const userOpHashes = transaction.userOperationHashes;
-            await this.userOperationService.setUserOperationsAsDone(userOpHashes, '', 0, '');
-            await this.transactionService.updateTransactionStatus(transaction, TRANSACTION_STATUS.DONE);
-            this.signerService.decrChainSignerPendingTxCount(transaction.chainId, transaction.from);
-
-            this.lockPendingTransactions.delete(keyLock);
-            return;
-        }
-
-        const chainId = transaction.chainId;
-        const results = await this.checkAndHandleFailedReceipt(transaction, receipt);
-        const userOperationEventObjects: IUserOperationEventObject[] = [];
-        for (const { receipt, userOpHashes } of results) {
-            const txHash = receipt.transactionHash;
-            const blockHash = receipt.blockHash;
-            const blockNumber = receipt.blockNumber;
-
-            const contract = new Contract(receipt.to, entryPointAbi);
-            for (const log of receipt?.logs ?? []) {
-                try {
-                    const parsed = contract.interface.parseLog(log);
-                    if (parsed?.name !== 'UserOperationEvent') {
-                        continue;
-                    }
-
-                    const args = deepHexlify(parsed.args);
-                    userOperationEventObjects.push({
-                        chainId,
-                        blockHash,
-                        blockNumber,
-                        userOperationHash: parsed.args.userOpHash,
-                        txHash: receipt.transactionHash,
-                        contractAddress: receipt.to,
-                        topic: parsed.topic,
-                        args,
-                    });
-                } catch (error) {
-                    // May not be an EntryPoint event.
-                    continue;
-                }
-            }
-
-            // async send
-            this.userOperationService.createUserOperationEvents(userOperationEventObjects);
-            await this.userOperationService.setUserOperationsAsDone(userOpHashes, txHash, blockNumber, blockHash);
-
-            transaction.receipts = transaction.receipts || {};
-            transaction.receipts[txHash] = receipt;
-            transaction.userOperationHashMapTxHash = transaction.userOperationHashMapTxHash || {};
-            for (const userOpHash of userOpHashes) {
-                transaction.userOperationHashMapTxHash[userOpHash] = txHash;
-            }
-        }
-
-        await this.transactionService.updateTransactionStatus(transaction, TRANSACTION_STATUS.DONE);
-        this.setSignerDoneTransactionMaxNonce(chainId, transaction.from, transaction.nonce);
-
-        this.lockPendingTransactions.delete(keyLock);
     }
 
     // Check is the userop is bundled by other tx(mev attack)
@@ -325,10 +203,7 @@ export class HandlePendingTransactionService {
 
             return results;
         } catch (error) {
-            if (!IS_PRODUCTION) {
-                console.error('checkAndHandleFailedReceipt error', error);
-            }
-
+            Logger.error(`[CheckAndHandleFailedReceipt] Error: ${transaction.id} | ${error?.message}`);
             this.larkService.sendMessage(`CheckAndHandleFailedReceipt Error: ${Helper.converErrorToString(error)}`);
             return [{ receipt, userOpHashes: transaction.userOperationHashes }];
         }
@@ -343,10 +218,21 @@ export class HandlePendingTransactionService {
         this.signerDoneTransactionMaxNonce.set(key, nonce);
     }
 
-    private async getReceiptAndHandlePendingTransactions(pendingTransaction: TransactionDocument, signerDoneTransactionMaxNonce?: number) {
+    private async getReceiptAndHandlePendingTransactions(pendingTransaction: TransactionDocument) {
         try {
+            // local cache nonce directly
+            const signerDoneTransactionMaxNonceFromP2PCache = this.chainService.getTransactionCountWithCache(
+                pendingTransaction.chainId,
+                pendingTransaction.from,
+            );
+            const signerDoneTransactionMaxNonceFromLocal = this.signerService.getSignerDoneTransactionMaxNonce(
+                pendingTransaction.chainId,
+                pendingTransaction.from,
+            );
+
+            const signerDoneTransactionMaxNonce = Math.max(signerDoneTransactionMaxNonceFromLocal, signerDoneTransactionMaxNonceFromP2PCache);
             const receiptPromises = pendingTransaction.txHashes.map((txHash) =>
-                this.rpcService.getTransactionReceipt(pendingTransaction.chainId, txHash),
+                this.chainService.getTransactionReceipt(pendingTransaction.chainId, txHash),
             );
             const receipts = await Promise.all(receiptPromises);
             for (const receipt of receipts) {
@@ -413,6 +299,83 @@ export class HandlePendingTransactionService {
         }
     }
 
+    // There is a concurrency conflict and locks need to be added
+    public async handlePendingTransaction(transaction: TransactionDocument, receipt: any) {
+        // need a lot of memory, so we don't cache it
+        const keyLock = keyLockPendingTransaction(transaction.id);
+        if (this.lockPendingTransactions.has(keyLock)) {
+            return;
+        }
+
+        this.lockPendingTransactions.add(keyLock);
+
+        transaction = await this.transactionService.getTransactionById(transaction.id);
+        if (!transaction || transaction.isDone()) {
+            this.lockPendingTransactions.delete(keyLock);
+            return;
+        }
+
+        if (!receipt) {
+            const userOpHashes = transaction.userOperationHashes;
+            await this.userOperationService.setUserOperationsAsDone(userOpHashes, '', 0, '');
+            await this.transactionService.updateTransactionStatus(transaction, TRANSACTION_STATUS.DONE);
+
+            this.signerService.decrChainSignerPendingTxCount(transaction.chainId, transaction.from);
+            this.lockPendingTransactions.delete(keyLock);
+            return;
+        }
+
+        const chainId = transaction.chainId;
+        const results = await this.checkAndHandleFailedReceipt(transaction, receipt);
+        const userOperationEventObjects: IUserOperationEventObject[] = [];
+        for (const { receipt, userOpHashes } of results) {
+            const txHash = receipt.transactionHash;
+            const blockHash = receipt.blockHash;
+            const blockNumber = receipt.blockNumber;
+
+            const contract = new Contract(receipt.to, entryPointAbi);
+            for (const log of receipt?.logs ?? []) {
+                try {
+                    const parsed = contract.interface.parseLog(log);
+                    if (parsed?.name !== 'UserOperationEvent') {
+                        continue;
+                    }
+
+                    const args = deepHexlify(parsed.args);
+                    userOperationEventObjects.push({
+                        chainId,
+                        blockHash,
+                        blockNumber,
+                        userOperationHash: parsed.args.userOpHash,
+                        txHash: receipt.transactionHash,
+                        contractAddress: receipt.to,
+                        topic: parsed.topic,
+                        args,
+                    });
+                } catch (error) {
+                    // May not be an EntryPoint event.
+                    continue;
+                }
+            }
+
+            // async send
+            this.userOperationService.createUserOperationEvents(userOperationEventObjects);
+            await this.userOperationService.setUserOperationsAsDone(userOpHashes, txHash, blockNumber, blockHash);
+
+            transaction.receipts = transaction.receipts || {};
+            transaction.receipts[txHash] = receipt;
+            transaction.userOperationHashMapTxHash = transaction.userOperationHashMapTxHash || {};
+            for (const userOpHash of userOpHashes) {
+                transaction.userOperationHashMapTxHash[userOpHash] = txHash;
+            }
+        }
+
+        await this.transactionService.updateTransactionStatus(transaction, TRANSACTION_STATUS.DONE);
+        this.setSignerDoneTransactionMaxNonce(chainId, transaction.from, transaction.nonce);
+
+        this.lockPendingTransactions.delete(keyLock);
+    }
+
     private async tryIncrTransactionGasPriceAndReplace(transaction: TransactionDocument) {
         const keyLock = keyLockPendingTransaction(transaction.id);
         if (this.lockPendingTransactions.has(keyLock)) {
@@ -428,8 +391,7 @@ export class HandlePendingTransactionService {
         }
 
         try {
-            const provider = this.rpcService.getJsonRpcProvider(transaction.chainId);
-            const remoteNonce = await this.signerService.getTransactionCountWithCache(provider, transaction.chainId, transaction.from, true);
+            const remoteNonce = await this.chainService.getTransactionCountIfCache(transaction.chainId, transaction.from, true);
             if (remoteNonce != transaction.nonce) {
                 this.lockPendingTransactions.delete(keyLock);
                 return;
@@ -464,7 +426,7 @@ export class HandlePendingTransactionService {
             const tx = tryParseSignedTx(currentSignedTx);
             const txData: any = tx.toJSON();
 
-            const feeData = await getFeeDataWithCache(transaction.chainId);
+            const feeData = await this.chainService.getFeeDataIfCache(transaction.chainId);
             if (tx instanceof FeeMarketEIP1559Transaction) {
                 if (BigInt(feeData.maxFeePerGas) > BigInt(tx.maxFeePerGas)) {
                     txData.maxFeePerGas = toBeHex(feeData.maxFeePerGas);
@@ -507,13 +469,15 @@ export class HandlePendingTransactionService {
             await this.transactionService.replaceTransactionTxHash(transaction, signedTx);
             await this.rpcService.sendRawTransaction(transaction.chainId, signedTx);
         } catch (error) {
-            if (!IS_PRODUCTION) {
-                console.error(`Replace Transaction ${transaction.id} error on chain ${transaction.chainId}`, error, transaction);
-            }
+            if (error?.message?.toLowerCase()?.includes('already known')) {
+                // already send ?? can skip return
+            } else {
+                Logger.error(`Replace Transaction ${transaction.id} error on chain ${transaction.chainId}`);
 
-            this.larkService.sendMessage(
-                `ReplaceTransaction Error On Chain ${transaction.chainId} For ${transaction.from}: ${Helper.converErrorToString(error)}`,
-            );
+                this.larkService.sendMessage(
+                    `ReplaceTransaction Error On Chain ${transaction.chainId} For ${transaction.from}: ${Helper.converErrorToString(error)}`,
+                );
+            }
         }
 
         this.lockPendingTransactions.delete(keyLock);
