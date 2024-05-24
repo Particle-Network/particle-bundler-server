@@ -36,7 +36,11 @@ async function bootstrap() {
 
     const configService = app.get(ConfigService);
     const larkService = app.get(LarkService);
-    const server = await app.listen(3001, '0.0.0.0');
+    const server = await app.listen({
+        port: 3001,
+        host: '0.0.0.0',
+        backlog: 1024,
+    } as any);
 
     if (!IS_DEVELOPMENT) {
         process.on('uncaughtException', async (error) => {
