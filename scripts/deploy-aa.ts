@@ -5,7 +5,7 @@ import { deploySimpleAccountFactory } from './deploy-simple-account-factory';
 import { deployEntryPoint } from './deploy-entry-point';
 import { initializeBundlerConfig } from '../src/configs/bundler-common';
 import { deployBTCAccountFactory as deployBTCAccountFactoryV1 } from './deploy-btc-account-v1-factory';
-import { deployBTCAccountFactory as deployBTCAccountFactoryV1_1 } from './deploy-btc-account-v1.1-factory';
+// import { deployBTCAccountFactory as deployBTCAccountFactoryV1_1 } from './deploy-btc-account-v1.1-factory';
 import { deployBTCAccountFactory as deployBTCAccountFactoryV2 } from './deploy-btc-account-v2-factory';
 import { deployBTCAccountFactory as deployBTCAccountFactoryV2_1 } from './deploy-btc-account-v2.1-factory';
 
@@ -26,8 +26,9 @@ const deployBTCAccountV2 = args[3] ? args[3] === 'true' : false;
         await deployBTCAccountFactoryV1(chainId, signer);
         console.log('Deployed BTC Account V1 Factory');
 
-        await deployBTCAccountFactoryV1_1(chainId, signer);
-        console.log('Deployed BTC Account V1.1 Factory');
+        // no use
+        // await deployBTCAccountFactoryV1_1(chainId, signer);
+        // console.log('Deployed BTC Account V1.1 Factory');
     }
     if (deployBTCAccountV2) {
         await deployBTCAccountFactoryV2(chainId, signer);
