@@ -198,68 +198,78 @@ export class HandlePendingTransactionService {
 
         this.lockPendingTransactions.add(keyLock);
 
-        transaction = await this.transactionService.getTransactionById(transaction.id);
-        if (!transaction || transaction.isDone()) {
-            this.lockPendingTransactions.delete(keyLock);
-            return;
-        }
+        try {
+            transaction = await this.transactionService.getTransactionById(transaction.id);
+            if (!transaction || transaction.isDone()) {
+                this.lockPendingTransactions.delete(keyLock);
+                return;
+            }
 
-        if (!receipt) {
-            const userOpHashes = transaction.userOperationHashes;
-            await this.userOperationService.setUserOperationsAsDone(userOpHashes, '', 0, '');
-            await this.transactionService.updateTransactionStatus(transaction, TRANSACTION_STATUS.DONE);
+            if (!receipt) {
+                const userOpHashes = transaction.userOperationHashes;
+                await this.userOperationService.setUserOperationsAsDone(userOpHashes, '', 0, '');
+                await this.transactionService.updateTransactionStatus(transaction, TRANSACTION_STATUS.DONE);
 
-            this.lockPendingTransactions.delete(keyLock);
-            return;
-        }
+                this.lockPendingTransactions.delete(keyLock);
+                return;
+            }
 
-        const chainId = transaction.chainId;
-        const results = await this.checkAndHandleFailedReceipt(transaction, receipt);
-        const userOperationEventObjects: IUserOperationEventObject[] = [];
-        for (const { receipt, userOpHashes } of results) {
-            const txHash = receipt.transactionHash;
-            const blockHash = receipt.blockHash;
-            const blockNumber = receipt.blockNumber;
+            const chainId = transaction.chainId;
+            const results = await this.checkAndHandleFailedReceipt(transaction, receipt);
+            const userOperationEventObjects: IUserOperationEventObject[] = [];
+            for (const { receipt, userOpHashes } of results) {
+                const txHash = receipt.transactionHash;
+                const blockHash = receipt.blockHash;
+                const blockNumber = receipt.blockNumber;
 
-            const contract = new Contract(receipt.to, entryPointAbi);
-            for (const log of receipt?.logs ?? []) {
-                try {
-                    const parsed = contract.interface.parseLog(log);
-                    if (parsed?.name !== 'UserOperationEvent') {
+                const contract = new Contract(receipt.to, entryPointAbi);
+                for (const log of receipt?.logs ?? []) {
+                    try {
+                        const parsed = contract.interface.parseLog(log);
+                        if (parsed?.name !== 'UserOperationEvent') {
+                            continue;
+                        }
+
+                        const args = deepHexlify(parsed.args);
+                        userOperationEventObjects.push({
+                            chainId,
+                            blockHash,
+                            blockNumber,
+                            userOperationHash: parsed.args.userOpHash,
+                            txHash: receipt.transactionHash,
+                            contractAddress: receipt.to,
+                            topic: parsed.topic,
+                            args,
+                        });
+                    } catch (error) {
+                        // May not be an EntryPoint event.
                         continue;
                     }
+                }
 
-                    const args = deepHexlify(parsed.args);
-                    userOperationEventObjects.push({
-                        chainId,
-                        blockHash,
-                        blockNumber,
-                        userOperationHash: parsed.args.userOpHash,
-                        txHash: receipt.transactionHash,
-                        contractAddress: receipt.to,
-                        topic: parsed.topic,
-                        args,
-                    });
-                } catch (error) {
-                    // May not be an EntryPoint event.
-                    continue;
+                // async send
+                this.userOperationService.createUserOperationEvents(userOperationEventObjects);
+                await this.userOperationService.setUserOperationsAsDone(userOpHashes, txHash, blockNumber, blockHash);
+
+                transaction.receipts = transaction.receipts || {};
+                transaction.receipts[txHash] = receipt;
+                transaction.userOperationHashMapTxHash = transaction.userOperationHashMapTxHash || {};
+                for (const userOpHash of userOpHashes) {
+                    transaction.userOperationHashMapTxHash[userOpHash] = txHash;
                 }
             }
 
-            // async send
-            this.userOperationService.createUserOperationEvents(userOperationEventObjects);
-            await this.userOperationService.setUserOperationsAsDone(userOpHashes, txHash, blockNumber, blockHash);
-
-            transaction.receipts = transaction.receipts || {};
-            transaction.receipts[txHash] = receipt;
-            transaction.userOperationHashMapTxHash = transaction.userOperationHashMapTxHash || {};
-            for (const userOpHash of userOpHashes) {
-                transaction.userOperationHashMapTxHash[userOpHash] = txHash;
+            await this.transactionService.updateTransactionStatus(transaction, TRANSACTION_STATUS.DONE);
+            this.setSignerDoneTransactionMaxNonce(chainId, transaction.from, transaction.nonce);
+        } catch (error) {
+            if (!IS_PRODUCTION) {
+                console.error('handlePendingTransaction error', error);
             }
-        }
 
-        await this.transactionService.updateTransactionStatus(transaction, TRANSACTION_STATUS.DONE);
-        this.setSignerDoneTransactionMaxNonce(chainId, transaction.from, transaction.nonce);
+            this.larkService.sendMessage(
+                `HandlePendingTransaction On Chain ${transaction.chainId} For ${transaction.id} Error: ${Helper.converErrorToString(error)}`,
+            );
+        }
 
         this.lockPendingTransactions.delete(keyLock);
     }
