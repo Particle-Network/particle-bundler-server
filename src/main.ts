@@ -10,6 +10,12 @@ import { Helper } from './common/helper';
 import Mongoose from 'mongoose';
 import { INestApplication, INestApplicationContext } from '@nestjs/common';
 import { canRunCron } from './modules/rpc/aa/utils';
+import Axios from 'axios';
+import * as http from 'http';
+import * as https from 'https';
+
+Axios.defaults.httpsAgent = new https.Agent({ keepAlive: true });
+Axios.defaults.httpAgent = new http.Agent({ keepAlive: true });
 
 async function bootstrap() {
     await initializeBundlerConfig();
@@ -38,7 +44,11 @@ async function bootstrap() {
 
     const configService = app.get(ConfigService);
     const larkService = app.get(LarkService);
-    const server = await app.listen(3001, '0.0.0.0');
+    const server = await app.listen({
+        port: 3001,
+        host: '0.0.0.0',
+        backlog: 1024,
+    } as any);
 
     if (!IS_DEVELOPMENT) {
         process.on('uncaughtException', async (error) => {
