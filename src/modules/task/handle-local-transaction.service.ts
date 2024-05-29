@@ -104,7 +104,7 @@ export class HandleLocalTransactionService {
 
             // TODO can we remove this?
             if (USE_PROXY_CONTRACT_TO_ESTIMATE_GAS.includes(chainId)) {
-                gasLimit *= 4n;
+                gasLimit *= 5n;
             }
 
             const finalizedTx = await entryPointContract.handleOps.populateTransaction(userOps, beneficiary, {
