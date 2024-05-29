@@ -12,8 +12,8 @@ export async function getUserOperationReceipt(rpcService: RpcService, chainId: n
     Helper.assertTrue(body.params.length === 1, -32602);
     Helper.assertTrue(typeof body.params[0] === 'string' && body.params[0].length === 66, -32602);
 
-    const userOperationService = rpcService.aaService.userOperationService;
-    const transactionService = rpcService.aaService.transactionService;
+    const userOperationService = rpcService.userOperationService;
+    const transactionService = rpcService.transactionService;
 
     const userOperation = await userOperationService.getUserOperationByHash(body.params[0]);
     if (!userOperation) {

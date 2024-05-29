@@ -10,6 +10,7 @@ import { HandleLocalTransactionService } from './handle-local-transaction.servic
 import { TRANSACTION_STATUS } from '../rpc/schemas/transaction.schema';
 import { SignerService } from '../rpc/services/signer.service';
 import { canRunCron } from '../rpc/aa/utils';
+import { ChainService } from '../rpc/services/chain.service';
 
 @Injectable()
 export class UnblockAndReleaseSignersService {
@@ -18,7 +19,7 @@ export class UnblockAndReleaseSignersService {
     public constructor(
         private readonly larkService: LarkService,
         private readonly signerService: SignerService,
-        private readonly rpcService: RpcService,
+        private readonly chainService: ChainService,
         private readonly transactionService: TransactionService,
         private readonly handleLocalTransactionService: HandleLocalTransactionService,
     ) {}
@@ -38,7 +39,7 @@ export class UnblockAndReleaseSignersService {
 
         for (const blockedSigner of blockedSigners) {
             if (blockedSigner.info.reason === BLOCK_SIGNER_REASON.INSUFFICIENT_BALANCE) {
-                const provider = this.rpcService.getJsonRpcProvider(blockedSigner.chainId);
+                const provider = this.chainService.getJsonRpcProvider(blockedSigner.chainId);
                 const balance = await provider.getBalance(blockedSigner.signerAddress);
 
                 const bundlerConfig = getBundlerChainConfig(blockedSigner.chainId);

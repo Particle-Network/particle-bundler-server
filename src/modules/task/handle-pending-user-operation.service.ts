@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Wallet } from 'ethers';
 import { UserOperationDocument } from '../rpc/schemas/user-operation.schema';
 import { LarkService } from '../common/services/lark.service';
@@ -26,10 +26,7 @@ export class HandlePendingUserOperationService {
         try {
             return await this.handleLocalUserOperationBundlesAction(chainId, signer, packedBundles);
         } catch (error) {
-            if (!IS_PRODUCTION) {
-                console.error(`Handle Local Ops Error On Chain ${chainId}`, error);
-            }
-
+            Logger.error(`Handle Local Ops Error On Chain ${chainId}`, error);
             this.larkService.sendMessage(`Handle Local Ops Error On Chain ${chainId}: ${Helper.converErrorToString(error)}`);
         }
     }
@@ -52,11 +49,7 @@ export class HandlePendingUserOperationService {
             }
         } catch (error) {
             // should be network error, can try again
-
-            if (!IS_PRODUCTION) {
-                console.error(`HandleLocalUserOperationBundlesAction Error On Chain ${chainId}`, error);
-            }
-
+            Logger.error(`HandleLocalUserOperationBundlesAction Error On Chain ${chainId}`, error);
             this.larkService.sendMessage(
                 `HandleLocalUserOperationBundlesAction Error On Chain ${chainId}; ${Helper.converErrorToString(error)}`,
             );
@@ -64,6 +57,7 @@ export class HandlePendingUserOperationService {
             // retry after 1s
             await waitSeconds(1);
             await this.handleLocalUserOperationBundlesAction(chainId, signer, packedBundles);
+            return;
         }
 
         const localLatestNonce = (latestTransaction ? latestTransaction.nonce : -1) + 1;

@@ -7,12 +7,12 @@ export async function getUserOperationByHash(rpcService: RpcService, chainId: nu
     Helper.assertTrue(body.params.length === 1, -32602);
     Helper.assertTrue(typeof body.params[0] === 'string', -32602);
 
-    const userOperation = await rpcService.aaService.userOperationService.getUserOperationByHash(body.params[0]);
+    const userOperation = await rpcService.userOperationService.getUserOperationByHash(body.params[0]);
     if (!userOperation || !userOperation.transactionId) {
         return null;
     }
 
-    const transaction = await rpcService.aaService.transactionService.getTransactionById(userOperation.transactionId);
+    const transaction = await rpcService.transactionService.getTransactionById(userOperation.transactionId);
     if (!transaction) {
         return null;
     }

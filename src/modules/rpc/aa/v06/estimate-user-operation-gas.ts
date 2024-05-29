@@ -42,7 +42,7 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
     userOp.preVerificationGas = toBeHexTrimZero(calcPreVerificationGas(userOp) + 5000);
     Helper.assertTrue(isUserOpValid(userOp), -32602, 'Invalid userOp');
 
-    const provider = rpcService.getJsonRpcProvider(chainId);
+    const provider = rpcService.chainService.getJsonRpcProvider(chainId);
     const [{ callGasLimit, initGas }, { maxFeePerGas, maxPriorityFeePerGas, gasCostInContract, gasCostWholeTransaction, verificationGasLimit }] =
         await Promise.all([
             estimateGasLimit(provider, entryPoint, userOp),

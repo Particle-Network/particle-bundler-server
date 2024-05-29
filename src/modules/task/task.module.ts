@@ -17,6 +17,8 @@ import { HandleLocalTransactionService } from './handle-local-transaction.servic
 import { HandlePendingTransactionService } from './handle-pending-transaction.service';
 import { FillSignerBalanceService } from './fill-signer-balance.service';
 import { UnblockAndReleaseSignersService } from './unblock-and-release-signers.service';
+import { ChainService } from '../rpc/services/chain.service';
+import { SignerService } from '../rpc/services/signer.service';
 
 @Module({
     imports: [
@@ -41,6 +43,8 @@ import { UnblockAndReleaseSignersService } from './unblock-and-release-signers.s
         TransactionService,
         RpcService,
         LarkService,
+        ChainService,
+        SignerService,
     ],
 })
 export class TaskModule {}

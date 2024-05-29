@@ -124,7 +124,7 @@ export async function simulateHandleOpAndGetGasCost(rpcService: RpcService, chai
     userOp.maxFeePerGas = '0x1';
     userOp.maxPriorityFeePerGas = '0x1';
 
-    const provider = rpcService.getJsonRpcProvider(chainId);
+    const provider = rpcService.chainService.getJsonRpcProvider(chainId);
     const contractEntryPoint = new Contract(entryPoint, EntryPointAbi, provider);
 
     const signers = rpcService.signerService.getChainSigners(chainId);
@@ -181,7 +181,7 @@ export async function getL2ExtraFee(rpcService: RpcService, chainId: number, use
         return '0x00';
     }
 
-    const provider = rpcService.getJsonRpcProvider(chainId);
+    const provider = rpcService.chainService.getJsonRpcProvider(chainId);
     const contractEntryPoint = new Contract(entryPoint, EntryPointAbi, provider);
     const l1GasPriceOracleContract = new Contract(L2_GAS_ORACLE[chainId], l1GasPriceOracleAbi, provider);
 
@@ -236,7 +236,7 @@ function checkUserOpGasPriceIsSatisfied(chainId: number, userOp: any, gasCost: b
 }
 
 async function checkUserOpCanExecutedSucceed(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string) {
-    const provider = rpcService.getJsonRpcProvider(chainId);
+    const provider = rpcService.chainService.getJsonRpcProvider(chainId);
     const contractEntryPoint = new Contract(entryPoint, EntryPointAbi, provider);
     const signer = rpcService.signerService.getChainSigners(chainId)[0];
 
@@ -282,7 +282,7 @@ async function tryGetGasCostWholeTransaction(
     entryPoint: string,
     userOp: any,
 ) {
-    const provider = rpcService.getJsonRpcProvider(chainId);
+    const provider = rpcService.chainService.getJsonRpcProvider(chainId);
     if (!SUPPORT_MULTCALL3.includes(chainId)) {
         return '0x00';
     }

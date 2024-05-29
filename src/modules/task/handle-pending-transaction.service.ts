@@ -95,7 +95,7 @@ export class HandlePendingTransactionService {
                 return;
             }
 
-            await this.rpcService.sendRawTransaction(transaction.chainId, transaction.signedTxs[txHash]);
+            await this.chainService.sendRawTransaction(transaction.chainId, transaction.signedTxs[txHash]);
         } catch (error) {
             // insufficient funds for intrinsic transaction cost
             if (error?.message?.toLowerCase()?.includes('insufficient funds')) {
@@ -118,10 +118,7 @@ export class HandlePendingTransactionService {
                 });
             }
 
-            if (!IS_PRODUCTION) {
-                console.error(`SendTransaction error: ${transaction.id}`, error);
-            }
-
+            Logger.error(`SendTransaction error: ${transaction.id}`, error);
             this.larkService.sendMessage(
                 `Send Transaction Error On Chain ${transaction.chainId} And Transaction ${transaction.id}: ${Helper.converErrorToString(error)}`,
             );
@@ -147,8 +144,6 @@ export class HandlePendingTransactionService {
 
     // There is a concurrency conflict and locks need to be added
     public async handlePendingTransaction(transaction: TransactionDocument, receipt: any) {
-        // need a lot of memory, so we don't cache it
-        // P2PCache.set(keyCacheChainReceipt(transaction.id), receipt, CACHE_TRANSACTION_RECEIPT_TIMEOUT);
         const keyLock = keyLockPendingTransaction(transaction.id);
         if (this.lockPendingTransactions.has(keyLock)) {
             return;
@@ -218,12 +213,9 @@ export class HandlePendingTransactionService {
             }
 
             await this.transactionService.updateTransactionStatus(transaction, TRANSACTION_STATUS.DONE);
-            this.setSignerDoneTransactionMaxNonce(chainId, transaction.from, transaction.nonce);
+            this.signerService.setSignerDoneTransactionMaxNonce(chainId, transaction.from, transaction.nonce);
         } catch (error) {
-            if (!IS_PRODUCTION) {
-                console.error('handlePendingTransaction error', error);
-            }
-
+            Logger.error('handlePendingTransaction error', error);
             this.larkService.sendMessage(
                 `HandlePendingTransaction On Chain ${transaction.chainId} For ${transaction.id} Error: ${Helper.converErrorToString(error)}`,
             );
@@ -242,7 +234,7 @@ export class HandlePendingTransactionService {
                 return [{ receipt, userOpHashes: transaction.userOperationHashes }];
             }
 
-            const provider = this.rpcService.getJsonRpcProvider(transaction.chainId);
+            const provider = this.chainService.getJsonRpcProvider(transaction.chainId);
             const logs = await provider.getLogs({
                 fromBlock: BigInt(receipt.blockNumber) - 20n, // if attack by mev bot, it should be includes in latest blocks
                 toBlock: BigInt(receipt.blockNumber),
@@ -296,15 +288,6 @@ export class HandlePendingTransactionService {
         }
     }
 
-    private setSignerDoneTransactionMaxNonce(chainId: number, from: string, nonce: number) {
-        const key = `${chainId}-${from.toLowerCase()}`;
-        if (this.signerDoneTransactionMaxNonce.has(key) && this.signerDoneTransactionMaxNonce.get(key) >= nonce) {
-            return;
-        }
-
-        this.signerDoneTransactionMaxNonce.set(key, nonce);
-    }
-
     private async getReceiptAndHandlePendingTransactions(pendingTransaction: TransactionDocument) {
         try {
             // local cache nonce directly
@@ -355,112 +338,36 @@ export class HandlePendingTransactionService {
             } else if (pendingTransaction.isOld()) {
                 try {
                     // Transactions may be discarded by the node tx pool and need to be reissued
-                    await this.rpcService.sendRawTransaction(
+                    await this.chainService.sendRawTransaction(
                         pendingTransaction.chainId,
                         pendingTransaction.signedTxs[pendingTransaction.txHashes[pendingTransaction.txHashes.length - 1]],
                     );
                 } catch (error) {
-                    if (!IS_PRODUCTION) {
-                        console.error('trySendOldPendingTransaction error', error);
+                    if (error?.message?.toLowerCase()?.includes('already known')) {
+                        // already send ?? can skip return
+                    } else {
+                        Logger.error(
+                            `trySendOldPendingTransaction Error On Chain ${pendingTransaction.chainId} For ${pendingTransaction.id}`,
+                            error,
+                        );
+                        this.larkService.sendMessage(
+                            `trySendOldPendingTransaction Error On Chain ${pendingTransaction.chainId} For ${
+                                pendingTransaction.id
+                            }: ${Helper.converErrorToString(error)}`,
+                        );
                     }
-
-                    this.larkService.sendMessage(
-                        `trySendOldPendingTransaction Error On Chain ${pendingTransaction.chainId} For ${
-                            pendingTransaction.id
-                        }: ${Helper.converErrorToString(error)}`,
-                    );
                 }
             }
 
             return null;
         } catch (error) {
-            if (!IS_PRODUCTION) {
-                console.error('getReceiptAndHandlePendingTransactions error', error);
-            }
-
+            Logger.error('getReceiptAndHandlePendingTransactions error', error);
             this.larkService.sendMessage(
                 `getReceiptAndHandlePendingTransactions Error On Chain ${pendingTransaction.chainId} For ${
                     pendingTransaction.id
                 }: ${Helper.converErrorToString(error)}`,
             );
         }
-    }
-
-    // There is a concurrency conflict and locks need to be added
-    public async handlePendingTransaction(transaction: TransactionDocument, receipt: any) {
-        // need a lot of memory, so we don't cache it
-        const keyLock = keyLockPendingTransaction(transaction.id);
-        if (this.lockPendingTransactions.has(keyLock)) {
-            return;
-        }
-
-        this.lockPendingTransactions.add(keyLock);
-
-        transaction = await this.transactionService.getTransactionById(transaction.id);
-        if (!transaction || transaction.isDone()) {
-            this.lockPendingTransactions.delete(keyLock);
-            return;
-        }
-
-        if (!receipt) {
-            const userOpHashes = transaction.userOperationHashes;
-            await this.userOperationService.setUserOperationsAsDone(userOpHashes, '', 0, '');
-            await this.transactionService.updateTransactionStatus(transaction, TRANSACTION_STATUS.DONE);
-
-            this.signerService.decrChainSignerPendingTxCount(transaction.chainId, transaction.from);
-            this.lockPendingTransactions.delete(keyLock);
-            return;
-        }
-
-        const chainId = transaction.chainId;
-        const results = await this.checkAndHandleFailedReceipt(transaction, receipt);
-        const userOperationEventObjects: IUserOperationEventObject[] = [];
-        for (const { receipt, userOpHashes } of results) {
-            const txHash = receipt.transactionHash;
-            const blockHash = receipt.blockHash;
-            const blockNumber = receipt.blockNumber;
-
-            const contract = new Contract(receipt.to, entryPointAbi);
-            for (const log of receipt?.logs ?? []) {
-                try {
-                    const parsed = contract.interface.parseLog(log);
-                    if (parsed?.name !== 'UserOperationEvent') {
-                        continue;
-                    }
-
-                    const args = deepHexlify(parsed.args);
-                    userOperationEventObjects.push({
-                        chainId,
-                        blockHash,
-                        blockNumber,
-                        userOperationHash: parsed.args.userOpHash,
-                        txHash: receipt.transactionHash,
-                        contractAddress: receipt.to,
-                        topic: parsed.topic,
-                        args,
-                    });
-                } catch (error) {
-                    // May not be an EntryPoint event.
-                    continue;
-                }
-            }
-
-            // async send
-            this.userOperationService.createUserOperationEvents(userOperationEventObjects);
-            await this.userOperationService.setUserOperationsAsDone(userOpHashes, txHash, blockNumber, blockHash);
-
-            transaction.receipts = transaction.receipts || {};
-            transaction.receipts[txHash] = receipt;
-            transaction.userOperationHashMapTxHash = transaction.userOperationHashMapTxHash || {};
-            for (const userOpHash of userOpHashes) {
-                transaction.userOperationHashMapTxHash[userOpHash] = txHash;
-            }
-        }
-
-        await this.transactionService.updateTransactionStatus(transaction, TRANSACTION_STATUS.DONE);
-        this.setSignerDoneTransactionMaxNonce(chainId, transaction.from, transaction.nonce);
-
-        this.lockPendingTransactions.delete(keyLock);
     }
 
     private async tryIncrTransactionGasPriceAndReplace(transaction: TransactionDocument) {
@@ -554,13 +461,12 @@ export class HandlePendingTransactionService {
 
             // if failed and it's ok, just generate a invalid tx hash
             await this.transactionService.replaceTransactionTxHash(transaction, signedTx);
-            await this.rpcService.sendRawTransaction(transaction.chainId, signedTx);
+            await this.chainService.sendRawTransaction(transaction.chainId, signedTx);
         } catch (error) {
             if (error?.message?.toLowerCase()?.includes('already known')) {
                 // already send ?? can skip return
             } else {
                 Logger.error(`Replace Transaction ${transaction.id} error on chain ${transaction.chainId}`);
-
                 this.larkService.sendMessage(
                     `ReplaceTransaction Error On Chain ${transaction.chainId} For ${transaction.from}: ${Helper.converErrorToString(error)}`,
                 );

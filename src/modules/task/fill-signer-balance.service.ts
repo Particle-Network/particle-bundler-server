@@ -43,7 +43,7 @@ export class FillSignerBalanceService {
             }
 
             try {
-                const provider = this.rpcService.getJsonRpcProvider(currentChainId);
+                const provider = this.chainService.getJsonRpcProvider(currentChainId);
 
                 const minSignerBalance = bundlerConfig.minSignerBalance;
                 const signers = this.signerService.getChainSigners(currentChainId);

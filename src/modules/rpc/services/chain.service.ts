@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { JsonRpcProvider, Network } from 'ethers';
+import { FetchRequest, JsonRpcProvider, Network } from 'ethers';
 import { UserOperationService } from './user-operation.service';
 import { TransactionService } from './transaction.service';
-import { CACHE_GAS_FEE_TIMEOUT, CACHE_TRANSACTION_COUNT_TIMEOUT, GAS_FEE_LEVEL } from '../../../common/common-types';
+import { CACHE_GAS_FEE_TIMEOUT, CACHE_TRANSACTION_COUNT_TIMEOUT, GAS_FEE_LEVEL, PROVIDER_FETCH_TIMEOUT } from '../../../common/common-types';
 import { ConfigService } from '@nestjs/config';
 import { LarkService } from '../../common/services/lark.service';
 import P2PCache from '../../../common/p2p-cache';
@@ -10,6 +10,7 @@ import { RpcService } from './rpc.service';
 import { PARTICLE_PUBLIC_RPC_URL, getBundlerChainConfig } from '../../../configs/bundler-common';
 import { EVM_CHAIN_ID } from '../../../common/chains';
 import Axios from 'axios';
+import { Helper } from '../../../common/helper';
 
 export enum TRANSACTION_EXTRA_STATUS {
     NONE,
@@ -18,13 +19,27 @@ export enum TRANSACTION_EXTRA_STATUS {
 
 @Injectable()
 export class ChainService {
+    private readonly jsonRpcProviders: Map<number, JsonRpcProvider> = new Map();
+
     public constructor(
         public readonly userOperationService: UserOperationService,
         public readonly transactionService: TransactionService,
         public readonly configService: ConfigService,
-        public readonly rpcService: RpcService,
         public readonly larkService: LarkService,
     ) {}
+
+    public getJsonRpcProvider(chainId: number): JsonRpcProvider {
+        if (!this.jsonRpcProviders.has(chainId)) {
+            const rpcUrl = getBundlerChainConfig(chainId).rpcUrl;
+            const fetchRequest = new FetchRequest(rpcUrl);
+            fetchRequest.timeout = PROVIDER_FETCH_TIMEOUT;
+            const provider = new JsonRpcProvider(fetchRequest, Network.from(chainId), { batchMaxCount: 1, staticNetwork: true });
+
+            this.jsonRpcProviders.set(chainId, provider);
+        }
+
+        return this.jsonRpcProviders.get(chainId);
+    }
 
     public async getTransactionReceipt(chainId: number, txHash: string) {
         const rpcUrl = getBundlerChainConfig(chainId).rpcUrl;
@@ -38,6 +53,27 @@ export class ChainService {
             },
             { timeout: 12000 },
         );
+
+        return response.data?.result;
+    }
+
+    public async sendRawTransaction(chainId: number, rawTransaction: string) {
+        const bundlerChainConfig = getBundlerChainConfig(chainId);
+        const rpcUrl = bundlerChainConfig.sendRawTransactionRpcUrl ?? bundlerChainConfig.rpcUrl;
+        const response = await Axios.post(
+            rpcUrl,
+            {
+                jsonrpc: '2.0',
+                id: Date.now(),
+                method: bundlerChainConfig.methodSendRawTransaction,
+                params: [rawTransaction],
+            },
+            { timeout: 12000 },
+        );
+
+        if (!response.data?.result) {
+            throw new Error(`Failed to send raw transaction: ${Helper.converErrorToString(response.data)}`);
+        }
 
         return response.data?.result;
     }
@@ -64,7 +100,7 @@ export class ChainService {
 
         const particleFeeData = await provider.send('particle_suggestedGasFees', []);
 
-        if (EVM_CHAIN_ID.TAIKO_TESTNET_HEKLA === chainId) {
+        if ([EVM_CHAIN_ID.TAIKO_TESTNET_HEKLA, EVM_CHAIN_ID.TAIKO_MAINNET].includes(chainId)) {
             particleFeeData.baseFee = 0.000000001; // 1 wei
         }
 
@@ -120,7 +156,7 @@ export class ChainService {
 
     public async getTransactionCountIfCache(chainId: number, address: string, forceLatest: boolean = false): Promise<number> {
         try {
-            const provider = this.rpcService.getJsonRpcProvider(chainId);
+            const provider = this.getJsonRpcProvider(chainId);
             const cacheKey = this.keyCacheChainSignerTransactionCount(chainId, address);
             let nonce = P2PCache.get(cacheKey);
             if (!forceLatest && !!nonce) {

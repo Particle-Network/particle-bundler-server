@@ -119,7 +119,7 @@ export interface IUserOperationEventObject {
 
 export interface SignerWithPendingTxCount {
     signer: Wallet;
-    pendingTxCount: number;
+    availableTxCount: number;
 }
 
 export interface IPackedBundle {

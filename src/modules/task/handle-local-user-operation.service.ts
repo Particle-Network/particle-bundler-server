@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { IBundle, IPackedBundle, IS_PRODUCTION, SignerWithPendingTxCount, keyLockSigner } from '../../common/common-types';
 import { Helper } from '../../common/helper';
 import { UserOperationService } from '../rpc/services/user-operation.service';
@@ -52,11 +52,8 @@ export class HandleLocalUserOperationService {
                 this.assignSignerAndSealUserOps(Number(chainId), userOperationsByChainId[chainId]);
             }
         } catch (error) {
-            if (!IS_PRODUCTION) {
-                console.error(`Seal User Ops Error`, error);
-            }
-
-            this.larkService.sendMessage(`Seal User Ops Error: ${Helper.converErrorToString(error)}`);
+            Logger.error(`[Seal User Ops Error]`, error);
+            this.larkService.sendMessage(`[Seal User Ops Error]: ${Helper.converErrorToString(error)}`);
         }
     }
 
@@ -101,11 +98,11 @@ export class HandleLocalUserOperationService {
         const signerWithPendingTxCount: SignerWithPendingTxCount[] = await Promise.all(
             randomValidSigners.map(async (signer) => {
                 const pendingTxCount = await this.signerService.getChainSignerPendingTxCount(chainId, signer.address);
-                return { signer, pendingTxCount };
+                return { signer, availableTxCount: bundlerConfig.pendingTransactionSignerHandleLimit - pendingTxCount };
             }),
         );
 
-        signerWithPendingTxCount.sort((a, b) => a.pendingTxCount - b.pendingTxCount);
+        signerWithPendingTxCount.sort((a, b) => a.availableTxCount - b.availableTxCount);
         let takeOnce = Math.ceil(randomValidSigners.length / 5);
 
         for (let index = 0; index < signerWithPendingTxCount.length; index++) {
@@ -113,7 +110,7 @@ export class HandleLocalUserOperationService {
             if (!this.lockChainSigner.has(keyLockSigner(chainId, signer.address))) {
                 this.lockChainSigner.add(keyLockSigner(chainId, signer.address));
 
-                if (signerWithPendingTxCount[index].pendingTxCount < bundlerConfig.pendingTransactionSignerHandleLimit) {
+                if (signerWithPendingTxCount[index].availableTxCount > 0) {
                     targetSignerWithPendingTxCount.push(signerWithPendingTxCount[index]);
                     takeOnce--;
                 }
@@ -198,8 +195,8 @@ export class HandleLocalUserOperationService {
         while (true) {
             let packed: boolean = false;
             for (const signerWithPendingTxCount of signersWithPendingTxCount) {
-                if (signerWithPendingTxCount.pendingTxCount > 0) {
-                    const bundle = bundles.pop();
+                if (signerWithPendingTxCount.availableTxCount > 0) {
+                    const bundle = bundles.shift();
                     if (!bundle) {
                         return { packedBundles, unusedUserOperations };
                     }
@@ -216,7 +213,7 @@ export class HandleLocalUserOperationService {
                     }
 
                     packed = true;
-                    signerWithPendingTxCount.pendingTxCount--;
+                    signerWithPendingTxCount.availableTxCount--;
                 }
             }
 

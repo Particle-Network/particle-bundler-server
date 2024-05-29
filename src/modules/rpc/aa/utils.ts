@@ -80,59 +80,6 @@ export function deepHexlify(obj: any): any {
     );
 }
 
-export async function getFeeDataFromParticle(chainId: number, level: string = GAS_FEE_LEVEL.MEDIUM) {
-    const network = Network.from(chainId);
-    const provider = new JsonRpcProvider(`${PARTICLE_PUBLIC_RPC_URL}?chainId=${chainId}`, network, {
-        batchMaxCount: 1,
-        staticNetwork: network,
-    });
-
-    const particleFeeData = await provider.send('particle_suggestedGasFees', []);
-
-    if (EVM_CHAIN_ID.TAIKO_MAINNET === chainId || EVM_CHAIN_ID.TAIKO_TESTNET_HEKLA === chainId) {
-        particleFeeData.baseFee = 0.000000001; // 1 wei
-    }
-
-    const result = {
-        maxPriorityFeePerGas: Math.ceil(Number(particleFeeData?.[level]?.maxPriorityFeePerGas ?? 0) * 10 ** 9),
-        maxFeePerGas: Math.ceil(Number(particleFeeData?.[level]?.maxFeePerGas ?? 0) * 10 ** 9),
-        gasPrice: Math.ceil(Number(particleFeeData?.[level]?.maxFeePerGas ?? 0) * 10 ** 9),
-        baseFee: Math.ceil(Number(particleFeeData?.baseFee ?? 0) * 10 ** 9),
-    };
-
-    if (chainId === EVM_CHAIN_ID.OPTIMISM_MAINNET && result.maxPriorityFeePerGas <= 0) {
-        result.maxPriorityFeePerGas = 1;
-    }
-
-    const bundlerConfig = getBundlerChainConfig(chainId);
-    if (!!bundlerConfig?.minGasFee?.maxPriorityFeePerGas && result.maxPriorityFeePerGas < Number(bundlerConfig.minGasFee.maxPriorityFeePerGas)) {
-        result.maxPriorityFeePerGas = Number(bundlerConfig.minGasFee.maxPriorityFeePerGas);
-    }
-    if (!!bundlerConfig?.minGasFee?.maxFeePerGas && result.maxFeePerGas < Number(bundlerConfig.minGasFee.maxFeePerGas)) {
-        result.maxFeePerGas = Number(bundlerConfig.minGasFee.maxFeePerGas);
-    }
-    if (!!bundlerConfig?.minGasFee?.gasPrice && result.gasPrice < Number(bundlerConfig.minGasFee.gasPrice)) {
-        result.gasPrice = Number(bundlerConfig.minGasFee.gasPrice);
-    }
-    if (!!bundlerConfig?.minGasFee?.baseFee && result.baseFee < Number(bundlerConfig.minGasFee.baseFee)) {
-        result.baseFee = Number(bundlerConfig.minGasFee.baseFee);
-    }
-    if (!!bundlerConfig?.maxGasFee?.maxPriorityFeePerGas && result.maxPriorityFeePerGas > Number(bundlerConfig.maxGasFee.maxPriorityFeePerGas)) {
-        result.maxPriorityFeePerGas = Number(bundlerConfig.maxGasFee.maxPriorityFeePerGas);
-    }
-    if (!!bundlerConfig?.maxGasFee?.maxFeePerGas && result.maxFeePerGas > Number(bundlerConfig.maxGasFee.maxFeePerGas)) {
-        result.maxFeePerGas = Number(bundlerConfig.maxGasFee.maxFeePerGas);
-    }
-    if (!!bundlerConfig?.maxGasFee?.gasPrice && result.gasPrice > Number(bundlerConfig.maxGasFee.gasPrice)) {
-        result.gasPrice = Number(bundlerConfig.maxGasFee.gasPrice);
-    }
-    if (!!bundlerConfig?.maxGasFee?.baseFee && result.baseFee > Number(bundlerConfig.maxGasFee.baseFee)) {
-        result.baseFee = Number(bundlerConfig.maxGasFee.baseFee);
-    }
-
-    return result;
-}
-
 export function calcUserOpGasPrice(feeData: any, baseFee: number = 0): number {
     return Math.min(Number(BigInt(feeData.maxFeePerGas)), Number(BigInt(feeData.maxPriorityFeePerGas)) + baseFee);
 }

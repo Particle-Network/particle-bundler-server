@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { Contract, Wallet } from 'ethers';
 import { UserOperationDocument } from '../rpc/schemas/user-operation.schema';
@@ -31,7 +31,7 @@ export class HandleLocalTransactionService {
         private readonly handlePendingTransactionService: HandlePendingTransactionService,
     ) {
         if (canRunCron()) {
-            this.listenerService.initialize(this.handlePendingTransactionByEvent.bind(this));
+            // this.listenerService.initialize(this.handlePendingTransactionByEvent.bind(this));
         }
     }
 
@@ -48,10 +48,7 @@ export class HandleLocalTransactionService {
                 this.handleLocalTransaction(localTransaction);
             }
         } catch (error) {
-            if (!IS_PRODUCTION) {
-                console.error(error);
-            }
-
+            Logger.error(`Handle Local Transactions Error`, error);
             this.larkService.sendMessage(`Handle Local Transactions Error: ${Helper.converErrorToString(error)}`);
         }
     }
@@ -72,15 +69,8 @@ export class HandleLocalTransactionService {
                 await this.handlePendingTransactionService.trySendAndUpdateTransactionStatus(localTransaction, localTransaction.txHashes[0]);
             }
         } catch (error) {
-            if (!IS_PRODUCTION) {
-                console.error(error);
-            }
-
-            this.larkService.sendMessage(
-                `Failed to handle local transaction: ${localTransaction.id} | ${localTransaction._id?.toString()} | ${Helper.converErrorToString(
-                    error,
-                )}`,
-            );
+            Logger.error(`Failed to handle local transaction: ${localTransaction.id}`, error);
+            this.larkService.sendMessage(`Failed to handle local transaction: ${localTransaction.id}: ${Helper.converErrorToString(error)}`);
         }
 
         this.lockedLocalTransactions.delete(localTransaction.id);
@@ -104,7 +94,6 @@ export class HandleLocalTransactionService {
                 gasLimit = (BigInt(bundleGasLimit) * 15n) / 10n;
             }
 
-            // TODO can we remove this?
             if (USE_PROXY_CONTRACT_TO_ESTIMATE_GAS.includes(chainId)) {
                 gasLimit *= 5n;
                 if (gasLimit < 10000000n) {
@@ -127,7 +116,7 @@ export class HandleLocalTransactionService {
 
             // no need to await, if failed, the userops is abandoned
             const localTransaction = await this.transactionService.createTransaction(transactionObjectId, chainId, signedTx, userOpHashes);
-            this.listenerService.appendUserOpHashPendingTransactionMap(localTransaction);
+            // this.listenerService.appendUserOpHashPendingTransactionMap(localTransaction);
             this.signerService.incrChainSignerPendingTxCount(chainId, signer.address);
 
             // no need to await
