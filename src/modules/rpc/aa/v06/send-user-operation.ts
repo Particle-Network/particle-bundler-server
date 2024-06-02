@@ -27,13 +27,20 @@ import {
     USE_PROXY_CONTRACT_TO_ESTIMATE_GAS,
 } from '../../../../common/chains';
 import { UserOperationDocument } from '../../schemas/user-operation.schema';
+import { UserOperationService } from '../../services/user-operation.service';
 
 export async function sendUserOperation(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
     Helper.assertTrue(typeof body.params[0] === 'object', -32602, 'Invalid params: userop must be an object');
     const userOp = body.params[0];
     const entryPoint = getAddress(body.params[1]);
-
     Helper.assertTrue(isUserOpValid(userOp), -32602, 'Invalid userOp');
+
+    const { userOpHash, userOperationDocument } = await beforeSendUserOperation(rpcService, chainId, userOp, entryPoint, body.isAuth);
+    
+    return await createOrUpdateUserOperation(rpcService.userOperationService, chainId, userOp, userOpHash, entryPoint, userOperationDocument);
+}
+
+export async function beforeSendUserOperation(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string, isAuth: boolean) {
     Helper.assertTrue(BigInt(userOp.verificationGasLimit) >= 10000n, -32602, 'Invalid params: verificationGasLimit must be at least 10000');
 
     if (BigInt(userOp.preVerificationGas) === 0n || BigInt(userOp.verificationGasLimit) === 0n || BigInt(userOp.callGasLimit) === 0n) {
@@ -61,24 +68,19 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
             Helper.assertTrue(expiredAt * 1000 > Date.now(), -32602, 'Paymaster expired');
         }
 
-        if (!body.isAuth) {
+        if (!isAuth) {
             Helper.assertTrue(isAddress(paymaster), -32602, 'Invalid params: paymaster address');
             Helper.assertTrue(!FORBIDDEN_PAYMASTER.includes(getAddress(paymaster)), -32602, 'Forbidden paymaster');
         }
     }
 
     let userOperationDocument: UserOperationDocument;
-    if (!body.isAuth || !PARTICLE_CHAINS.includes(chainId)) {
+    if (!isAuth || !PARTICLE_CHAINS.includes(chainId)) {
         const [rSimulation, extraFee, signerFeeData, userOpDoc, localUserOperationsCount] = await Promise.all([
             simulateHandleOpAndGetGasCost(rpcService, chainId, userOp, entryPoint),
             getL2ExtraFee(rpcService, chainId, userOp, entryPoint),
             rpcService.chainService.getFeeDataIfCache(chainId),
-            rpcService.userOperationService.getUserOperationByAddressNonce(
-                chainId,
-                userOpSender,
-                nonceKey,
-                BigInt(nonceValue).toString(),
-            ),
+            rpcService.userOperationService.getUserOperationByAddressNonce(chainId, userOpSender, nonceKey, BigInt(nonceValue).toString()),
             rpcService.userOperationService.getLocalUserOperationsCountByChainId(chainId),
             // do not care return value
             checkUserOpCanExecutedSucceed(rpcService, chainId, userOp, entryPoint),
@@ -105,13 +107,21 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
         );
     }
 
-    const newUserOpDoc = await rpcService.userOperationService.createOrUpdateUserOperation(
-        chainId,
-        userOp,
+    return {
         userOpHash,
-        entryPoint,
         userOperationDocument,
-    );
+    };
+}
+
+export async function createOrUpdateUserOperation(
+    userOperationService: UserOperationService,
+    chainId: number,
+    userOp: any,
+    userOpHash: string,
+    entryPoint: string,
+    userOperationDocument?: UserOperationDocument,
+) {
+    const newUserOpDoc = await userOperationService.createOrUpdateUserOperation(chainId, userOp, userOpHash, entryPoint, userOperationDocument);
 
     // temp disable event emitter
     // ProcessEventEmitter.sendMessages(PROCESS_EVENT_TYPE.CREATE_USER_OPERATION, newUserOpDoc.toJSON());

@@ -46,6 +46,7 @@ export const ENTRY_POINT_VERSION_MAP = {
 
 export enum AA_METHODS {
     SEND_USER_OPERATION = 'eth_sendUserOperation',
+    SEND_USER_OPERATION_BATCH = 'eth_sendUserOperationBatch',
     GET_USER_OPERATION_BY_HASH = 'eth_getUserOperationByHash',
     ESTIMATE_USER_OPERATION_GAS = 'eth_estimateUserOperationGas',
     GET_USER_OPERATION_RECEIPT = 'eth_getUserOperationReceipt',

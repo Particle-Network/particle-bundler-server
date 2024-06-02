@@ -6,6 +6,7 @@ export enum USER_OPERATION_STATUS {
     LOCAL,
     PENDING,
     DONE,
+    ASSOCIATED,
 }
 
 @NestSchema({ versionKey: false, collection: 'user_operations', timestamps: true })
@@ -45,6 +46,9 @@ export class UserOperation {
 
     @Prop({ required: false, type: Schema.Types.Number })
     public blockNumber: number;
+
+    @Prop({ required: false, type: Schema.Types.Array })
+    public associatedUserOps: any[];
 
     @Prop({ required: false, type: Schema.Types.Date })
     public createdAt: Date;

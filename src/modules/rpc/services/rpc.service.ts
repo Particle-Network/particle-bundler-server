@@ -70,7 +70,11 @@ export class RpcService {
         }
 
         let result: any;
-        if ([AA_METHODS.ESTIMATE_USER_OPERATION_GAS, AA_METHODS.SEND_USER_OPERATION].includes(body.method as AA_METHODS)) {
+        if (
+            [AA_METHODS.ESTIMATE_USER_OPERATION_GAS, AA_METHODS.SEND_USER_OPERATION, AA_METHODS.SEND_USER_OPERATION_BATCH].includes(
+                body.method as AA_METHODS,
+            )
+        ) {
             Helper.assertTrue(
                 typeof body.params[1] === 'string' && isAddress(body.params[1]),
                 -32602,

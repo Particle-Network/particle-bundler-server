@@ -36,7 +36,7 @@ describe('RpcController', () => {
     }, 60000);
 
     describe('basic', () => {
-        it('Gasless Basic', async () => {
+        it('Gasless Basic Single', async () => {
             const customChainId = process.argv.find((arg) => arg.includes('--chainId='));
             const chainId = Number(customChainId ? customChainId.split('=')[1] : EVM_CHAIN_ID.ETHEREUM_SEPOLIA_TESTNET);
             console.log('Test chainId', chainId);
@@ -56,6 +56,38 @@ describe('RpcController', () => {
             console.log('signedOp', deepHexlify(userOp));
 
             await sendUserOp(chainId, userOp);
+        }, 60000);
+
+        it('Gasless Basic Batch', async () => {
+            const customChainId = process.argv.find((arg) => arg.includes('--chainId='));
+            const chainId = Number(customChainId ? customChainId.split('=')[1] : EVM_CHAIN_ID.ETHEREUM_SEPOLIA_TESTNET);
+            console.log('Test chainId', chainId);
+
+            const simpleAccount1 = await createSimpleAccount(chainId);
+            let userOp1 = await createFakeUserOp(chainId, simpleAccount1);
+            const simpleAccount2 = await createSimpleAccount(chainId);
+            let userOp2 = await createFakeUserOp(chainId, simpleAccount2);
+
+            const userOps = [];
+            for (let item of [
+                { userOp: userOp1, simpleAccount: simpleAccount1 },
+                { userOp: userOp2, simpleAccount: simpleAccount2 },
+            ]) {
+                let userOp = item.userOp;
+                console.log('unsignedUserOp', deepHexlify(userOp));
+                userOp = await estimateGas(chainId, userOp);
+                console.log('estimateGas', JSON.stringify(deepHexlify(userOp)));
+
+                userOp = await gaslessSponsor(chainId, userOp, rpcController);
+                console.log('sponsoredOp', deepHexlify(userOp));
+
+                userOp.signature = await getSignature(item.simpleAccount, userOp);
+                console.log('signedOp', deepHexlify(userOp));
+
+                userOps.push(userOp);
+            }
+
+            await sendUserOpBatch(chainId, userOps);
         }, 60000);
 
         it('Test UserOP', async () => {
@@ -188,4 +220,14 @@ async function sendUserOp(chainId: number, userOp: any) {
 
     const r5 = await rpcController.handleRpc(chainId, bodyUserOp);
     console.log(r5);
+}
+
+async function sendUserOpBatch(chainId: number, userOps: any[]) {
+    const bodySend = {
+        method: AA_METHODS.SEND_USER_OPERATION_BATCH,
+        params: [userOps, ENTRY_POINT],
+    };
+
+    let r3: any = await request(app.getHttpServer()).post('').query({ chainId }).auth('test_user', 'test_pass').send(bodySend);
+    console.log('r3', r3.text);
 }

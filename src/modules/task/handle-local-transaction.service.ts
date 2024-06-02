@@ -88,7 +88,17 @@ export class HandleLocalTransactionService {
         try {
             const beneficiary = signer.address;
             const entryPointContract = new Contract(entryPoint, entryPointAbi, null);
-            const userOps = userOperationDocuments.map((userOperationDocument) => userOperationDocument.origin);
+            const userOps = userOperationDocuments
+                .map((userOperationDocument) => {
+                    let items = [userOperationDocument.origin];
+                    if (!!userOperationDocument.associatedUserOps && userOperationDocument.associatedUserOps.length > 0) {
+                        items = items.concat(userOperationDocument.associatedUserOps.map((o) => o.origin));
+                    }
+
+                    return items;
+                })
+                .flat();
+
             let gasLimit = BigInt(bundleGasLimit);
             if (!PARTICLE_CHAINS.includes(chainId)) {
                 gasLimit = (BigInt(bundleGasLimit) * 15n) / 10n;
@@ -101,6 +111,9 @@ export class HandleLocalTransactionService {
                 }
             }
 
+            console.log('createBundleTransaction userOps', userOps);
+            
+
             const finalizedTx = await entryPointContract.handleOps.populateTransaction(userOps, beneficiary, {
                 nonce,
                 gasLimit,
@@ -110,9 +123,19 @@ export class HandleLocalTransactionService {
             finalizedTx.chainId = BigInt(chainId);
             const signedTx = await signer.signTransaction(finalizedTx);
 
-            const userOpHashes = userOperationDocuments.map((userOperationDocument) => userOperationDocument.userOpHash);
+            const userOpHashes = userOperationDocuments.map((userOperationDocument) => {
+                let items = [userOperationDocument.userOpHash];
+                if (!!userOperationDocument.associatedUserOps && userOperationDocument.associatedUserOps.length > 0) {
+                    items = items.concat(userOperationDocument.associatedUserOps.map((o) => o.userOpHash));
+                }
+
+                return items;
+            }).flat();
+
+            console.log('createBundleTransaction userOpHashes', userOpHashes);
+
             const transactionObjectId = new Types.ObjectId();
-            await this.userOperationService.setLocalUserOperationsAsPending(userOperationDocuments, transactionObjectId);
+            await this.userOperationService.setLocalUserOperationsAsPending(userOpHashes, transactionObjectId);
 
             // no need to await, if failed, the userops is abandoned
             const localTransaction = await this.transactionService.createTransaction(transactionObjectId, chainId, signedTx, userOpHashes);
