@@ -10,6 +10,7 @@ import { IS_PRODUCTION } from '../../common/common-types';
 import { LarkService } from '../common/services/lark.service';
 import { EVM_CHAIN_ID } from '../../common/chains';
 import { ConfigService } from '@nestjs/config';
+import { $enum } from 'ts-enum-util';
 
 @Controller()
 export class RpcController {
@@ -52,7 +53,7 @@ export class RpcController {
                 }
             }
 
-            Helper.assertTrue(!!getBundlerChainConfig(chainId), -32001, `Unsupported chainId: ${chainId}`);
+            Helper.assertTrue($enum(EVM_CHAIN_ID).isValue(chainId), -32001, `Unsupported chainId: ${chainId}`);
 
             result = await this.handleRpc(chainId, body);
         } catch (error) {
