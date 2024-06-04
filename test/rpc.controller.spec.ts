@@ -1,9 +1,9 @@
 import { Test } from '@nestjs/testing';
 import { RpcController } from '../src/modules/rpc/rpc.controller';
 import { RpcService } from '../src/modules/rpc/services/rpc.service';
-import { Wallet, JsonRpcProvider, resolveProperties, toBeHex } from 'ethers';
+import { Wallet, JsonRpcProvider, resolveProperties, toBeHex, AbiCoder, keccak256 } from 'ethers';
 import { AA_METHODS, initializeBundlerConfig, getBundlerChainConfig } from '../src/configs/bundler-common';
-import { deepHexlify } from '../src/modules/rpc/aa/utils';
+import { deepHexlify, toBeHexTrimZero } from '../src/modules/rpc/aa/utils';
 import { IContractAccount } from '../src/modules/rpc/aa/interface-contract-account';
 import { ENTRY_POINT, gaslessSponsor } from './lib/common';
 import { deserializeUserOpCalldata } from '../src/modules/rpc/aa/deserialize-user-op';

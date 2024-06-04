@@ -57,6 +57,48 @@ export class ChainService {
         return response.data?.result;
     }
 
+    public async estimateGas(chainId: number, tx: any, stateOverride?: any) {
+        const bundlerChainConfig = getBundlerChainConfig(chainId);
+        const rpcUrl = bundlerChainConfig.sendRawTransactionRpcUrl ?? bundlerChainConfig.rpcUrl;
+        const response = await Axios.post(
+            rpcUrl,
+            {
+                jsonrpc: '2.0',
+                id: Date.now(),
+                method: 'eth_estimateGas',
+                params: !!stateOverride ? [tx, 'latest', stateOverride] : [tx],
+            },
+            { timeout: 12000 },
+        );
+
+        if (!response.data?.result) {
+            throw new Error(`Failed to estimate gas: ${Helper.converErrorToString(response.data)}`);
+        }
+
+        return response.data?.result;
+    }
+
+    public async staticCall(chainId: number, tx: any, allowError: boolean = false, stateOverride?: any) {
+        const bundlerChainConfig = getBundlerChainConfig(chainId);
+        const rpcUrl = bundlerChainConfig.sendRawTransactionRpcUrl ?? bundlerChainConfig.rpcUrl;
+        const response = await Axios.post(
+            rpcUrl,
+            {
+                jsonrpc: '2.0',
+                id: Date.now(),
+                method: 'eth_call',
+                params: !!stateOverride ? [tx, 'latest', stateOverride] : [tx, 'latest'],
+            },
+            { timeout: 12000 },
+        );
+
+        if (!allowError && !response.data?.result) {
+            throw new Error(`Failed to send call: ${Helper.converErrorToString(response.data)}`);
+        }
+
+        return response.data;
+    }
+
     public async sendRawTransaction(chainId: number, rawTransaction: string) {
         const bundlerChainConfig = getBundlerChainConfig(chainId);
         const rpcUrl = bundlerChainConfig.sendRawTransactionRpcUrl ?? bundlerChainConfig.rpcUrl;

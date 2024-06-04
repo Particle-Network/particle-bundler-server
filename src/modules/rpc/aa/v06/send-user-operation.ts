@@ -36,7 +36,7 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
     Helper.assertTrue(isUserOpValid(userOp), -32602, 'Invalid userOp');
 
     const { userOpHash, userOperationDocument } = await beforeSendUserOperation(rpcService, chainId, userOp, entryPoint, body.isAuth);
-    
+
     return await createOrUpdateUserOperation(rpcService.userOperationService, chainId, userOp, userOpHash, entryPoint, userOperationDocument);
 }
 
@@ -129,7 +129,13 @@ export async function createOrUpdateUserOperation(
     return userOpHash;
 }
 
-export async function simulateHandleOpAndGetGasCost(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string) {
+export async function simulateHandleOpAndGetGasCost(
+    rpcService: RpcService,
+    chainId: number,
+    userOp: any,
+    entryPoint: string,
+    stateOverride?: any,
+) {
     userOp = cloneDeep(userOp);
     userOp.maxFeePerGas = '0x1';
     userOp.maxPriorityFeePerGas = '0x1';
@@ -138,47 +144,46 @@ export async function simulateHandleOpAndGetGasCost(rpcService: RpcService, chai
     const contractEntryPoint = new Contract(entryPoint, EntryPointAbi, provider);
 
     const signers = rpcService.signerService.getChainSigners(chainId);
-    let [errorResult, gasCostWholeTransaction] = await Promise.all([
-        contractEntryPoint.simulateHandleOp.staticCall(userOp, ZeroAddress, '0x', { from: signers[0].address }).catch((e) => e),
+    const txSimulateHandleOp = await contractEntryPoint.simulateHandleOp.populateTransaction(userOp, ZeroAddress, '0x', {
+        from: signers[0].address,
+    });
+
+    let [resultCallSimulateHandleOp, gasCostWholeTransaction] = await Promise.all([
+        rpcService.chainService.staticCall(chainId, txSimulateHandleOp, true, stateOverride),
         tryGetGasCostWholeTransaction(chainId, rpcService, contractEntryPoint, entryPoint, userOp),
     ]);
 
-    if (!errorResult?.revert) {
-        // Comptibility with GNOSIS_NETWORK
-        if ([EVM_CHAIN_ID.GNOSIS_MAINNET, EVM_CHAIN_ID.GNOSIS_TESTNET].includes(chainId) && !!errorResult?.info?.error?.data) {
-            const tx = errorResult.transaction;
-            const data = errorResult.info.error.data.replace('Reverted ', '');
-            errorResult = contractEntryPoint.interface.makeError(data, tx);
-        }
-        // Comptibility with VICTION_NETWORK
-        if ([EVM_CHAIN_ID.VICTION_MAINNET, EVM_CHAIN_ID.VICTION_TESTNET].includes(chainId) && !!errorResult?.value) {
-            const tx = await contractEntryPoint.simulateHandleOp.populateTransaction(userOp, '0x0000000000000000000000000000000000000000', '0x');
-            errorResult = contractEntryPoint.interface.makeError(errorResult.value, tx);
-        }
-        // Comptibility with BEVM
-        if (
-            [EVM_CHAIN_ID.BEVM_CANARY_MAINNET, EVM_CHAIN_ID.BEVM_CANARY_TESTNET, EVM_CHAIN_ID.BEVM_TESTNET].includes(chainId) &&
-            !!errorResult?.info?.error?.data
-        ) {
-            if (!errorResult.info.error.data.startsWith('0x')) {
-                const tx = errorResult.transaction;
-                const data = '0x' + errorResult.info.error.data;
-                errorResult = contractEntryPoint.interface.makeError(data, tx);
-            }
-        }
+    // Comptibility with VICTION_NETWORK
+    if ([EVM_CHAIN_ID.VICTION_MAINNET, EVM_CHAIN_ID.VICTION_TESTNET].includes(chainId) && !!resultCallSimulateHandleOp.result) {
+        resultCallSimulateHandleOp.error = { data: resultCallSimulateHandleOp.result };
     }
 
-    Helper.assertTrue(!!errorResult?.revert, -32000, 'Can not simulate the user op, No revert message');
-    if (errorResult?.revert?.name === 'FailedOp') {
+    Helper.assertTrue(
+        !!resultCallSimulateHandleOp?.error?.data,
+        10001,
+        `simulateHandleOp call error: ${Helper.converErrorToString(resultCallSimulateHandleOp)}`,
+    );
+
+    // Comptibility with GNOSIS_NETWORK
+    if (resultCallSimulateHandleOp.error.data.startsWith('Reverted ')) {
+        resultCallSimulateHandleOp.error.data = resultCallSimulateHandleOp.error.data.replace('Reverted ', '');
+    }
+    // Comptibility with BEVM
+    if (!resultCallSimulateHandleOp.error.data.startsWith('0x')) {
+        resultCallSimulateHandleOp.error.data = `0x${resultCallSimulateHandleOp.error.data}`;
+    }
+
+    const errorCallSimulateHandleOp = contractEntryPoint.interface.parseError(resultCallSimulateHandleOp.error.data);
+    if (errorCallSimulateHandleOp?.name === 'FailedOp') {
         if (!IS_PRODUCTION) {
-            console.error(errorResult);
+            console.error(errorCallSimulateHandleOp);
         }
 
-        throw new AppException(-32606, `Simulate user operation failed: ${errorResult?.revert?.args.at(-1)}`);
+        throw new AppException(-32606, `Simulate user operation failed: ${errorCallSimulateHandleOp?.args.at(-1)}`);
     }
 
-    const gasCostInContract = toBeHex(errorResult?.revert?.args[1]);
-    let verificationGasLimit = ((BigInt(errorResult?.revert?.args[0]) - BigInt(userOp.preVerificationGas)) * 3n) / 2n;
+    const gasCostInContract = toBeHex(errorCallSimulateHandleOp?.args[1]);
+    let verificationGasLimit = ((BigInt(errorCallSimulateHandleOp?.args[0]) - BigInt(userOp.preVerificationGas)) * 3n) / 2n;
     if (verificationGasLimit < 100000n) {
         verificationGasLimit = 100000n;
     }

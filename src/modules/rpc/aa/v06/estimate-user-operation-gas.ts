@@ -1,4 +1,4 @@
-import { AbiCoder, JsonRpcProvider, getAddress, isHexString } from 'ethers';
+import { AbiCoder, Contract, JsonRpcProvider, getAddress, isHexString } from 'ethers';
 import { calcPreVerificationGas } from '@account-abstraction/sdk';
 import { Logger } from '@nestjs/common';
 import { hexConcat } from '@ethersproject/bytes';
@@ -7,16 +7,22 @@ import { Helper } from '../../../../common/helper';
 import { calcUserOpGasPrice, isUserOpValid, toBeHexTrimZero } from '../utils';
 import { AppException } from '../../../../common/app-exception';
 import { JsonRPCRequestDto } from '../../dtos/json-rpc-request.dto';
-import { DUMMY_SIGNATURE } from '../../../../common/common-types';
+import { DUMMY_SIGNATURE, MULTI_CALL_3_ADDRESS } from '../../../../common/common-types';
 import { getL2ExtraFee, simulateHandleOpAndGetGasCost } from './send-user-operation';
-import { EVM_CHAIN_ID, L2_GAS_ORACLE, SUPPORT_EIP_1559, USE_PROXY_CONTRACT_TO_ESTIMATE_GAS } from '../../../../common/chains';
+import { EVM_CHAIN_ID, L2_GAS_ORACLE, SUPPORT_EIP_1559, SUPPORT_MULTCALL3, USE_PROXY_CONTRACT_TO_ESTIMATE_GAS } from '../../../../common/chains';
 import { deserializeUserOpCalldata } from '../deserialize-user-op';
+import multiCall3Abi from '../abis/multi-call-3-abi';
 
 export async function estimateUserOperationGas(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
     Helper.assertTrue(typeof body.params[0] === 'object', -32602, 'Invalid params: userop must be an object');
 
     const userOp = body.params[0];
     const entryPoint = getAddress(body.params[1]);
+
+    let stateOverride: any = null;
+    if (!!body.params[2]) {
+        stateOverride = body.params[2]?.stateOverride;
+    }
 
     // Init default value
     userOp.maxFeePerGas = '0x01';
@@ -42,12 +48,11 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
     userOp.preVerificationGas = toBeHexTrimZero(calcPreVerificationGas(userOp) + 5000);
     Helper.assertTrue(isUserOpValid(userOp), -32602, 'Invalid userOp');
 
-    const provider = rpcService.chainService.getJsonRpcProvider(chainId);
     const [{ callGasLimit, initGas }, { maxFeePerGas, maxPriorityFeePerGas, gasCostInContract, gasCostWholeTransaction, verificationGasLimit }] =
         await Promise.all([
-            estimateGasLimit(provider, entryPoint, userOp),
-            calculateGasPrice(rpcService, chainId, userOp, entryPoint),
-            tryEstimateGasForFirstAccount(provider, userOp),
+            estimateGasLimit(rpcService, chainId, entryPoint, userOp, stateOverride),
+            calculateGasPrice(rpcService, chainId, userOp, entryPoint, stateOverride),
+            tryEstimateGasForFirstAccount(rpcService, chainId, userOp, stateOverride),
         ]);
 
     userOp.preVerificationGas = toBeHexTrimZero(calcPreVerificationGas(userOp) + 5000);
@@ -96,7 +101,7 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
     }
 }
 
-async function estimateGasLimit(provider: JsonRpcProvider, entryPoint: string, userOp: any) {
+async function estimateGasLimit(rpcService: RpcService, chainId: number, entryPoint: string, userOp: any, stateOverride?: any) {
     let callGasLimit = 500000n;
     let initGas = 0n;
 
@@ -105,17 +110,29 @@ async function estimateGasLimit(provider: JsonRpcProvider, entryPoint: string, u
             const factory = userOp.initCode.slice(0, 42);
             const factoryInitCode = `0x${userOp.initCode.slice(42)}`;
 
-            initGas = await provider.estimateGas({
-                from: entryPoint,
-                to: factory,
-                data: factoryInitCode,
-            });
+            initGas = BigInt(
+                await rpcService.chainService.estimateGas(
+                    chainId,
+                    {
+                        from: entryPoint,
+                        to: factory,
+                        data: factoryInitCode,
+                    },
+                    stateOverride,
+                ),
+            );
         } else {
-            callGasLimit = await provider.estimateGas({
-                from: entryPoint,
-                to: userOp.sender,
-                data: userOp.callData,
-            });
+            callGasLimit = BigInt(
+                await rpcService.chainService.estimateGas(
+                    chainId,
+                    {
+                        from: entryPoint,
+                        to: userOp.sender,
+                        data: userOp.callData,
+                    },
+                    stateOverride,
+                ),
+            );
         }
 
         // It happens in contract call, so we can ignore the init gas
@@ -133,27 +150,32 @@ async function estimateGasLimit(provider: JsonRpcProvider, entryPoint: string, u
     return { callGasLimit, initGas };
 }
 
-async function tryEstimateGasForFirstAccount(provider: JsonRpcProvider, userOp: any) {
+async function tryEstimateGasForFirstAccount(rpcService: RpcService, chainId: number, userOp: any, stateOverride?: any) {
     if (userOp.initCode?.length <= 2) {
         return;
     }
 
-    const txs = deserializeUserOpCalldata(userOp.callData);
-    // If there are more than 1 txs, there may be some context that we can not estimate gas directly
-    // TODO use multicall3 to estimate gas
-    if (txs.length > 1) {
-        return;
-    }
-
     try {
+        const txs = deserializeUserOpCalldata(userOp.callData);
+
+        // If there are more than 1 txs, there may be some context that we can not estimate gas directly
+        // TODO use multicall3 to estimate gas
+        if (txs.length > 1) {
+            return;
+        }
+
         await Promise.all(
             txs.map((tx) => {
-                return provider.estimateGas({
-                    from: userOp.sender,
-                    to: tx.to,
-                    data: tx.data,
-                    value: tx.value,
-                });
+                return rpcService.chainService.estimateGas(
+                    chainId,
+                    {
+                        from: userOp.sender,
+                        to: tx.to,
+                        data: tx.data,
+                        value: toBeHexTrimZero(tx.value),
+                    },
+                    stateOverride,
+                );
             }),
         );
     } catch (error) {
@@ -161,9 +183,9 @@ async function tryEstimateGasForFirstAccount(provider: JsonRpcProvider, userOp: 
     }
 }
 
-async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string) {
+async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string, stateOverride?:any) {
     const [rSimulation, userOpFeeData, extraFee] = await Promise.all([
-        simulateHandleOpAndGetGasCost(rpcService, chainId, userOp, entryPoint),
+        simulateHandleOpAndGetGasCost(rpcService, chainId, userOp, entryPoint, stateOverride),
         rpcService.chainService.getFeeDataIfCache(chainId),
         getL2ExtraFee(rpcService, chainId, userOp, entryPoint),
     ]);
