@@ -162,6 +162,7 @@ export class HandlePendingTransactionService {
                 const userOpHashes = transaction.userOperationHashes;
                 await this.userOperationService.setUserOperationsAsDone(userOpHashes, '', 0, '');
                 await this.transactionService.updateTransactionStatus(transaction, TRANSACTION_STATUS.DONE);
+                this.signerService.decrChainSignerPendingTxCount(transaction.chainId, transaction.from);
 
                 this.lockPendingTransactions.delete(keyLock);
                 return;
@@ -213,6 +214,7 @@ export class HandlePendingTransactionService {
             }
 
             await this.transactionService.updateTransactionStatus(transaction, TRANSACTION_STATUS.DONE);
+            this.signerService.decrChainSignerPendingTxCount(transaction.chainId, transaction.from);
             this.signerService.setSignerDoneTransactionMaxNonce(chainId, transaction.from, transaction.nonce);
         } catch (error) {
             Logger.error('handlePendingTransaction error', error);

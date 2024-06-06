@@ -113,6 +113,8 @@ export class HandleLocalUserOperationService {
                 if (signerWithPendingTxCount[index].availableTxCount > 0) {
                     targetSignerWithPendingTxCount.push(signerWithPendingTxCount[index]);
                     takeOnce--;
+                } else {
+                    this.lockChainSigner.delete(keyLockSigner(chainId, signer.address));
                 }
 
                 if (takeOnce <= 0) {
