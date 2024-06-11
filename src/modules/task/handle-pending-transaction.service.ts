@@ -7,7 +7,6 @@ import { Helper } from '../../common/helper';
 import {
     BLOCK_SIGNER_REASON,
     EVENT_ENTRY_POINT_USER_OPERATION,
-    IS_PRODUCTION,
     IUserOperationEventObject,
     keyLockPendingTransaction,
     keyLockSendingTransaction,
@@ -15,7 +14,7 @@ import {
 import { TRANSACTION_STATUS, TransactionDocument } from '../rpc/schemas/transaction.schema';
 import { TransactionService } from '../rpc/services/transaction.service';
 import { UserOperationService } from '../rpc/services/user-operation.service';
-import { getBundlerChainConfig } from '../../configs/bundler-common';
+import { getBundlerChainConfig, onEmitUserOpEvent } from '../../configs/bundler-common';
 import { Contract, toBeHex } from 'ethers';
 import entryPointAbi from '../rpc/aa/abis/entry-point-abi';
 import { canRunCron, createTxGasData, deepHexlify, tryParseSignedTx } from '../rpc/aa/utils';
@@ -162,6 +161,10 @@ export class HandlePendingTransactionService {
                 const userOpHashes = transaction.userOperationHashes;
                 await this.userOperationService.setUserOperationsAsDone(userOpHashes, '', 0, '');
                 await this.transactionService.updateTransactionStatus(transaction, TRANSACTION_STATUS.DONE);
+                userOpHashes.map((userOpHash) => {
+                    onEmitUserOpEvent(userOpHash, { args: ['', '', '', '', false, '', ''], txHash: '' });
+                });
+
                 this.signerService.decrChainSignerPendingTxCount(transaction.chainId, transaction.from);
 
                 this.lockPendingTransactions.delete(keyLock);
@@ -203,6 +206,7 @@ export class HandlePendingTransactionService {
 
                 // async send
                 this.userOperationService.createUserOperationEvents(userOperationEventObjects);
+                userOperationEventObjects.map((o) => onEmitUserOpEvent(o.userOperationHash, o));
                 await this.userOperationService.setUserOperationsAsDone(userOpHashes, txHash, blockNumber, blockHash);
 
                 transaction.receipts = transaction.receipts || {};

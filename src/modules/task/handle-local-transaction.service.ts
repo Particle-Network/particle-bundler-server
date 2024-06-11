@@ -12,10 +12,12 @@ import { TransactionService } from '../rpc/services/transaction.service';
 import { UserOperationService } from '../rpc/services/user-operation.service';
 import { HandlePendingTransactionService } from './handle-pending-transaction.service';
 import { Cron } from '@nestjs/schedule';
-import { canRunCron, createTxGasData } from '../rpc/aa/utils';
+import { canRunCron, createTxGasData, tryParseSignedTx } from '../rpc/aa/utils';
 import { ListenerService } from './listener.service';
 import { SignerService } from '../rpc/services/signer.service';
 import { ChainService } from '../rpc/services/chain.service';
+import { TypedTransaction } from '@ethereumjs/tx';
+import { onCreateUserOpTxHash } from '../../configs/bundler-common';
 
 @Injectable()
 export class HandleLocalTransactionService {
@@ -111,9 +113,6 @@ export class HandleLocalTransactionService {
                 }
             }
 
-            console.log('createBundleTransaction userOps', userOps);
-            
-
             const finalizedTx = await entryPointContract.handleOps.populateTransaction(userOps, beneficiary, {
                 nonce,
                 gasLimit,
@@ -123,19 +122,24 @@ export class HandleLocalTransactionService {
             finalizedTx.chainId = BigInt(chainId);
             const signedTx = await signer.signTransaction(finalizedTx);
 
-            const userOpHashes = userOperationDocuments.map((userOperationDocument) => {
-                let items = [userOperationDocument.userOpHash];
-                if (!!userOperationDocument.associatedUserOps && userOperationDocument.associatedUserOps.length > 0) {
-                    items = items.concat(userOperationDocument.associatedUserOps.map((o) => o.userOpHash));
-                }
+            const userOpHashes = userOperationDocuments
+                .map((userOperationDocument) => {
+                    let items = [userOperationDocument.userOpHash];
+                    if (!!userOperationDocument.associatedUserOps && userOperationDocument.associatedUserOps.length > 0) {
+                        items = items.concat(userOperationDocument.associatedUserOps.map((o) => o.userOpHash));
+                    }
 
-                return items;
-            }).flat();
-
-            console.log('createBundleTransaction userOpHashes', userOpHashes);
+                    return items;
+                })
+                .flat();
 
             const transactionObjectId = new Types.ObjectId();
             await this.userOperationService.setLocalUserOperationsAsPending(userOpHashes, transactionObjectId);
+
+            // hook onCreateUserOpTxHash
+            const tx: TypedTransaction = tryParseSignedTx(signedTx);
+            const txHash = `0x${Buffer.from(tx.hash()).toString('hex')}`;
+            userOpHashes.map((userOpHash) => onCreateUserOpTxHash(userOpHash, txHash));
 
             // no need to await, if failed, the userops is abandoned
             const localTransaction = await this.transactionService.createTransaction(transactionObjectId, chainId, signedTx, userOpHashes);

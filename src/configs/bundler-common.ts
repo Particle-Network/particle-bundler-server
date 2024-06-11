@@ -7,6 +7,8 @@ export let PARTICLE_PAYMASTER_URL: string;
 export let PARTICLE_PUBLIC_RPC_URL: string;
 export let FORBIDDEN_PAYMASTER: string[] = [];
 export let PAYMASTER_CHECK: string[] = [];
+export let onEmitUserOpEvent = (userOperationHash: string, event: any) => {};
+export let onCreateUserOpTxHash = (userOperationHash: string, txHash: string) => {};
 
 export async function initializeBundlerConfig() {
     let bc: any;
@@ -27,6 +29,14 @@ export async function initializeBundlerConfig() {
 
     if (bc.PAYMASTER_CHECK) {
         PAYMASTER_CHECK = bc.PAYMASTER_CHECK;
+    }
+
+    if (bc.onEmitUserOpEvent) {
+        onEmitUserOpEvent = bc.onEmitUserOpEvent;
+    }
+
+    if (bc.onCreateUserOpTxHash) {
+        onCreateUserOpTxHash = bc.onCreateUserOpTxHash;
     }
 }
 
