@@ -137,6 +137,7 @@ export class HandleLocalTransactionService {
             await this.userOperationService.setLocalUserOperationsAsPending(userOpHashes, transactionObjectId);
 
             // hook onCreateUserOpTxHash
+            // TODO set on retry transaction
             const tx: TypedTransaction = tryParseSignedTx(signedTx);
             const txHash = `0x${Buffer.from(tx.hash()).toString('hex')}`;
             userOpHashes.map((userOpHash) => onCreateUserOpTxHash(userOpHash, txHash));

@@ -21,7 +21,6 @@ import MultiCall3Abi from '../abis/multi-call-3-abi';
 import {
     EVM_CHAIN_ID,
     L2_GAS_ORACLE,
-    PARTICLE_CHAINS,
     SUPPORT_EIP_1559,
     SUPPORT_MULTCALL3,
     USE_PROXY_CONTRACT_TO_ESTIMATE_GAS,
@@ -35,12 +34,26 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
     const entryPoint = getAddress(body.params[1]);
     Helper.assertTrue(isUserOpValid(userOp), -32602, 'Invalid userOp');
 
-    const { userOpHash, userOperationDocument } = await beforeSendUserOperation(rpcService, chainId, userOp, entryPoint, body.isAuth);
+    const { userOpHash, userOperationDocument } = await beforeSendUserOperation(
+        rpcService,
+        chainId,
+        userOp,
+        entryPoint,
+        body.isAuth,
+        body.skipCheck,
+    );
 
     return await createOrUpdateUserOperation(rpcService.userOperationService, chainId, userOp, userOpHash, entryPoint, userOperationDocument);
 }
 
-export async function beforeSendUserOperation(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string, isAuth: boolean) {
+export async function beforeSendUserOperation(
+    rpcService: RpcService,
+    chainId: number,
+    userOp: any,
+    entryPoint: string,
+    isAuth: boolean,
+    skipCheck: boolean,
+) {
     Helper.assertTrue(BigInt(userOp.verificationGasLimit) >= 10000n, -32602, 'Invalid params: verificationGasLimit must be at least 10000');
 
     if (BigInt(userOp.preVerificationGas) === 0n || BigInt(userOp.verificationGasLimit) === 0n || BigInt(userOp.callGasLimit) === 0n) {
@@ -75,7 +88,14 @@ export async function beforeSendUserOperation(rpcService: RpcService, chainId: n
     }
 
     let userOperationDocument: UserOperationDocument;
-    if (!isAuth || !PARTICLE_CHAINS.includes(chainId)) {
+    if (isAuth && skipCheck) {
+        userOperationDocument = await rpcService.userOperationService.getUserOperationByAddressNonce(
+            chainId,
+            userOpSender,
+            nonceKey,
+            BigInt(nonceValue).toString(),
+        );
+    } else {
         const [rSimulation, extraFee, signerFeeData, userOpDoc, localUserOperationsCount] = await Promise.all([
             simulateHandleOpAndGetGasCost(rpcService, chainId, userOp, entryPoint),
             getL2ExtraFee(rpcService, chainId, userOp, entryPoint),
@@ -98,13 +118,6 @@ export async function beforeSendUserOperation(rpcService: RpcService, chainId: n
 
         checkUserOpGasPriceIsSatisfied(chainId, userOp, gasCost, extraFee, signerFeeData);
         userOperationDocument = userOpDoc;
-    } else {
-        userOperationDocument = await rpcService.userOperationService.getUserOperationByAddressNonce(
-            chainId,
-            userOpSender,
-            nonceKey,
-            BigInt(nonceValue).toString(),
-        );
     }
 
     return {

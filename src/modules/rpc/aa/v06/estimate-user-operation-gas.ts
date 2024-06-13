@@ -1,4 +1,4 @@
-import { AbiCoder, Contract, JsonRpcProvider, getAddress, isHexString } from 'ethers';
+import { AbiCoder, getAddress, isHexString } from 'ethers';
 import { calcPreVerificationGas } from '@account-abstraction/sdk';
 import { Logger } from '@nestjs/common';
 import { hexConcat } from '@ethersproject/bytes';
@@ -7,11 +7,10 @@ import { Helper } from '../../../../common/helper';
 import { calcUserOpGasPrice, isUserOpValid, toBeHexTrimZero } from '../utils';
 import { AppException } from '../../../../common/app-exception';
 import { JsonRPCRequestDto } from '../../dtos/json-rpc-request.dto';
-import { DUMMY_SIGNATURE, MULTI_CALL_3_ADDRESS } from '../../../../common/common-types';
+import { DUMMY_SIGNATURE } from '../../../../common/common-types';
 import { getL2ExtraFee, simulateHandleOpAndGetGasCost } from './send-user-operation';
-import { EVM_CHAIN_ID, L2_GAS_ORACLE, SUPPORT_EIP_1559, SUPPORT_MULTCALL3, USE_PROXY_CONTRACT_TO_ESTIMATE_GAS } from '../../../../common/chains';
+import { EVM_CHAIN_ID, L2_GAS_ORACLE, SUPPORT_EIP_1559, USE_PROXY_CONTRACT_TO_ESTIMATE_GAS } from '../../../../common/chains';
 import { deserializeUserOpCalldata } from '../deserialize-user-op';
-import multiCall3Abi from '../abis/multi-call-3-abi';
 
 export async function estimateUserOperationGas(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
     Helper.assertTrue(typeof body.params[0] === 'object', -32602, 'Invalid params: userop must be an object');
@@ -143,6 +142,10 @@ async function estimateGasLimit(rpcService: RpcService, chainId: number, entryPo
         if (callGasLimit > 21000n) {
             callGasLimit -= 21000n;
         }
+
+        if (!!stateOverride) {
+            callGasLimit += 50000n;
+        }
     } catch (error) {
         throw new AppException(-32005, `Estimate gas failed: ${error?.shortMessage ?? error?.message}`);
     }
@@ -183,7 +186,7 @@ async function tryEstimateGasForFirstAccount(rpcService: RpcService, chainId: nu
     }
 }
 
-async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string, stateOverride?:any) {
+async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string, stateOverride?: any) {
     const [rSimulation, userOpFeeData, extraFee] = await Promise.all([
         simulateHandleOpAndGetGasCost(rpcService, chainId, userOp, entryPoint, stateOverride),
         rpcService.chainService.getFeeDataIfCache(chainId),
@@ -247,7 +250,6 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
             EVM_CHAIN_ID.XTERIO_MAINNET,
             EVM_CHAIN_ID.XTERIO_TESTNET,
             EVM_CHAIN_ID.XTERIO_ETH_MAINNET,
-            EVM_CHAIN_ID.XTERIO_ETH_TESTNET,
             EVM_CHAIN_ID.GMNETWORK_TESTNET,
             EVM_CHAIN_ID.AINN_TESTNET,
             EVM_CHAIN_ID.ASTAR_ZKEVM_MAINNET,
