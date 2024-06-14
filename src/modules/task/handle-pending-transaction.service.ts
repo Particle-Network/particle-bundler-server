@@ -205,8 +205,15 @@ export class HandlePendingTransactionService {
                 }
 
                 // async send
-                this.userOperationService.createUserOperationEvents(userOperationEventObjects);
-                userOperationEventObjects.map((o) => onEmitUserOpEvent(o.userOperationHash, o));
+                if (BigInt(receipt.status) === 1n) {
+                    this.userOperationService.createUserOperationEvents(userOperationEventObjects);
+                    userOperationEventObjects.map((o) => onEmitUserOpEvent(o.userOperationHash, o));
+                } else {
+                    userOpHashes.map((userOpHash: string) => {
+                        onEmitUserOpEvent(userOpHash, { args: ['', '', '', '', false, '', ''], txHash });
+                    });
+                }
+
                 await this.userOperationService.setUserOperationsAsDone(userOpHashes, txHash, blockNumber, blockHash);
 
                 transaction.receipts = transaction.receipts || {};
