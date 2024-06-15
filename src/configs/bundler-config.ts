@@ -1,32 +1,40 @@
-// TODO change to v2.0.0 format
+import { $enum } from 'ts-enum-util';
+import { EVM_CHAIN_ID } from '../common/chains';
+import { BundlerConfig } from '../common/common-types';
 
-export const DEFAULT_ENTRY_POINT_ADDRESS = '0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789';
-
-export const RPC_CONFIG = [
-    {
-        chainId: 11155111,
-        rpcUrl: 'https://eth-sepolia.public.blastapi.io',
-    },
-];
-
+export const FORBIDDEN_PAYMASTER = [];
+export const PAYMASTER_CHECK = [];
+export const PARTICLE_PAYMASTER_URL = 'https://paymaster.particle.network';
 export const PARTICLE_PUBLIC_RPC_URL = 'https://rpc.particle.network/evm-chain/public';
 
-export const BUNDLER_CONFIG: any = {
-    default: {
-        MAX_BUNDLE_GAS: 7000000,
-        SUPPORTED_ENTRYPOINTS: ['0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789'],
-    },
-    '534351': {
-        MAX_BUNDLE_GAS: 5000000,
-    },
-};
+export function exportBundlerConfig(): BundlerConfig {
+    const config: BundlerConfig = {
+        default: {
+            maxBundleGas: 7000000,
+            signerBalanceRange: 0.1, // ether
+            methodSendRawTransaction: 'particle_sendRawTransactionV2', // particle method
+            pendingTransactionSignerHandleLimit: 10,
+            maxUserOpPackCount: 10,
+            canIncrGasPriceRetry: true,
+            canIncrGasPriceRetryMaxCount: 5,
+            userOperationLocalPoolMaxCount: 500,
+            mevCheck: false,
+        },
+    };
 
-export const MINIMUM_GAS_FEE = {
-    '11155111': { gasPrice: '0x5f5e100' },
-};
-export const CHAIN_BALANCE_RANGE = {
-    '11155111': 0.1,
-};
-export const CHAIN_SIGNER_MIN_BALANCE = {
-    '11155111': 0.1,
-};
+    const chains = $enum(EVM_CHAIN_ID).values();
+    for (const chainId of chains) {
+        // Default RPC
+        const rpcUrl = `${PARTICLE_PUBLIC_RPC_URL}?chainId=${chainId}`;
+
+        if (!config[chainId]) {
+            config[chainId] = {};
+        }
+
+        if (!config[chainId]?.rpcUrl) {
+            config[chainId].rpcUrl = rpcUrl;
+        }
+    }
+
+    return config;
+}

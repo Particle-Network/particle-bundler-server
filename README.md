@@ -44,7 +44,9 @@ yarn
 ```
 
 ### 🧷 Setup the environment
-Set your configuration in **.env.dev**. We require the **mongodb**. 
+Set your configuration in **.env**. We require the **mongodb** and **redis**. 
+You need to transfer some native token to the Bundler Signer.
+Register the particle project at [https://dashboard.particle.network/](https://dashboard.particle.network/).
 
 ### 🏄🏻‍♂️ Start the project
 ```bash
@@ -54,7 +56,7 @@ npm run start
 ### 🖖 Start a gasless transaction
 create a new terminal and run the test
 ```bash
-npm run test
+npx jest rpc.controller.spec -t 'Gasless Basic' --chainId=${the chain you want to test}
 ```
 
 ### 🧷 Custom the bundler config
