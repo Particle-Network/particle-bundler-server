@@ -7,17 +7,18 @@ export const PARTICLE_PAYMASTER_URL = 'https://paymaster.particle.network';
 
 // TODO fit for public dev ?
 export async function gaslessSponsor(chainId: number, userOp: any, rpcController?: RpcController) {
-    let particlePaymasterUrl = `${PARTICLE_PAYMASTER_URL}?chainId=${chainId}`;
-    if (!!process.env.PARTICLE_PAYMASTER_URL) {
-        particlePaymasterUrl = `${process.env.PARTICLE_PAYMASTER_URL}&chainId=${chainId}`;
-    }
-
     const bodySponsor = {
         method: 'pm_sponsorUserOperation',
         params: [userOp, ENTRY_POINT],
     };
 
-    const rSponsor = await Axios.post(particlePaymasterUrl, bodySponsor);
+    const rSponsor = await Axios.post(PARTICLE_PAYMASTER_URL, bodySponsor, {
+        params: {
+            chainId,
+            projectUuid: process.env.PARTICLE_PROJECT_KEY,
+            projectKey: process.env.PARTICLE_CLIENT_KEY,
+        },
+    });
     userOp.paymasterAndData = rSponsor.data.result.paymasterAndData;
 
     return deepHexlify(userOp);

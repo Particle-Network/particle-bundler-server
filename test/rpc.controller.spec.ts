@@ -17,7 +17,6 @@ let rpcController: RpcController;
 let rpcService: RpcService;
 
 process.env.DISABLE_TASK = '1';
-process.env.ENVIRONMENT = 'dev';
 
 let app: INestApplication;
 describe('RpcController', () => {

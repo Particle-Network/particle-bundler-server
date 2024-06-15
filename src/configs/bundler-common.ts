@@ -14,7 +14,7 @@ export async function initializeBundlerConfig() {
     let bc: any;
     const exists = Fs.existsSync(`${__dirname}/bundler-config-particle.js`) || Fs.existsSync(`${__dirname}/bundler-config-particle.ts`);
     if (exists) {
-        bc = await import('./bundler-config-particle');
+        bc = await import('./bundler-config-particle' as any);
     } else {
         bc = await import('./bundler-config');
     }
