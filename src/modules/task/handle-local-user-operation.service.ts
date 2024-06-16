@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { IBundle, IPackedBundle, IS_PRODUCTION, SignerWithPendingTxCount, keyLockSigner } from '../../common/common-types';
+import { IBundle, IPackedBundle, SignerWithPendingTxCount, keyLockSigner } from '../../common/common-types';
 import { Helper } from '../../common/helper';
 import { UserOperationService } from '../rpc/services/user-operation.service';
 import { Cron } from '@nestjs/schedule';
@@ -7,14 +7,14 @@ import { getBundlerChainConfig } from '../../configs/bundler-common';
 import { toBeHex } from 'ethers';
 import { UserOperationDocument } from '../rpc/schemas/user-operation.schema';
 import { LarkService } from '../common/services/lark.service';
-import { calcUserOpTotalGasLimit, canRunCron, waitSeconds } from '../rpc/aa/utils';
+import { calcUserOpTotalGasLimit, canRunCron, getDocumentId, waitSeconds } from '../rpc/aa/utils';
 import { HandlePendingUserOperationService } from './handle-pending-user-operation.service';
 import { SignerService } from '../rpc/services/signer.service';
 
 @Injectable()
 export class HandleLocalUserOperationService {
-    private readonly lockedUserOperationHashes: Set<string> = new Set();
-    private readonly lockChainSigner: Set<string> = new Set();
+    public readonly lockedUserOperationHashes: Set<string> = new Set();
+    public readonly lockChainSigner: Set<string> = new Set();
 
     public constructor(
         private readonly signerService: SignerService,
@@ -36,16 +36,7 @@ export class HandleLocalUserOperationService {
                 return;
             }
 
-            const userOperationsByChainId: any = {};
-            for (const userOperation of userOperations) {
-                userOperation.id = userOperation._id.toString();
-                if (!userOperationsByChainId[userOperation.chainId]) {
-                    userOperationsByChainId[userOperation.chainId] = [];
-                }
-
-                userOperationsByChainId[userOperation.chainId].push(userOperation);
-            }
-
+            const userOperationsByChainId = this.groupByUserOperationsByChainId(userOperations);
             const chainIds = Object.keys(userOperationsByChainId);
             for (const chainId of chainIds) {
                 // warning need to delete unused cache
@@ -58,7 +49,7 @@ export class HandleLocalUserOperationService {
     }
 
     private async assignSignerAndSealUserOps(chainId: number, userOperations: UserOperationDocument[]) {
-        const signersWithPendingTxCount: SignerWithPendingTxCount[] = await this.waitForASigners(chainId);
+        const signersWithPendingTxCount: SignerWithPendingTxCount[] = await this.pickAvailableSigners(chainId);
         if (signersWithPendingTxCount.length <= 0) {
             this.larkService.sendMessage(`No signer available on ${chainId}`);
             this.unlockUserOperations(userOperations);
@@ -82,7 +73,7 @@ export class HandleLocalUserOperationService {
 
         await Promise.all([
             waitSeconds(2),
-            this.userOperationService.deleteUserOperationsByIds(userOperationsToDelete.map((userOperation) => userOperation.id)),
+            this.userOperationService.deleteUserOperationsByIds(userOperationsToDelete.map((userOperation) => getDocumentId(userOperation))),
         ]);
 
         this.unlockUserOperations(
@@ -91,7 +82,7 @@ export class HandleLocalUserOperationService {
         this.unlockUserOperations(userOperationsToDelete);
     }
 
-    private async waitForASigners(chainId: number): Promise<SignerWithPendingTxCount[]> {
+    public async pickAvailableSigners(chainId: number): Promise<SignerWithPendingTxCount[]> {
         let targetSignerWithPendingTxCount: SignerWithPendingTxCount[] = [];
         const bundlerConfig = getBundlerChainConfig(chainId);
         const randomValidSigners = this.signerService.getRandomValidSigners(chainId);
@@ -102,19 +93,16 @@ export class HandleLocalUserOperationService {
             }),
         );
 
-        signerWithPendingTxCount.sort((a, b) => a.availableTxCount - b.availableTxCount);
+        signerWithPendingTxCount.sort((a, b) => b.availableTxCount - a.availableTxCount);
         let takeOnce = Math.ceil(randomValidSigners.length / 5);
 
         for (let index = 0; index < signerWithPendingTxCount.length; index++) {
             const signer = signerWithPendingTxCount[index].signer;
             if (!this.lockChainSigner.has(keyLockSigner(chainId, signer.address))) {
-                this.lockChainSigner.add(keyLockSigner(chainId, signer.address));
-
                 if (signerWithPendingTxCount[index].availableTxCount > 0) {
+                    this.lockChainSigner.add(keyLockSigner(chainId, signer.address));
                     targetSignerWithPendingTxCount.push(signerWithPendingTxCount[index]);
                     takeOnce--;
-                } else {
-                    this.lockChainSigner.delete(keyLockSigner(chainId, signer.address));
                 }
 
                 if (takeOnce <= 0) {
@@ -126,7 +114,7 @@ export class HandleLocalUserOperationService {
         return targetSignerWithPendingTxCount;
     }
 
-    private packUserOperationsForSigner(
+    public packUserOperationsForSigner(
         chainId: number,
         userOperations: UserOperationDocument[],
         signersWithPendingTxCount: SignerWithPendingTxCount[],
@@ -228,6 +216,7 @@ export class HandleLocalUserOperationService {
                 }
             }
 
+            // packed means no signer is available, so the rest of the bundles will be unused
             if (!packed) {
                 for (const bundle of bundles) {
                     unusedUserOperations.push(...bundle.userOperations);
@@ -242,23 +231,36 @@ export class HandleLocalUserOperationService {
         }
     }
 
-    private tryLockUserOperationsAndGetUnuseds(userOperations: UserOperationDocument[]): UserOperationDocument[] {
+    public tryLockUserOperationsAndGetUnuseds(userOperations: UserOperationDocument[]): UserOperationDocument[] {
         const unusedUserOperations = [];
         for (const userOperation of userOperations) {
-            if (this.lockedUserOperationHashes.has(userOperation.userOpHash)) {
+            if (this.lockedUserOperationHashes.has(getDocumentId(userOperation))) {
                 continue;
             }
 
-            this.lockedUserOperationHashes.add(userOperation.userOpHash);
+            this.lockedUserOperationHashes.add(getDocumentId(userOperation));
             unusedUserOperations.push(userOperation);
         }
 
         return unusedUserOperations;
     }
 
-    private unlockUserOperations(userOperations: UserOperationDocument[]) {
+    public unlockUserOperations(userOperations: UserOperationDocument[]) {
         for (const userOperation of userOperations) {
-            this.lockedUserOperationHashes.delete(userOperation.userOpHash);
+            this.lockedUserOperationHashes.delete(getDocumentId(userOperation));
         }
+    }
+
+    public groupByUserOperationsByChainId(userOperations: UserOperationDocument[]) {
+        const userOperationsByChainId: { [chainId: number]: UserOperationDocument[] } = {};
+        for (const userOperation of userOperations) {
+            if (!userOperationsByChainId[userOperation.chainId]) {
+                userOperationsByChainId[userOperation.chainId] = [];
+            }
+
+            userOperationsByChainId[userOperation.chainId].push(userOperation);
+        }
+
+        return userOperationsByChainId;
     }
 }

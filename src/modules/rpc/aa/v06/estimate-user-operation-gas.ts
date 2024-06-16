@@ -9,7 +9,7 @@ import { AppException } from '../../../../common/app-exception';
 import { JsonRPCRequestDto } from '../../dtos/json-rpc-request.dto';
 import { DUMMY_SIGNATURE } from '../../../../common/common-types';
 import { getL2ExtraFee, simulateHandleOpAndGetGasCost } from './send-user-operation';
-import { EVM_CHAIN_ID, L2_GAS_ORACLE, SUPPORT_EIP_1559, USE_PROXY_CONTRACT_TO_ESTIMATE_GAS } from '../../../../common/chains';
+import { EVM_CHAIN_ID, L2_GAS_ORACLE, NEED_TO_ESTIMATE_GAS_BEFORE_SEND, SUPPORT_EIP_1559 } from '../../../../common/chains';
 import { deserializeUserOpCalldata } from '../deserialize-user-op';
 
 export async function estimateUserOperationGas(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
@@ -65,7 +65,7 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
     }
 
     if (
-        USE_PROXY_CONTRACT_TO_ESTIMATE_GAS.includes(chainId) &&
+        NEED_TO_ESTIMATE_GAS_BEFORE_SEND.includes(chainId) &&
         gasCostWholeTransaction - gasCostInContract > BigInt(userOp.preVerificationGas)
     ) {
         userOp.preVerificationGas = toBeHexTrimZero(gasCostWholeTransaction - gasCostInContract);
@@ -195,7 +195,7 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
 
     const gasCostInContract = BigInt(rSimulation.gasCostInContract);
     const gasCostWholeTransaction = BigInt(rSimulation.gasCostWholeTransaction);
-    const gasCost = USE_PROXY_CONTRACT_TO_ESTIMATE_GAS.includes(chainId)
+    const gasCost = NEED_TO_ESTIMATE_GAS_BEFORE_SEND.includes(chainId)
         ? gasCostWholeTransaction > gasCostInContract
             ? gasCostWholeTransaction
             : gasCostInContract

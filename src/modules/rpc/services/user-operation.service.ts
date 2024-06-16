@@ -11,9 +11,9 @@ import { IUserOperationEventObject } from '../../../common/common-types';
 @Injectable()
 export class UserOperationService {
     public constructor(
-        @InjectModel(UserOperation.name) private readonly userOperationModel: Model<UserOperationDocument>,
-        @InjectModel(UserOperationEvent.name) private readonly userOperationEventModel: Model<UserOperationEventDocument>,
-        @InjectModel(Transaction.name) private readonly transactionModel: Model<TransactionDocument>,
+        @InjectModel(UserOperation.name) public readonly userOperationModel: Model<UserOperationDocument>,
+        @InjectModel(UserOperationEvent.name) public readonly userOperationEventModel: Model<UserOperationEventDocument>,
+        @InjectModel(Transaction.name) public readonly transactionModel: Model<TransactionDocument>,
     ) {}
 
     public async createOrUpdateUserOperation(

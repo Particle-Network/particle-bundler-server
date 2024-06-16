@@ -3,7 +3,6 @@ import { Wallet } from 'ethers';
 import { UserOperationDocument } from '../rpc/schemas/user-operation.schema';
 import { LarkService } from '../common/services/lark.service';
 import { Helper } from '../../common/helper';
-import { IS_PRODUCTION } from '../../common/common-types';
 import { waitSeconds } from '../rpc/aa/utils';
 import { TransactionService } from '../rpc/services/transaction.service';
 import { HandleLocalTransactionService } from './handle-local-transaction.service';

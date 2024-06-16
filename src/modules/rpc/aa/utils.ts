@@ -5,6 +5,7 @@ import { TransactionFactory, TypedTransaction } from '@ethereumjs/tx';
 import { AppException } from '../../../common/app-exception';
 import { EVM_CHAIN_ID, SUPPORT_EIP_1559 } from '../../../common/chains';
 import * as Os from 'os';
+import { Document } from 'mongoose';
 
 // TODO need to test
 export function calcUserOpTotalGasLimit(userOp: any, chainId: number): bigint {
@@ -191,6 +192,14 @@ export function parsePaymasterAndDataAndGetExpiredAt(paymasterAndData: string): 
     const [expiredAt] = AbiCoder.defaultAbiCoder().decode(['uint48', 'uint48'], `0x${paymasterAndData.slice(42, 170)}`);
 
     return Number(expiredAt);
+}
+
+export function getDocumentId(doc: Document): string {
+    if (typeof doc.id === 'string') {
+        return doc.id;
+    }
+
+    return doc._id.toString();
 }
 
 export function canRunCron() {

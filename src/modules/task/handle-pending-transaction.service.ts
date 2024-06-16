@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectConnection } from '@nestjs/mongoose';
 import { Connection } from 'mongoose';
-import { RpcService } from '../rpc/services/rpc.service';
 import { LarkService } from '../common/services/lark.service';
 import { Helper } from '../../common/helper';
 import {
@@ -17,7 +16,7 @@ import { UserOperationService } from '../rpc/services/user-operation.service';
 import { getBundlerChainConfig, onEmitUserOpEvent } from '../../configs/bundler-common';
 import { Contract, toBeHex } from 'ethers';
 import entryPointAbi from '../rpc/aa/abis/entry-point-abi';
-import { canRunCron, createTxGasData, deepHexlify, tryParseSignedTx } from '../rpc/aa/utils';
+import { canRunCron, createTxGasData, deepHexlify, getDocumentId, tryParseSignedTx } from '../rpc/aa/utils';
 import { Cron } from '@nestjs/schedule';
 import { FeeMarketEIP1559Transaction, LegacyTransaction } from '@ethereumjs/tx';
 import { SignerService } from '../rpc/services/signer.service';
@@ -30,7 +29,6 @@ export class HandlePendingTransactionService {
 
     public constructor(
         @InjectConnection() private readonly connection: Connection,
-        private readonly rpcService: RpcService,
         private readonly larkService: LarkService,
         private readonly transactionService: TransactionService,
         private readonly userOperationService: UserOperationService,
@@ -66,7 +64,7 @@ export class HandlePendingTransactionService {
         }
 
         const transactionsAddConfirmations = (await Promise.all(promises)).filter((t) => !!t);
-        this.transactionService.addTransactionsConfirmations(transactionsAddConfirmations.map((t) => t.id));
+        this.transactionService.addTransactionsConfirmations(transactionsAddConfirmations.map((t) => getDocumentId(t)));
     }
 
     // There is a concurrency conflict and locks need to be added
@@ -75,20 +73,20 @@ export class HandlePendingTransactionService {
             return;
         }
 
-        const keyLock = keyLockSendingTransaction(transaction.id);
+        if (this.signerService.isBlockedSigner(transaction.chainId, transaction.from)) {
+            return;
+        }
+
+        const keyLock = keyLockSendingTransaction(getDocumentId(transaction));
         if (this.lockSendingTransactions.has(keyLock)) {
             return;
         }
 
         this.lockSendingTransactions.add(keyLock);
-        if (this.signerService.isBlockedSigner(transaction.chainId, transaction.from)) {
-            this.lockSendingTransactions.delete(keyLock);
-            return;
-        }
 
         try {
             // It's possible that when you grab the lock, the previous call has already been made, so you need to check it again
-            transaction = await this.transactionService.getTransactionById(transaction.id);
+            transaction = await this.transactionService.getTransactionById(getDocumentId(transaction));
             if (!transaction || !transaction.isLocal()) {
                 this.lockSendingTransactions.delete(keyLock);
                 return;
@@ -99,11 +97,9 @@ export class HandlePendingTransactionService {
             // insufficient funds for intrinsic transaction cost
             if (error?.message?.toLowerCase()?.includes('insufficient funds')) {
                 this.signerService.setBlockedSigner(transaction.chainId, transaction.from, BLOCK_SIGNER_REASON.INSUFFICIENT_BALANCE, {
-                    transactionId: transaction.id,
+                    transactionId: getDocumentId(transaction),
                 });
-            }
-
-            if (
+            } else if (
                 error?.message?.toLowerCase()?.includes('nonce too low') ||
                 error?.message?.toLowerCase()?.includes('replacement transaction underpriced')
             ) {
@@ -112,19 +108,19 @@ export class HandlePendingTransactionService {
                 await Helper.startMongoTransaction(this.connection, async (session: any) => {
                     await Promise.all([
                         transaction.delete({ session }),
-                        this.userOperationService.setPendingUserOperationsToLocal(transaction.id, session),
+                        this.userOperationService.setPendingUserOperationsToLocal(getDocumentId(transaction), session),
                     ]);
                 });
-            }
-
-            Logger.error(`SendTransaction error: ${transaction.id}`, error);
-            this.larkService.sendMessage(
-                `Send Transaction Error On Chain ${transaction.chainId} And Transaction ${transaction.id}: ${Helper.converErrorToString(error)}`,
-            );
-
-            if (error?.message?.toLowerCase()?.includes('already known')) {
-                // already send ?? can skip return
+            } else if (error?.message?.toLowerCase()?.includes('already known')) {
+                // already send ?? can skip and return
             } else {
+                Logger.error(`SendTransaction error: ${getDocumentId(transaction)}`, error);
+                this.larkService.sendMessage(
+                    `Send Transaction Error On Chain ${transaction.chainId} And Transaction ${getDocumentId(
+                        transaction,
+                    )}: ${Helper.converErrorToString(error)}`,
+                );
+
                 this.lockSendingTransactions.delete(keyLock);
                 return;
             }
@@ -134,8 +130,10 @@ export class HandlePendingTransactionService {
             // not in transaction db, may error is send succss and here is panic, There is a high probability that it will not appear
             await this.transactionService.updateTransactionStatus(transaction, TRANSACTION_STATUS.PENDING);
         } catch (error) {
-            this.lockSendingTransactions.delete(keyLock);
-            throw error;
+            Logger.error(`UpdateTransaction error: ${getDocumentId(transaction)}`, error);
+            this.larkService.sendMessage(
+                `UpdateTransaction Error On Transaction ${getDocumentId(transaction)}: ${Helper.converErrorToString(error)}`,
+            );
         }
 
         this.lockSendingTransactions.delete(keyLock);
@@ -143,7 +141,7 @@ export class HandlePendingTransactionService {
 
     // There is a concurrency conflict and locks need to be added
     public async handlePendingTransaction(transaction: TransactionDocument, receipt: any) {
-        const keyLock = keyLockPendingTransaction(transaction.id);
+        const keyLock = keyLockPendingTransaction(getDocumentId(transaction));
         if (this.lockPendingTransactions.has(keyLock)) {
             return;
         }
@@ -151,69 +149,32 @@ export class HandlePendingTransactionService {
         this.lockPendingTransactions.add(keyLock);
 
         try {
-            transaction = await this.transactionService.getTransactionById(transaction.id);
+            transaction = await this.transactionService.getTransactionById(getDocumentId(transaction));
             if (!transaction || transaction.isDone()) {
                 this.lockPendingTransactions.delete(keyLock);
                 return;
             }
 
+            const chainId = transaction.chainId;
             if (!receipt) {
                 const userOpHashes = transaction.userOperationHashes;
                 await this.userOperationService.setUserOperationsAsDone(userOpHashes, '', 0, '');
                 await this.transactionService.updateTransactionStatus(transaction, TRANSACTION_STATUS.DONE);
-                userOpHashes.map((userOpHash) => {
-                    onEmitUserOpEvent(userOpHash, { args: ['', '', '', '', false, '', ''], txHash: '' });
-                });
+                const fakeUserOpEvent = { args: ['', '', '', '', false, '', ''], txHash: transaction.txHashes[transaction.txHashes.length - 1] };
+                userOpHashes.map((userOpHash) => onEmitUserOpEvent(userOpHash, fakeUserOpEvent));
 
-                this.signerService.decrChainSignerPendingTxCount(transaction.chainId, transaction.from);
-
+                this.afterDoneTransaction(transaction);
                 this.lockPendingTransactions.delete(keyLock);
                 return;
             }
 
-            const chainId = transaction.chainId;
             const results = await this.checkAndHandleFailedReceipt(transaction, receipt);
-            const userOperationEventObjects: IUserOperationEventObject[] = [];
             for (const { receipt, userOpHashes } of results) {
+                this.handleUserOpEvents(chainId, receipt, userOpHashes);
+
                 const txHash = receipt.transactionHash;
                 const blockHash = receipt.blockHash;
                 const blockNumber = receipt.blockNumber;
-
-                const contract = new Contract(receipt.to, entryPointAbi);
-                for (const log of receipt?.logs ?? []) {
-                    try {
-                        const parsed = contract.interface.parseLog(log);
-                        if (parsed?.name !== 'UserOperationEvent') {
-                            continue;
-                        }
-
-                        const args = deepHexlify(parsed.args);
-                        userOperationEventObjects.push({
-                            chainId,
-                            blockHash,
-                            blockNumber,
-                            userOperationHash: parsed.args.userOpHash,
-                            txHash: receipt.transactionHash,
-                            contractAddress: receipt.to,
-                            topic: parsed.topic,
-                            args,
-                        });
-                    } catch (error) {
-                        // May not be an EntryPoint event.
-                        continue;
-                    }
-                }
-
-                // async send
-                if (BigInt(receipt.status) === 1n) {
-                    this.userOperationService.createUserOperationEvents(userOperationEventObjects);
-                    userOperationEventObjects.map((o) => onEmitUserOpEvent(o.userOperationHash, o));
-                } else {
-                    userOpHashes.map((userOpHash: string) => {
-                        onEmitUserOpEvent(userOpHash, { args: ['', '', '', '', false, '', ''], txHash });
-                    });
-                }
-
                 await this.userOperationService.setUserOperationsAsDone(userOpHashes, txHash, blockNumber, blockHash);
 
                 transaction.receipts = transaction.receipts || {};
@@ -224,13 +185,16 @@ export class HandlePendingTransactionService {
                 }
             }
 
+            transaction.markModified('receipts');
+            transaction.markModified('userOperationHashMapTxHash');
             await this.transactionService.updateTransactionStatus(transaction, TRANSACTION_STATUS.DONE);
-            this.signerService.decrChainSignerPendingTxCount(transaction.chainId, transaction.from);
-            this.signerService.setSignerDoneTransactionMaxNonce(chainId, transaction.from, transaction.nonce);
+            this.afterDoneTransaction(transaction);
         } catch (error) {
             Logger.error('handlePendingTransaction error', error);
+
+            const errorMessage = Helper.converErrorToString(error);
             this.larkService.sendMessage(
-                `HandlePendingTransaction On Chain ${transaction.chainId} For ${transaction.id} Error: ${Helper.converErrorToString(error)}`,
+                `HandlePendingTransaction On Chain ${transaction.chainId} For ${getDocumentId(transaction)} Error: ${errorMessage}`,
             );
         }
 
@@ -239,7 +203,10 @@ export class HandlePendingTransactionService {
 
     // Check is the userop is bundled by other tx(mev attack)
     // This is not a strict check
-    private async checkAndHandleFailedReceipt(transaction: TransactionDocument, receipt: any) {
+    private async checkAndHandleFailedReceipt(
+        transaction: TransactionDocument,
+        receipt: any,
+    ): Promise<{ receipt: any; userOpHashes: string[] }[]> {
         try {
             const bundlerConfig = getBundlerChainConfig(transaction.chainId);
 
@@ -295,7 +262,7 @@ export class HandlePendingTransactionService {
 
             return results;
         } catch (error) {
-            Logger.error(`[CheckAndHandleFailedReceipt] Error: ${transaction.id} | ${error?.message}`);
+            Logger.error(`[CheckAndHandleFailedReceipt] Error: ${getDocumentId(transaction)} | ${error?.message}`);
             this.larkService.sendMessage(`CheckAndHandleFailedReceipt Error: ${Helper.converErrorToString(error)}`);
             return [{ receipt, userOpHashes: transaction.userOperationHashes }];
         }
@@ -359,14 +326,12 @@ export class HandlePendingTransactionService {
                     if (error?.message?.toLowerCase()?.includes('already known')) {
                         // already send ?? can skip return
                     } else {
-                        Logger.error(
-                            `trySendOldPendingTransaction Error On Chain ${pendingTransaction.chainId} For ${pendingTransaction.id}`,
-                            error,
-                        );
+                        const tId = getDocumentId(pendingTransaction);
+                        const errorMessage = Helper.converErrorToString(error);
+
+                        Logger.error(`trySendOldPendingTransaction Error On Chain ${pendingTransaction.chainId} For ${tId}`, error);
                         this.larkService.sendMessage(
-                            `trySendOldPendingTransaction Error On Chain ${pendingTransaction.chainId} For ${
-                                pendingTransaction.id
-                            }: ${Helper.converErrorToString(error)}`,
+                            `trySendOldPendingTransaction Error On Chain ${pendingTransaction.chainId} For ${tId}: ${errorMessage}`,
                         );
                     }
                 }
@@ -375,23 +340,24 @@ export class HandlePendingTransactionService {
             return null;
         } catch (error) {
             Logger.error('getReceiptAndHandlePendingTransactions error', error);
+
+            const tId = getDocumentId(pendingTransaction);
+            const errorMessage = Helper.converErrorToString(error);
             this.larkService.sendMessage(
-                `getReceiptAndHandlePendingTransactions Error On Chain ${pendingTransaction.chainId} For ${
-                    pendingTransaction.id
-                }: ${Helper.converErrorToString(error)}`,
+                `getReceiptAndHandlePendingTransactions Error On Chain ${pendingTransaction.chainId} For ${tId}: ${errorMessage}`,
             );
         }
     }
 
     private async tryIncrTransactionGasPriceAndReplace(transaction: TransactionDocument) {
-        const keyLock = keyLockPendingTransaction(transaction.id);
+        const keyLock = keyLockPendingTransaction(getDocumentId(transaction));
         if (this.lockPendingTransactions.has(keyLock)) {
             return;
         }
 
         this.lockPendingTransactions.add(keyLock);
 
-        transaction = await this.transactionService.getTransactionById(transaction.id);
+        transaction = await this.transactionService.getTransactionById(getDocumentId(transaction));
         if (transaction.isDone()) {
             this.lockPendingTransactions.delete(keyLock);
             return;
@@ -479,7 +445,7 @@ export class HandlePendingTransactionService {
             if (error?.message?.toLowerCase()?.includes('already known')) {
                 // already send ?? can skip return
             } else {
-                Logger.error(`Replace Transaction ${transaction.id} error on chain ${transaction.chainId}`);
+                Logger.error(`Replace Transaction ${transaction._id.toString()} error on chain ${transaction.chainId}`);
                 this.larkService.sendMessage(
                     `ReplaceTransaction Error On Chain ${transaction.chainId} For ${transaction.from}: ${Helper.converErrorToString(error)}`,
                 );
@@ -487,5 +453,51 @@ export class HandlePendingTransactionService {
         }
 
         this.lockPendingTransactions.delete(keyLock);
+    }
+
+    private handleUserOpEvents(chainId: number, receipt: any, userOpHashes: string[]) {
+        const userOperationEventObjects: IUserOperationEventObject[] = [];
+        const txHash = receipt.transactionHash;
+        const blockHash = receipt.blockHash;
+        const blockNumber = receipt.blockNumber;
+
+        const contract = new Contract(receipt.to, entryPointAbi);
+        for (const log of receipt?.logs ?? []) {
+            try {
+                const parsed = contract.interface.parseLog(log);
+                if (parsed?.name !== 'UserOperationEvent') {
+                    continue;
+                }
+
+                const args = deepHexlify(parsed.args);
+                userOperationEventObjects.push({
+                    chainId,
+                    blockHash,
+                    blockNumber,
+                    userOperationHash: parsed.args.userOpHash,
+                    txHash: receipt.transactionHash,
+                    contractAddress: receipt.to,
+                    topic: parsed.topic,
+                    args,
+                });
+            } catch (error) {
+                // May not be an EntryPoint event.
+                continue;
+            }
+        }
+
+        // async send
+        if (BigInt(receipt.status) === 1n) {
+            this.userOperationService.createUserOperationEvents(userOperationEventObjects);
+            userOperationEventObjects.map((o) => onEmitUserOpEvent(o.userOperationHash, o));
+        } else {
+            const fakeUserOpEvent = { args: ['', '', '', '', false, '', ''], txHash };
+            userOpHashes.map((userOpHash: string) => onEmitUserOpEvent(userOpHash, fakeUserOpEvent));
+        }
+    }
+
+    private afterDoneTransaction(transaction: TransactionDocument) {
+        this.signerService.decrChainSignerPendingTxCount(transaction.chainId, transaction.from);
+        this.signerService.setSignerDoneTransactionMaxNonce(transaction.chainId, transaction.from, transaction.nonce);
     }
 }

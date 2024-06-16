@@ -21,9 +21,9 @@ import MultiCall3Abi from '../abis/multi-call-3-abi';
 import {
     EVM_CHAIN_ID,
     L2_GAS_ORACLE,
+    NEED_TO_ESTIMATE_GAS_BEFORE_SEND,
     SUPPORT_EIP_1559,
     SUPPORT_MULTCALL3,
-    USE_PROXY_CONTRACT_TO_ESTIMATE_GAS,
 } from '../../../../common/chains';
 import { UserOperationDocument } from '../../schemas/user-operation.schema';
 import { UserOperationService } from '../../services/user-operation.service';
@@ -110,7 +110,7 @@ export async function beforeSendUserOperation(
 
         const gasCostInContract = BigInt(rSimulation.gasCostInContract);
         const gasCostWholeTransaction = BigInt(rSimulation.gasCostWholeTransaction);
-        const gasCost = USE_PROXY_CONTRACT_TO_ESTIMATE_GAS.includes(chainId)
+        const gasCost = NEED_TO_ESTIMATE_GAS_BEFORE_SEND.includes(chainId)
             ? gasCostWholeTransaction > gasCostInContract
                 ? gasCostWholeTransaction
                 : gasCostInContract

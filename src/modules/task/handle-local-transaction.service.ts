@@ -4,16 +4,14 @@ import { Contract, Wallet } from 'ethers';
 import { UserOperationDocument } from '../rpc/schemas/user-operation.schema';
 import { LarkService } from '../common/services/lark.service';
 import { Helper } from '../../common/helper';
-import { IS_PRODUCTION } from '../../common/common-types';
-import { PARTICLE_CHAINS, USE_PROXY_CONTRACT_TO_ESTIMATE_GAS } from '../../common/chains';
+import { NEED_TO_ESTIMATE_GAS_BEFORE_SEND } from '../../common/chains';
 import entryPointAbi from '../rpc/aa/abis/entry-point-abi';
 import { TRANSACTION_STATUS, TransactionDocument } from '../rpc/schemas/transaction.schema';
 import { TransactionService } from '../rpc/services/transaction.service';
 import { UserOperationService } from '../rpc/services/user-operation.service';
 import { HandlePendingTransactionService } from './handle-pending-transaction.service';
 import { Cron } from '@nestjs/schedule';
-import { canRunCron, createTxGasData, tryParseSignedTx } from '../rpc/aa/utils';
-import { ListenerService } from './listener.service';
+import { canRunCron, createTxGasData, getDocumentId, tryParseSignedTx } from '../rpc/aa/utils';
 import { SignerService } from '../rpc/services/signer.service';
 import { ChainService } from '../rpc/services/chain.service';
 import { TypedTransaction } from '@ethereumjs/tx';
@@ -28,14 +26,9 @@ export class HandleLocalTransactionService {
         private readonly larkService: LarkService,
         private readonly transactionService: TransactionService,
         private readonly userOperationService: UserOperationService,
-        private readonly listenerService: ListenerService,
         private readonly signerService: SignerService,
         private readonly handlePendingTransactionService: HandlePendingTransactionService,
-    ) {
-        if (canRunCron()) {
-            // this.listenerService.initialize(this.handlePendingTransactionByEvent.bind(this));
-        }
-    }
+    ) {}
 
     @Cron('* * * * * *')
     public async handleLocalTransactions() {
@@ -45,7 +38,6 @@ export class HandleLocalTransactionService {
 
         try {
             const localTransactions = await this.transactionService.getTransactionsByStatus(TRANSACTION_STATUS.LOCAL, 500);
-
             for (const localTransaction of localTransactions) {
                 this.handleLocalTransaction(localTransaction);
             }
@@ -56,11 +48,11 @@ export class HandleLocalTransactionService {
     }
 
     public async handleLocalTransaction(localTransaction: TransactionDocument) {
-        if (this.lockedLocalTransactions.has(localTransaction.id)) {
+        if (this.lockedLocalTransactions.has(getDocumentId(localTransaction))) {
             return;
         }
 
-        this.lockedLocalTransactions.add(localTransaction.id);
+        this.lockedLocalTransactions.add(getDocumentId(localTransaction));
 
         try {
             // local transaction should have only one txHash
@@ -71,11 +63,13 @@ export class HandleLocalTransactionService {
                 await this.handlePendingTransactionService.trySendAndUpdateTransactionStatus(localTransaction, localTransaction.txHashes[0]);
             }
         } catch (error) {
-            Logger.error(`Failed to handle local transaction: ${localTransaction.id}`, error);
-            this.larkService.sendMessage(`Failed to handle local transaction: ${localTransaction.id}: ${Helper.converErrorToString(error)}`);
+            Logger.error(`Failed to handle local transaction: ${getDocumentId(localTransaction)}`, error);
+            this.larkService.sendMessage(
+                `Failed to handle local transaction: ${getDocumentId(localTransaction)}: ${Helper.converErrorToString(error)}`,
+            );
         }
 
-        this.lockedLocalTransactions.delete(localTransaction.id);
+        this.lockedLocalTransactions.delete(getDocumentId(localTransaction));
     }
 
     public async createBundleTransaction(
@@ -87,89 +81,69 @@ export class HandleLocalTransactionService {
         nonce: number,
         feeData: any,
     ) {
-        try {
-            const beneficiary = signer.address;
-            const entryPointContract = new Contract(entryPoint, entryPointAbi, null);
-            const userOps = userOperationDocuments
-                .map((userOperationDocument) => {
-                    let items = [userOperationDocument.origin];
-                    if (!!userOperationDocument.associatedUserOps && userOperationDocument.associatedUserOps.length > 0) {
-                        items = items.concat(userOperationDocument.associatedUserOps.map((o) => o.origin));
-                    }
+        const beneficiary = signer.address;
+        const entryPointContract = new Contract(entryPoint, entryPointAbi, null);
+        const allUserOperationDocuments = this.flatAllUserOperationDocuments(userOperationDocuments);
+        const userOps = allUserOperationDocuments.map((o) => o.origin);
 
-                    return items;
-                })
-                .flat();
+        const finalizedTx = await entryPointContract.handleOps.populateTransaction(userOps, beneficiary, {
+            nonce,
+            ...createTxGasData(chainId, feeData),
+        });
+        const gasLimit = await this.calculateGasLimitByBundleGasLimit(chainId, BigInt(bundleGasLimit), finalizedTx);
+        finalizedTx.gasLimit = gasLimit;
+        finalizedTx.chainId = BigInt(chainId);
+        const signedTx = await signer.signTransaction(finalizedTx);
+        const userOpHashes = allUserOperationDocuments.map((o) => o.userOpHash);
 
-            let gasLimit = BigInt(bundleGasLimit);
-            if (!PARTICLE_CHAINS.includes(chainId)) {
-                gasLimit = (BigInt(bundleGasLimit) * 15n) / 10n;
-            }
+        const transactionObjectId = new Types.ObjectId();
+        await this.userOperationService.setLocalUserOperationsAsPending(userOpHashes, transactionObjectId);
 
-            if (USE_PROXY_CONTRACT_TO_ESTIMATE_GAS.includes(chainId)) {
-                gasLimit *= 5n;
-                if (gasLimit < 10000000n) {
-                    gasLimit = 10000000n;
-                }
-            }
+        this.onCreateUserOpTxHash(signedTx, userOpHashes);
 
-            const finalizedTx = await entryPointContract.handleOps.populateTransaction(userOps, beneficiary, {
-                nonce,
-                gasLimit,
-                ...createTxGasData(chainId, feeData),
-            });
+        // if failed, the userops is abandoned
+        const localTransaction = await this.transactionService.createTransaction(transactionObjectId, chainId, signedTx, userOpHashes);
+        this.signerService.incrChainSignerPendingTxCount(chainId, signer.address);
 
-            finalizedTx.chainId = BigInt(chainId);
-            const signedTx = await signer.signTransaction(finalizedTx);
-
-            const userOpHashes = userOperationDocuments
-                .map((userOperationDocument) => {
-                    let items = [userOperationDocument.userOpHash];
-                    if (!!userOperationDocument.associatedUserOps && userOperationDocument.associatedUserOps.length > 0) {
-                        items = items.concat(userOperationDocument.associatedUserOps.map((o) => o.userOpHash));
-                    }
-
-                    return items;
-                })
-                .flat();
-
-            const transactionObjectId = new Types.ObjectId();
-            await this.userOperationService.setLocalUserOperationsAsPending(userOpHashes, transactionObjectId);
-
-            // hook onCreateUserOpTxHash
-            // TODO set on retry transaction
-            const tx: TypedTransaction = tryParseSignedTx(signedTx);
-            const txHash = `0x${Buffer.from(tx.hash()).toString('hex')}`;
-            userOpHashes.map((userOpHash) => onCreateUserOpTxHash(userOpHash, txHash));
-
-            // no need to await, if failed, the userops is abandoned
-            const localTransaction = await this.transactionService.createTransaction(transactionObjectId, chainId, signedTx, userOpHashes);
-            // this.listenerService.appendUserOpHashPendingTransactionMap(localTransaction);
-            this.signerService.incrChainSignerPendingTxCount(chainId, signer.address);
-
-            // no need to await
-            this.handlePendingTransactionService.trySendAndUpdateTransactionStatus(localTransaction, localTransaction.txHashes[0]);
-        } catch (error) {
-            if (!IS_PRODUCTION) {
-                console.error('Failed to create bundle transaction', error);
-            }
-
-            this.larkService.sendMessage(`Failed to create bundle transaction: ${Helper.converErrorToString(error)}`);
-
-            throw error;
-        }
+        // there is lock, so no need to await
+        this.handlePendingTransactionService.trySendAndUpdateTransactionStatus(localTransaction, localTransaction.txHashes[0]);
     }
 
-    public handlePendingTransactionByEvent(event: any) {
-        const userOpHash = event[6];
-        const userOpEvent = event[7];
-        const receipt = {
-            transactionHash: userOpEvent.log.transactionHash,
-            blockHash: userOpEvent.log.blockHash,
-            blockNumber: userOpEvent.log.blockNumber,
-            status: '0x01',
-            logs: [userOpEvent.log],
-            isEvent: true,
-        };
+    public async calculateGasLimitByBundleGasLimit(chainId: number, bundleGasLimit: bigint, handleOpsTx: any): Promise<bigint> {
+        let gasLimit = (bundleGasLimit * 15n) / 10n;
+        if (NEED_TO_ESTIMATE_GAS_BEFORE_SEND.includes(chainId)) {
+            gasLimit *= 5n;
+            if (gasLimit < 10000000n) {
+                gasLimit = 10000000n;
+            }
+
+            try {
+                const gas = BigInt(await this.chainService.estimateGas(chainId, handleOpsTx));
+                return gas > gasLimit ? gas : gasLimit;
+            } catch (error) {
+                // ignore error
+            }
+        }
+
+        return gasLimit;
+    }
+
+    public flatAllUserOperationDocuments(userOperationDocuments: UserOperationDocument[]): UserOperationDocument[] {
+        return userOperationDocuments
+            .map((userOperationDocument) => {
+                let items = [userOperationDocument];
+                if (!!userOperationDocument.associatedUserOps && userOperationDocument.associatedUserOps.length > 0) {
+                    items = items.concat(userOperationDocument.associatedUserOps);
+                }
+
+                return items;
+            })
+            .flat();
+    }
+
+    private onCreateUserOpTxHash(signedTx: string, userOpHashes: string[]) {
+        const tx: TypedTransaction = tryParseSignedTx(signedTx);
+        const txHash = `0x${Buffer.from(tx.hash()).toString('hex')}`;
+        userOpHashes.map((userOpHash) => onCreateUserOpTxHash(userOpHash, txHash));
     }
 }

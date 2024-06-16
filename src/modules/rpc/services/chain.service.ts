@@ -120,6 +120,46 @@ export class ChainService {
         return response.data?.result;
     }
 
+    public async particleSuggestedGasFees(chainId: number) {
+        const bundlerChainConfig = getBundlerChainConfig(chainId);
+        const response = await Axios.post(
+            bundlerChainConfig.rpcUrl,
+            {
+                jsonrpc: '2.0',
+                id: Date.now(),
+                method: 'particle_suggestedGasFees',
+                params: [],
+            },
+            { timeout: 12000 },
+        );
+
+        if (!response.data?.result) {
+            throw new Error(`Failed to fetch suggested Gas Fees: ${Helper.converErrorToString(response.data)}`);
+        }
+
+        return response.data?.result;
+    }
+
+    public async getTransactionCount(chainId: number, address: string) {
+        const bundlerChainConfig = getBundlerChainConfig(chainId);
+        const response = await Axios.post(
+            bundlerChainConfig.rpcUrl,
+            {
+                jsonrpc: '2.0',
+                id: Date.now(),
+                method: 'eth_getTransactionCount',
+                params: [address, 'latest'],
+            },
+            { timeout: 12000 },
+        );
+
+        if (!response.data?.result) {
+            throw new Error(`Failed to fetch suggested Gas Fees: ${Helper.converErrorToString(response.data)}`);
+        }
+
+        return response.data?.result;
+    }
+
     public async getFeeDataIfCache(chainId: number) {
         const cacheKey = this.keyCacheChainFeeData(chainId);
         let feeData = P2PCache.get(cacheKey);
@@ -134,14 +174,7 @@ export class ChainService {
     }
 
     public async getFeeDataFromParticle(chainId: number, level: string = GAS_FEE_LEVEL.MEDIUM) {
-        const network = Network.from(chainId);
-        const provider = new JsonRpcProvider(`${PARTICLE_PUBLIC_RPC_URL}?chainId=${chainId}`, network, {
-            batchMaxCount: 1,
-            staticNetwork: network,
-        });
-
-        const particleFeeData = await provider.send('particle_suggestedGasFees', []);
-
+        const particleFeeData = await this.particleSuggestedGasFees(chainId);
         if ([EVM_CHAIN_ID.TAIKO_TESTNET_HEKLA, EVM_CHAIN_ID.TAIKO_MAINNET].includes(chainId)) {
             particleFeeData.baseFee = 0.000000001; // 1 wei
         }
@@ -192,20 +225,19 @@ export class ChainService {
         return result;
     }
 
-    private keyCacheChainFeeData(chainId: number): string {
+    public keyCacheChainFeeData(chainId: number): string {
         return `chain_fee_data:${chainId}`;
     }
 
     public async getTransactionCountIfCache(chainId: number, address: string, forceLatest: boolean = false): Promise<number> {
         try {
-            const provider = this.getJsonRpcProvider(chainId);
             const cacheKey = this.keyCacheChainSignerTransactionCount(chainId, address);
             let nonce = P2PCache.get(cacheKey);
             if (!forceLatest && !!nonce) {
                 return nonce;
             }
 
-            nonce = await provider.getTransactionCount(address, 'latest');
+            nonce = Number(BigInt(await this.getTransactionCount(chainId, address)));
             P2PCache.set(cacheKey, nonce, CACHE_TRANSACTION_COUNT_TIMEOUT);
 
             return nonce;

@@ -80,7 +80,6 @@ export class TransactionService {
         chainId: number,
         signedTx: any,
         userOperationHashes: string[],
-        session?: any,
     ): Promise<TransactionDocument> {
         const tx: TypedTransaction = tryParseSignedTx(signedTx);
         const txHash = `0x${Buffer.from(tx.hash()).toString('hex')}`;
@@ -101,7 +100,7 @@ export class TransactionService {
             latestSentAt: new Date(),
         });
 
-        return await transaction.save({ session });
+        return await transaction.save();
     }
 
     public async addTransactionsConfirmations(ids: string[]) {
