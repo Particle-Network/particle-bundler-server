@@ -301,6 +301,7 @@ export class HandlePendingTransactionService {
             // force retry
             if (pendingTransaction.incrRetry) {
                 await this.tryIncrTransactionGasPriceAndReplace(pendingTransaction);
+                return null;
             }
 
             if (!pendingTransaction.isPendingTimeout() || !signerDoneTransactionMaxNonce) {
