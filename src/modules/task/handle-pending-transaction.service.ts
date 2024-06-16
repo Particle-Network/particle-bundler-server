@@ -94,26 +94,28 @@ export class HandlePendingTransactionService {
 
             await this.chainService.sendRawTransaction(transaction.chainId, transaction.signedTxs[txHash]);
         } catch (error) {
-            // insufficient funds for intrinsic transaction cost
-            if (error?.message?.toLowerCase()?.includes('insufficient funds')) {
-                this.signerService.setBlockedSigner(transaction.chainId, transaction.from, BLOCK_SIGNER_REASON.INSUFFICIENT_BALANCE, {
-                    transactionId: getDocumentId(transaction),
-                });
-            } else if (
-                error?.message?.toLowerCase()?.includes('nonce too low') ||
-                error?.message?.toLowerCase()?.includes('replacement transaction underpriced')
-            ) {
-                // delete transaction and recover user op
-                this.chainService.trySetTransactionCountLocalCache(transaction.chainId, transaction.from, transaction.nonce + 1);
-                await Helper.startMongoTransaction(this.connection, async (session: any) => {
-                    await Promise.all([
-                        transaction.delete({ session }),
-                        this.userOperationService.setPendingUserOperationsToLocal(getDocumentId(transaction), session),
-                    ]);
-                });
-            } else if (error?.message?.toLowerCase()?.includes('already known')) {
-                // already send ?? can skip and return
+            if (error?.message?.toLowerCase()?.includes('already known')) {
+                // already send ?? can skip
             } else {
+                // insufficient funds for intrinsic transaction cost
+                if (error?.message?.toLowerCase()?.includes('insufficient funds')) {
+                    this.signerService.setBlockedSigner(transaction.chainId, transaction.from, BLOCK_SIGNER_REASON.INSUFFICIENT_BALANCE, {
+                        transactionId: getDocumentId(transaction),
+                    });
+                } else if (
+                    error?.message?.toLowerCase()?.includes('nonce too low') ||
+                    error?.message?.toLowerCase()?.includes('replacement transaction underpriced')
+                ) {
+                    // delete transaction and recover user op
+                    this.chainService.trySetTransactionCountLocalCache(transaction.chainId, transaction.from, transaction.nonce + 1);
+                    await Helper.startMongoTransaction(this.connection, async (session: any) => {
+                        await Promise.all([
+                            transaction.delete({ session }),
+                            this.userOperationService.setPendingUserOperationsToLocal(getDocumentId(transaction), session),
+                        ]);
+                    });
+                }
+
                 Logger.error(`SendTransaction error: ${getDocumentId(transaction)}`, error);
                 this.larkService.sendMessage(
                     `Send Transaction Error On Chain ${transaction.chainId} And Transaction ${getDocumentId(
