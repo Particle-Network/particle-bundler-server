@@ -81,6 +81,8 @@ export class HandleLocalTransactionService {
         nonce: number,
         feeData: any,
     ) {
+        Logger.debug(`[createBundleTransaction] signer: ${signer.address} | nonce: ${nonce} | userOpDocCount: ${userOperationDocuments.length}`);
+
         const beneficiary = signer.address;
         const entryPointContract = new Contract(entryPoint, entryPointAbi, null);
         const allUserOperationDocuments = this.flatAllUserOperationDocuments(userOperationDocuments);

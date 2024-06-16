@@ -11,6 +11,11 @@ import { EVM_CHAIN_ID } from '../src/common/chains';
 import { AppModule } from '../src/app.module';
 import Axios from 'axios';
 import { INestApplication } from '@nestjs/common';
+import * as http from 'http';
+import * as https from 'https';
+
+Axios.defaults.httpsAgent = new https.Agent({ keepAlive: true });
+Axios.defaults.httpAgent = new http.Agent({ keepAlive: true });
 
 const BUNDLER_URL = 'http://localhost:3001';
 
@@ -43,11 +48,16 @@ describe('Benchmark', () => {
             const chainId = Number(customChainId ? customChainId.split('=')[1] : EVM_CHAIN_ID.ETHEREUM_SEPOLIA_TESTNET);
 
             const promises = [];
-            for (let index = 0; index < 100; index++) {
+            for (let index = 0; index < 10; index++) {
                 promises.push(createAndExecuteUserOp(chainId));
             }
 
-            await Promise.all(promises);
+            const userOps = await Promise.all(promises);
+            await Promise.all(
+                userOps.map(async (userOp) => {
+                    await sendUserOp(chainId, userOp);
+                }),
+            );
         }, 60000);
     });
 });
@@ -58,7 +68,8 @@ async function createAndExecuteUserOp(chainId: number) {
     userOp = await estimateGas(chainId, userOp);
     userOp = await gaslessSponsor(chainId, userOp, rpcController);
     userOp.signature = await getSignature(simpleAccount, userOp);
-    await sendUserOp(chainId, userOp);
+
+    return userOp;
 }
 
 async function createSimpleAccount(chainId: number): Promise<IContractAccount> {

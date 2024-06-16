@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { IBundle, IPackedBundle, SignerWithPendingTxCount, keyLockSigner } from '../../common/common-types';
+import { IBundle, IPackedBundle, IS_DEVELOPMENT, IS_PRODUCTION, SignerWithPendingTxCount, keyLockSigner } from '../../common/common-types';
 import { Helper } from '../../common/helper';
 import { UserOperationService } from '../rpc/services/user-operation.service';
 import { Cron } from '@nestjs/schedule';
@@ -65,9 +65,17 @@ export class HandleLocalUserOperationService {
         this.unlockUserOperations(unusedUserOperations);
 
         await Promise.all(
-            packedBundles.map(async (packedBundle) => {
-                await this.handlePendingUserOperationService.handleLocalUserOperationBundles(chainId, packedBundle.signer, packedBundle.bundles);
-                this.lockChainSigner.delete(keyLockSigner(chainId, packedBundle.address));
+            signersWithPendingTxCount.map(async (signerWithPendingTxCount) => {
+                const packedBundle = packedBundles.find((packedBundle) => packedBundle.address === signerWithPendingTxCount.signer.address);
+                if (!!packedBundle) {
+                    await this.handlePendingUserOperationService.handleLocalUserOperationBundles(
+                        chainId,
+                        packedBundle.signer,
+                        packedBundle.bundles,
+                    );
+                }
+
+                this.lockChainSigner.delete(keyLockSigner(chainId, signerWithPendingTxCount.signer.address));
             }),
         );
 
@@ -94,7 +102,7 @@ export class HandleLocalUserOperationService {
         );
 
         signerWithPendingTxCount.sort((a, b) => b.availableTxCount - a.availableTxCount);
-        let takeOnce = Math.ceil(randomValidSigners.length / 5);
+        let takeOnce = IS_DEVELOPMENT ? randomValidSigners.length : Math.ceil(randomValidSigners.length / 5);
 
         for (let index = 0; index < signerWithPendingTxCount.length; index++) {
             const signer = signerWithPendingTxCount[index].signer;

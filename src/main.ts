@@ -34,7 +34,10 @@ async function bootstrap() {
         routes: ['/rpc', '/'],
     });
 
-    const app = await NestFactory.create<NestFastifyApplication>(AppModule, fastifyAdapter);
+    const app = await NestFactory.create<NestFastifyApplication>(AppModule, fastifyAdapter, {
+        logger: IS_DEVELOPMENT ? ['error', 'warn', 'log', 'debug', 'verbose'] : false,
+    });
+
     app.enableCors({
         origin: '*',
         maxAge: 86400,
@@ -80,7 +83,7 @@ async function bootstrap() {
 }
 
 function initApp(app: INestApplication | INestApplicationContext) {
-    Mongoose.set('debug', IS_DEVELOPMENT);
+    Mongoose.set('debug', process.env.ENABLE_MONGO_DEBUG === '1');
     const larkService = app.get(LarkService);
 
     if (process.env.LARK_NOTICE_URL) {
