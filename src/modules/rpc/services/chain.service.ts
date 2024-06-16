@@ -121,9 +121,9 @@ export class ChainService {
     }
 
     public async particleSuggestedGasFees(chainId: number) {
-        const bundlerChainConfig = getBundlerChainConfig(chainId);
+        const rpcUrl = `${PARTICLE_PUBLIC_RPC_URL}?chainId=${chainId}`;
         const response = await Axios.post(
-            bundlerChainConfig.rpcUrl,
+            rpcUrl,
             {
                 jsonrpc: '2.0',
                 id: Date.now(),
