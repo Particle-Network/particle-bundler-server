@@ -5,69 +5,26 @@ import { ENTRY_POINT_VERSION_MAP, PARTICLE_PAYMASTER_URL, getBundlerChainConfig 
 import { JsonRPCRequestDto, JsonRPCResponse } from './../dtos/json-rpc-request.dto';
 import { AppException } from '../../../common/app-exception';
 import * as AA from './../aa';
-import { AAService } from './aa.service';
-import { FetchRequest, JsonRpcProvider, Network, getAddress, isAddress } from 'ethers';
+import { getAddress, isAddress } from 'ethers';
 import { AA_METHODS } from '../../../configs/bundler-common';
-import { PROVIDER_FETCH_TIMEOUT } from '../../../common/common-types';
 import { Helper } from '../../../common/helper';
 import { LarkService } from '../../common/services/lark.service';
+import { SignerService } from './signer.service';
+import { ChainService } from './chain.service';
+import { UserOperationService } from './user-operation.service';
+import { TransactionService } from './transaction.service';
 
 @Injectable()
 export class RpcService {
-    private readonly jsonRpcProviders: Map<number, JsonRpcProvider> = new Map();
     private readonly cachedValidPaymasters: Map<number, string> = new Map();
 
-    public constructor(public readonly aaService: AAService, public readonly larkService: LarkService) {}
-
-    public getJsonRpcProvider(chainId: number): JsonRpcProvider {
-        if (!this.jsonRpcProviders.has(chainId)) {
-            const rpcUrl = getBundlerChainConfig(chainId).rpcUrl;
-            const fetchRequest = new FetchRequest(rpcUrl);
-            fetchRequest.timeout = PROVIDER_FETCH_TIMEOUT;
-            const provider = new JsonRpcProvider(fetchRequest, Network.from(chainId), { batchMaxCount: 1, staticNetwork: true });
-
-            this.jsonRpcProviders.set(chainId, provider);
-        }
-
-        return this.jsonRpcProviders.get(chainId);
-    }
-
-    public async getTransactionReceipt(chainId: number, txHash: string) {
-        const rpcUrl = getBundlerChainConfig(chainId).rpcUrl;
-        const response = await Axios.post(
-            rpcUrl,
-            {
-                jsonrpc: '2.0',
-                id: Date.now(),
-                method: 'eth_getTransactionReceipt',
-                params: [txHash],
-            },
-            { timeout: 12000 },
-        );
-
-        return response.data?.result;
-    }
-
-    public async sendRawTransaction(chainId: number, rawTransaction: string) {
-        const bundlerChainConfig = getBundlerChainConfig(chainId);
-        const rpcUrl = bundlerChainConfig.sendRawTransactionRpcUrl ?? bundlerChainConfig.rpcUrl;
-        const response = await Axios.post(
-            rpcUrl,
-            {
-                jsonrpc: '2.0',
-                id: Date.now(),
-                method: bundlerChainConfig.methodSendRawTransaction,
-                params: [rawTransaction],
-            },
-            { timeout: 12000 },
-        );
-
-        if (!response.data?.result) {
-            throw new Error(`Failed to send raw transaction: ${Helper.converErrorToString(response.data)}`);
-        }
-
-        return response.data?.result;
-    }
+    public constructor(
+        public readonly signerService: SignerService,
+        public readonly larkService: LarkService,
+        public readonly chainService: ChainService,
+        public readonly userOperationService: UserOperationService,
+        public readonly transactionService: TransactionService,
+    ) {}
 
     public async getValidPaymasterAddress(chainId: number) {
         if (this.cachedValidPaymasters.has(chainId)) {
@@ -113,7 +70,11 @@ export class RpcService {
         }
 
         let result: any;
-        if ([AA_METHODS.ESTIMATE_USER_OPERATION_GAS, AA_METHODS.SEND_USER_OPERATION].includes(body.method as AA_METHODS)) {
+        if (
+            [AA_METHODS.ESTIMATE_USER_OPERATION_GAS, AA_METHODS.SEND_USER_OPERATION, AA_METHODS.SEND_USER_OPERATION_BATCH].includes(
+                body.method as AA_METHODS,
+            )
+        ) {
             Helper.assertTrue(
                 typeof body.params[1] === 'string' && isAddress(body.params[1]),
                 -32602,

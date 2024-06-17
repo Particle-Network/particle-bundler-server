@@ -11,9 +11,9 @@ import { IUserOperationEventObject } from '../../../common/common-types';
 @Injectable()
 export class UserOperationService {
     public constructor(
-        @InjectModel(UserOperation.name) private readonly userOperationModel: Model<UserOperationDocument>,
-        @InjectModel(UserOperationEvent.name) private readonly userOperationEventModel: Model<UserOperationEventDocument>,
-        @InjectModel(Transaction.name) private readonly transactionModel: Model<TransactionDocument>,
+        @InjectModel(UserOperation.name) public readonly userOperationModel: Model<UserOperationDocument>,
+        @InjectModel(UserOperationEvent.name) public readonly userOperationEventModel: Model<UserOperationEventDocument>,
+        @InjectModel(Transaction.name) public readonly transactionModel: Model<TransactionDocument>,
     ) {}
 
     public async createOrUpdateUserOperation(
@@ -46,6 +46,42 @@ export class UserOperationService {
         });
 
         return await userOperation.save();
+    }
+
+    public async createBatchUserOperation(
+        chainId: number,
+        userOps: any[],
+        userOpHashes: string[],
+        entryPoint: string,
+    ): Promise<UserOperationDocument[]> {
+        const userOperations: UserOperationDocument[] = [];
+        for (let index = 0; index < userOps.length; index++) {
+            const userOp = userOps[index];
+            const { nonceKey, nonceValue } = splitOriginNonce(userOp.nonce);
+
+            const nonceValueString = BigInt(nonceValue).toString();
+            Helper.assertTrue(nonceValueString.length <= 30, -32608); // ensure nonce is less than Decimals(128)
+
+            const userOperation = new this.userOperationModel({
+                userOpHash: userOpHashes[index],
+                userOpSender: userOp.sender,
+                userOpNonceKey: nonceKey,
+                userOpNonce: nonceValueString,
+                chainId,
+                entryPoint,
+                origin: userOp,
+                status: index === 0 ? USER_OPERATION_STATUS.LOCAL : USER_OPERATION_STATUS.ASSOCIATED,
+            });
+
+            userOperations.push(userOperation);
+        }
+
+        userOperations[0].associatedUserOps = [];
+        for (const otherUserOperation of userOperations.slice(1)) {
+            userOperations[0].associatedUserOps.push(otherUserOperation.toJSON());
+        }
+
+        return await Promise.all(userOperations.map((userOperation) => userOperation.save()));
     }
 
     private async checkCanBeReplaced(userOpDoc: UserOperationDocument) {
@@ -102,19 +138,14 @@ export class UserOperationService {
         return await this.userOperationModel.findOne({ userOpHash });
     }
 
+    // Warning: can cause user nonce is not continuous
     public async getLocalUserOperations(limit: number = 1000): Promise<UserOperationDocument[]> {
         return await this.userOperationModel.aggregate([{ $match: { status: USER_OPERATION_STATUS.LOCAL } }, { $sample: { size: limit } }]);
     }
 
-    public async setLocalUserOperationsAsPending(
-        userOperationDocument: UserOperationDocument[],
-        transactionObjectId: Types.ObjectId,
-        session?: any,
-    ) {
-        const ids = userOperationDocument.map((u) => u._id);
-
+    public async setLocalUserOperationsAsPending(userOpHashes: string[], transactionObjectId: Types.ObjectId, session?: any) {
         return await this.userOperationModel.updateMany(
-            { _id: { $in: ids }, status: USER_OPERATION_STATUS.LOCAL },
+            { userOpHash: { $in: userOpHashes }, status: { $in: [USER_OPERATION_STATUS.LOCAL, USER_OPERATION_STATUS.ASSOCIATED] } },
             { $set: { status: USER_OPERATION_STATUS.PENDING, transactionId: transactionObjectId.toString() } },
             { session },
         );

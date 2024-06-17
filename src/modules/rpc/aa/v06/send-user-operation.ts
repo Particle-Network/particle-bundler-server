@@ -21,19 +21,39 @@ import MultiCall3Abi from '../abis/multi-call-3-abi';
 import {
     EVM_CHAIN_ID,
     L2_GAS_ORACLE,
-    PARTICLE_CHAINS,
+    NEED_TO_ESTIMATE_GAS_BEFORE_SEND,
     SUPPORT_EIP_1559,
     SUPPORT_MULTCALL3,
-    USE_PROXY_CONTRACT_TO_ESTIMATE_GAS,
 } from '../../../../common/chains';
 import { UserOperationDocument } from '../../schemas/user-operation.schema';
+import { UserOperationService } from '../../services/user-operation.service';
 
 export async function sendUserOperation(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
     Helper.assertTrue(typeof body.params[0] === 'object', -32602, 'Invalid params: userop must be an object');
     const userOp = body.params[0];
     const entryPoint = getAddress(body.params[1]);
-
     Helper.assertTrue(isUserOpValid(userOp), -32602, 'Invalid userOp');
+
+    const { userOpHash, userOperationDocument } = await beforeSendUserOperation(
+        rpcService,
+        chainId,
+        userOp,
+        entryPoint,
+        body.isAuth,
+        body.skipCheck,
+    );
+
+    return await createOrUpdateUserOperation(rpcService.userOperationService, chainId, userOp, userOpHash, entryPoint, userOperationDocument);
+}
+
+export async function beforeSendUserOperation(
+    rpcService: RpcService,
+    chainId: number,
+    userOp: any,
+    entryPoint: string,
+    isAuth: boolean,
+    skipCheck: boolean,
+) {
     Helper.assertTrue(BigInt(userOp.verificationGasLimit) >= 10000n, -32602, 'Invalid params: verificationGasLimit must be at least 10000');
 
     if (BigInt(userOp.preVerificationGas) === 0n || BigInt(userOp.verificationGasLimit) === 0n || BigInt(userOp.callGasLimit) === 0n) {
@@ -61,25 +81,27 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
             Helper.assertTrue(expiredAt * 1000 > Date.now(), -32602, 'Paymaster expired');
         }
 
-        if (!body.isAuth) {
+        if (!isAuth) {
             Helper.assertTrue(isAddress(paymaster), -32602, 'Invalid params: paymaster address');
             Helper.assertTrue(!FORBIDDEN_PAYMASTER.includes(getAddress(paymaster)), -32602, 'Forbidden paymaster');
         }
     }
 
     let userOperationDocument: UserOperationDocument;
-    if (!body.isAuth || !PARTICLE_CHAINS.includes(chainId)) {
+    if (isAuth && skipCheck) {
+        userOperationDocument = await rpcService.userOperationService.getUserOperationByAddressNonce(
+            chainId,
+            userOpSender,
+            nonceKey,
+            BigInt(nonceValue).toString(),
+        );
+    } else {
         const [rSimulation, extraFee, signerFeeData, userOpDoc, localUserOperationsCount] = await Promise.all([
             simulateHandleOpAndGetGasCost(rpcService, chainId, userOp, entryPoint),
             getL2ExtraFee(rpcService, chainId, userOp, entryPoint),
-            rpcService.aaService.getFeeData(chainId),
-            rpcService.aaService.userOperationService.getUserOperationByAddressNonce(
-                chainId,
-                userOpSender,
-                nonceKey,
-                BigInt(nonceValue).toString(),
-            ),
-            rpcService.aaService.userOperationService.getLocalUserOperationsCountByChainId(chainId),
+            rpcService.chainService.getFeeDataIfCache(chainId),
+            rpcService.userOperationService.getUserOperationByAddressNonce(chainId, userOpSender, nonceKey, BigInt(nonceValue).toString()),
+            rpcService.userOperationService.getLocalUserOperationsCountByChainId(chainId),
             // do not care return value
             checkUserOpCanExecutedSucceed(rpcService, chainId, userOp, entryPoint),
         ]);
@@ -88,7 +110,7 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
 
         const gasCostInContract = BigInt(rSimulation.gasCostInContract);
         const gasCostWholeTransaction = BigInt(rSimulation.gasCostWholeTransaction);
-        const gasCost = USE_PROXY_CONTRACT_TO_ESTIMATE_GAS.includes(chainId)
+        const gasCost = NEED_TO_ESTIMATE_GAS_BEFORE_SEND.includes(chainId)
             ? gasCostWholeTransaction > gasCostInContract
                 ? gasCostWholeTransaction
                 : gasCostInContract
@@ -96,22 +118,23 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
 
         checkUserOpGasPriceIsSatisfied(chainId, userOp, gasCost, extraFee, signerFeeData);
         userOperationDocument = userOpDoc;
-    } else {
-        userOperationDocument = await rpcService.aaService.userOperationService.getUserOperationByAddressNonce(
-            chainId,
-            userOpSender,
-            nonceKey,
-            BigInt(nonceValue).toString(),
-        );
     }
 
-    const newUserOpDoc = await rpcService.aaService.userOperationService.createOrUpdateUserOperation(
-        chainId,
-        userOp,
+    return {
         userOpHash,
-        entryPoint,
         userOperationDocument,
-    );
+    };
+}
+
+export async function createOrUpdateUserOperation(
+    userOperationService: UserOperationService,
+    chainId: number,
+    userOp: any,
+    userOpHash: string,
+    entryPoint: string,
+    userOperationDocument?: UserOperationDocument,
+) {
+    const newUserOpDoc = await userOperationService.createOrUpdateUserOperation(chainId, userOp, userOpHash, entryPoint, userOperationDocument);
 
     // temp disable event emitter
     // ProcessEventEmitter.sendMessages(PROCESS_EVENT_TYPE.CREATE_USER_OPERATION, newUserOpDoc.toJSON());
@@ -119,56 +142,61 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
     return userOpHash;
 }
 
-export async function simulateHandleOpAndGetGasCost(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string) {
+export async function simulateHandleOpAndGetGasCost(
+    rpcService: RpcService,
+    chainId: number,
+    userOp: any,
+    entryPoint: string,
+    stateOverride?: any,
+) {
     userOp = cloneDeep(userOp);
     userOp.maxFeePerGas = '0x1';
     userOp.maxPriorityFeePerGas = '0x1';
 
-    const provider = rpcService.getJsonRpcProvider(chainId);
+    const provider = rpcService.chainService.getJsonRpcProvider(chainId);
     const contractEntryPoint = new Contract(entryPoint, EntryPointAbi, provider);
 
-    const signers = rpcService.aaService.getChainSigners(chainId);
-    let [errorResult, gasCostWholeTransaction] = await Promise.all([
-        contractEntryPoint.simulateHandleOp.staticCall(userOp, ZeroAddress, '0x', { from: signers[0].address }).catch((e) => e),
+    const signers = rpcService.signerService.getChainSigners(chainId);
+    const txSimulateHandleOp = await contractEntryPoint.simulateHandleOp.populateTransaction(userOp, ZeroAddress, '0x', {
+        from: signers[0].address,
+    });
+
+    let [resultCallSimulateHandleOp, gasCostWholeTransaction] = await Promise.all([
+        rpcService.chainService.staticCall(chainId, txSimulateHandleOp, true, stateOverride),
         tryGetGasCostWholeTransaction(chainId, rpcService, contractEntryPoint, entryPoint, userOp),
     ]);
 
-    if (!errorResult?.revert) {
-        // Comptibility with GNOSIS_NETWORK
-        if ([EVM_CHAIN_ID.GNOSIS_MAINNET, EVM_CHAIN_ID.GNOSIS_TESTNET].includes(chainId) && !!errorResult?.info?.error?.data) {
-            const tx = errorResult.transaction;
-            const data = errorResult.info.error.data.replace('Reverted ', '');
-            errorResult = contractEntryPoint.interface.makeError(data, tx);
-        }
-        // Comptibility with VICTION_NETWORK
-        if ([EVM_CHAIN_ID.VICTION_MAINNET, EVM_CHAIN_ID.VICTION_TESTNET].includes(chainId) && !!errorResult?.value) {
-            const tx = await contractEntryPoint.simulateHandleOp.populateTransaction(userOp, '0x0000000000000000000000000000000000000000', '0x');
-            errorResult = contractEntryPoint.interface.makeError(errorResult.value, tx);
-        }
-        // Comptibility with BEVM
-        if (
-            [EVM_CHAIN_ID.BEVM_CANARY_MAINNET, EVM_CHAIN_ID.BEVM_CANARY_TESTNET, EVM_CHAIN_ID.BEVM_TESTNET].includes(chainId) &&
-            !!errorResult?.info?.error?.data
-        ) {
-            if (!errorResult.info.error.data.startsWith('0x')) {
-                const tx = errorResult.transaction;
-                const data = '0x' + errorResult.info.error.data;
-                errorResult = contractEntryPoint.interface.makeError(data, tx);
-            }
-        }
+    // Comptibility with VICTION_NETWORK
+    if ([EVM_CHAIN_ID.VICTION_MAINNET, EVM_CHAIN_ID.VICTION_TESTNET].includes(chainId) && !!resultCallSimulateHandleOp.result) {
+        resultCallSimulateHandleOp.error = { data: resultCallSimulateHandleOp.result };
     }
 
-    Helper.assertTrue(!!errorResult?.revert, -32000, 'Can not simulate the user op, No revert message');
-    if (errorResult?.revert?.name === 'FailedOp') {
+    Helper.assertTrue(
+        !!resultCallSimulateHandleOp?.error?.data,
+        10001,
+        `simulateHandleOp call error: ${Helper.converErrorToString(resultCallSimulateHandleOp)}`,
+    );
+
+    // Comptibility with GNOSIS_NETWORK
+    if (resultCallSimulateHandleOp.error.data.startsWith('Reverted ')) {
+        resultCallSimulateHandleOp.error.data = resultCallSimulateHandleOp.error.data.replace('Reverted ', '');
+    }
+    // Comptibility with BEVM
+    if (!resultCallSimulateHandleOp.error.data.startsWith('0x')) {
+        resultCallSimulateHandleOp.error.data = `0x${resultCallSimulateHandleOp.error.data}`;
+    }
+
+    const errorCallSimulateHandleOp = contractEntryPoint.interface.parseError(resultCallSimulateHandleOp.error.data);
+    if (errorCallSimulateHandleOp?.name === 'FailedOp') {
         if (!IS_PRODUCTION) {
-            console.error(errorResult);
+            console.error(errorCallSimulateHandleOp);
         }
 
-        throw new AppException(-32606, `Simulate user operation failed: ${errorResult?.revert?.args.at(-1)}`);
+        throw new AppException(-32606, `Simulate user operation failed: ${errorCallSimulateHandleOp?.args.at(-1)}`);
     }
 
-    const gasCostInContract = toBeHex(errorResult?.revert?.args[1]);
-    let verificationGasLimit = ((BigInt(errorResult?.revert?.args[0]) - BigInt(userOp.preVerificationGas)) * 3n) / 2n;
+    const gasCostInContract = toBeHex(errorCallSimulateHandleOp?.args[1]);
+    let verificationGasLimit = ((BigInt(errorCallSimulateHandleOp?.args[0]) - BigInt(userOp.preVerificationGas)) * 3n) / 2n;
     if (verificationGasLimit < 100000n) {
         verificationGasLimit = 100000n;
     }
@@ -181,11 +209,11 @@ export async function getL2ExtraFee(rpcService: RpcService, chainId: number, use
         return '0x00';
     }
 
-    const provider = rpcService.getJsonRpcProvider(chainId);
+    const provider = rpcService.chainService.getJsonRpcProvider(chainId);
     const contractEntryPoint = new Contract(entryPoint, EntryPointAbi, provider);
     const l1GasPriceOracleContract = new Contract(L2_GAS_ORACLE[chainId], l1GasPriceOracleAbi, provider);
 
-    const fakeSigner = rpcService.aaService.getChainSigners(chainId)[0];
+    const fakeSigner = rpcService.signerService.getChainSigners(chainId)[0];
     const simulateTx = await contractEntryPoint.handleOps.populateTransaction([userOp], fakeSigner.address);
     simulateTx.from = fakeSigner.address;
 
@@ -236,9 +264,9 @@ function checkUserOpGasPriceIsSatisfied(chainId: number, userOp: any, gasCost: b
 }
 
 async function checkUserOpCanExecutedSucceed(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string) {
-    const provider = rpcService.getJsonRpcProvider(chainId);
+    const provider = rpcService.chainService.getJsonRpcProvider(chainId);
     const contractEntryPoint = new Contract(entryPoint, EntryPointAbi, provider);
-    const signer = rpcService.aaService.getChainSigners(chainId)[0];
+    const signer = rpcService.signerService.getChainSigners(chainId)[0];
 
     const promises = [contractEntryPoint.handleOps.staticCall([userOp], signer.address, { from: signer.address })];
     const { nonceValue } = splitOriginNonce(userOp.nonce);
@@ -282,14 +310,14 @@ async function tryGetGasCostWholeTransaction(
     entryPoint: string,
     userOp: any,
 ) {
-    const provider = rpcService.getJsonRpcProvider(chainId);
+    const provider = rpcService.chainService.getJsonRpcProvider(chainId);
     if (!SUPPORT_MULTCALL3.includes(chainId)) {
         return '0x00';
     }
 
     const simulateHandleOpTx = await contractEntryPoint.simulateHandleOp.populateTransaction(userOp, ZeroAddress, '0x');
     const multiCallContract = new Contract(MULTI_CALL_3_ADDRESS, MultiCall3Abi, provider);
-    const signer = rpcService.aaService.getChainSigners(chainId)[0];
+    const signer = rpcService.signerService.getChainSigners(chainId)[0];
     const toEstimatedTx = await multiCallContract.tryAggregate.populateTransaction(false, [
         {
             target: entryPoint,

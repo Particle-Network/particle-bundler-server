@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { RpcModule } from '../rpc/rpc.module';
-import { AAService } from '../rpc/services/aa.service';
 import { UserOperationService } from '../rpc/services/user-operation.service';
 import { UserOperation, UserOperationSchema } from '../rpc/schemas/user-operation.schema';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -18,6 +17,8 @@ import { HandleLocalTransactionService } from './handle-local-transaction.servic
 import { HandlePendingTransactionService } from './handle-pending-transaction.service';
 import { FillSignerBalanceService } from './fill-signer-balance.service';
 import { UnblockAndReleaseSignersService } from './unblock-and-release-signers.service';
+import { ChainService } from '../rpc/services/chain.service';
+import { SignerService } from '../rpc/services/signer.service';
 
 @Module({
     imports: [
@@ -38,11 +39,12 @@ import { UnblockAndReleaseSignersService } from './unblock-and-release-signers.s
         HandlePendingTransactionService,
         ListenerService,
         FillSignerBalanceService,
-        AAService,
         UserOperationService,
         TransactionService,
         RpcService,
         LarkService,
+        ChainService,
+        SignerService,
     ],
 })
 export class TaskModule {}

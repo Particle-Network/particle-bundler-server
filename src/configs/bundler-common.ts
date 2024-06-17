@@ -7,6 +7,8 @@ export let PARTICLE_PAYMASTER_URL: string;
 export let PARTICLE_PUBLIC_RPC_URL: string;
 export let FORBIDDEN_PAYMASTER: string[] = [];
 export let PAYMASTER_CHECK: string[] = [];
+export let onEmitUserOpEvent = (userOperationHash: string, event: any) => {};
+export let onCreateUserOpTxHash = (userOperationHash: string, txHash: string) => {};
 
 export async function initializeBundlerConfig() {
     let bc: any;
@@ -28,6 +30,14 @@ export async function initializeBundlerConfig() {
     if (bc.PAYMASTER_CHECK) {
         PAYMASTER_CHECK = bc.PAYMASTER_CHECK;
     }
+
+    if (bc.onEmitUserOpEvent) {
+        onEmitUserOpEvent = bc.onEmitUserOpEvent;
+    }
+
+    if (bc.onCreateUserOpTxHash) {
+        onCreateUserOpTxHash = bc.onCreateUserOpTxHash;
+    }
 }
 
 export function getBundlerChainConfig(chainId: number): IBundlerChainConfig {
@@ -46,6 +56,7 @@ export const ENTRY_POINT_VERSION_MAP = {
 
 export enum AA_METHODS {
     SEND_USER_OPERATION = 'eth_sendUserOperation',
+    SEND_USER_OPERATION_BATCH = 'eth_sendUserOperationBatch',
     GET_USER_OPERATION_BY_HASH = 'eth_getUserOperationByHash',
     ESTIMATE_USER_OPERATION_GAS = 'eth_estimateUserOperationGas',
     GET_USER_OPERATION_RECEIPT = 'eth_getUserOperationReceipt',
