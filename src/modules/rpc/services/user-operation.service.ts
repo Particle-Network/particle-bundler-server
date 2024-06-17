@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { USER_OPERATION_STATUS, UserOperation, UserOperationDocument } from '../schemas/user-operation.schema';
@@ -23,6 +23,8 @@ export class UserOperationService {
         entryPoint: string,
         userOpDoc: UserOperationDocument,
     ): Promise<UserOperationDocument> {
+        Logger.debug(`[createOrUpdateUserOperation] chainId: ${chainId} | userOpHash: ${userOpHash}`);
+
         const { nonceKey, nonceValue } = splitOriginNonce(userOp.nonce);
 
         const nonceValueString = BigInt(nonceValue).toString();
@@ -56,6 +58,8 @@ export class UserOperationService {
     ): Promise<UserOperationDocument[]> {
         const userOperations: UserOperationDocument[] = [];
         for (let index = 0; index < userOps.length; index++) {
+            Logger.debug(`[createOrUpdateUserOperation] chainId: ${chainId} | userOpHash: ${userOpHashes[index]}`);
+
             const userOp = userOps[index];
             const { nonceKey, nonceValue } = splitOriginNonce(userOp.nonce);
 

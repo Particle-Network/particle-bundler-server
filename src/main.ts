@@ -22,7 +22,7 @@ async function bootstrap() {
 
     if (canRunCron() && !IS_DEVELOPMENT) {
         const app = await NestFactory.createApplicationContext(AppModule, {
-            logger: IS_DEVELOPMENT ? ['error', 'warn', 'log', 'debug', 'verbose'] : false,
+            logger: !IS_PRODUCTION ? ['error', 'warn', 'log', 'debug', 'verbose'] : false,
         });
         initApp(app);
         return;
@@ -35,7 +35,7 @@ async function bootstrap() {
     });
 
     const app = await NestFactory.create<NestFastifyApplication>(AppModule, fastifyAdapter, {
-        logger: IS_DEVELOPMENT ? ['error', 'warn', 'log', 'debug', 'verbose'] : false,
+        logger: !IS_PRODUCTION ? ['error', 'warn', 'log', 'debug', 'verbose'] : false,
     });
 
     app.enableCors({

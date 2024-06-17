@@ -57,7 +57,7 @@ export class RpcController {
 
             result = await this.handleRpc(chainId, body);
         } catch (error) {
-            if (!IS_PRODUCTION) {
+            if (!IS_PRODUCTION && !(error instanceof AppException)) {
                 console.error(error);
             }
 

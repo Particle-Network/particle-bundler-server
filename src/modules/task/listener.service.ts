@@ -26,8 +26,6 @@ export class ListenerService {
     private eventHandler: (event: any) => {};
 
     public initialize(eventHandler: (event: any) => {}) {
-        return; // temp disable
-
         this.eventHandler = eventHandler;
 
         const chains = $enum(EVM_CHAIN_ID).values();
@@ -99,8 +97,6 @@ export class ListenerService {
     }
 
     public appendUserOpHashPendingTransactionMap(transaction: TransactionDocument) {
-        return; // temp disable
-        
         const userOperationHashes = transaction.userOperationHashes;
 
         for (const userOperationHash of userOperationHashes) {

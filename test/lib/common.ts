@@ -15,8 +15,8 @@ export async function gaslessSponsor(chainId: number, userOp: any, rpcController
     const rSponsor = await Axios.post(PARTICLE_PAYMASTER_URL, bodySponsor, {
         params: {
             chainId,
-            projectUuid: process.env.PARTICLE_PROJECT_KEY,
-            projectKey: process.env.PARTICLE_CLIENT_KEY,
+            projectUuid: process.env.PARTICLE_PROJECT_ID,
+            projectKey: process.env.PARTICLE_PROJECT_CLIENT_KEY,
         },
     });
     userOp.paymasterAndData = rSponsor.data.result.paymasterAndData;

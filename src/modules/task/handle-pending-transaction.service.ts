@@ -92,7 +92,15 @@ export class HandlePendingTransactionService {
                 return;
             }
 
+            Logger.debug(
+                `[sendRawTransaction] Start | Chain ${transaction.chainId} | Transaction ${getDocumentId(transaction)} | txHash: ${txHash}`,
+            );
+
             await this.chainService.sendRawTransaction(transaction.chainId, transaction.signedTxs[txHash]);
+
+            Logger.debug(
+                `[sendRawTransaction] End | Chain ${transaction.chainId} | Transaction ${getDocumentId(transaction)} | txHash: ${txHash}`,
+            );
         } catch (error) {
             if (error?.message?.toLowerCase()?.includes('already known')) {
                 // already send ?? can skip
@@ -162,7 +170,9 @@ export class HandlePendingTransactionService {
                 const userOpHashes = transaction.userOperationHashes;
                 await this.userOperationService.setUserOperationsAsDone(userOpHashes, '', 0, '');
                 await this.transactionService.updateTransactionStatus(transaction, TRANSACTION_STATUS.DONE);
-                const fakeUserOpEvent = { args: ['', '', '', '', false, '', ''], txHash: transaction.txHashes[transaction.txHashes.length - 1] };
+
+                const txHash = transaction.txHashes[transaction.txHashes.length - 1];
+                const fakeUserOpEvent = { args: ['', '', '', '', false, '', ''], txHash };
                 userOpHashes.map((userOpHash) => onEmitUserOpEvent(userOpHash, fakeUserOpEvent));
 
                 this.afterDoneTransaction(transaction);
@@ -500,6 +510,9 @@ export class HandlePendingTransactionService {
     }
 
     private afterDoneTransaction(transaction: TransactionDocument) {
+        const txHash = transaction.txHashes[transaction.txHashes.length - 1];
+        Logger.debug(`[updateTransactionStatus] Done | TransactionId: ${getDocumentId(transaction)} | TxHash: ${txHash}`);
+
         this.signerService.decrChainSignerPendingTxCount(transaction.chainId, transaction.from);
         this.signerService.setSignerDoneTransactionMaxNonce(transaction.chainId, transaction.from, transaction.nonce);
     }
