@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Contract, Network, WebSocketProvider } from 'ethers';
 import entryPointAbi from '../rpc/aa/abis/entry-point-abi';
 import { TransactionDocument } from '../rpc/schemas/transaction.schema';
@@ -8,6 +8,7 @@ import { DEFAULT_ENTRY_POINT_ADDRESS, getBundlerChainConfig } from '../../config
 import { EVM_CHAIN_ID } from '../../common/chains';
 import { $enum } from 'ts-enum-util';
 import { LRUCache } from 'lru-cache';
+import { IS_PRODUCTION } from '../../common/common-types';
 
 const WEBSOCKET_PING_INTERVAL = 5000;
 const WEBSOCKET_PONG_TIMEOUT = 3000;
@@ -23,7 +24,7 @@ export class ListenerService {
     public constructor(private readonly larkService: LarkService) {}
 
     private readonly wsProviders: Map<number, WebSocketProvider> = new Map();
-    private eventHandler: (event: any) => {};
+    private eventHandler: (chainId: number, event: any) => {};
 
     public initialize(eventHandler: (event: any) => {}) {
         this.eventHandler = eventHandler;
@@ -87,20 +88,24 @@ export class ListenerService {
     private onListen(chainId: number, wsProvider: WebSocketProvider) {
         const contract = new Contract(DEFAULT_ENTRY_POINT_ADDRESS, entryPointAbi, wsProvider);
         contract.on('UserOperationEvent', (...event: any[]) => {
-            const userOpHash = event[0];
-            const key = this.keyChainIdUserOpHash(chainId, userOpHash);
+            try {
+                const userOpHash = event[0];
+                const key = this.keyChainIdUserOpHash(chainId, userOpHash);
 
-            if (!!this.cacheUserOpHashPendingTransaction.get(key)) {
-                this.eventHandler(event);
+                if (!!this.cacheUserOpHashPendingTransaction.get(key)) {
+                    this.eventHandler(chainId, event);
+                }
+            } catch (error) {
+                if (!IS_PRODUCTION) {
+                    Logger.error(`[onListen UserOperationEvent Error]`, error);
+                }
             }
         });
     }
 
-    public appendUserOpHashPendingTransactionMap(transaction: TransactionDocument) {
-        const userOperationHashes = transaction.userOperationHashes;
-
+    public appendUserOpHashPendingTransactionMap(chainId: number, userOperationHashes: string[]) {
         for (const userOperationHash of userOperationHashes) {
-            const key = this.keyChainIdUserOpHash(transaction.chainId, userOperationHash);
+            const key = this.keyChainIdUserOpHash(chainId, userOperationHash);
             this.cacheUserOpHashPendingTransaction.set(key, true);
         }
     }

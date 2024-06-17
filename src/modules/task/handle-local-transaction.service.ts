@@ -11,11 +11,12 @@ import { TransactionService } from '../rpc/services/transaction.service';
 import { UserOperationService } from '../rpc/services/user-operation.service';
 import { HandlePendingTransactionService } from './handle-pending-transaction.service';
 import { Cron } from '@nestjs/schedule';
-import { canRunCron, createTxGasData, getDocumentId, tryParseSignedTx } from '../rpc/aa/utils';
+import { canRunCron, createTxGasData, deepHexlify, getDocumentId, tryParseSignedTx } from '../rpc/aa/utils';
 import { SignerService } from '../rpc/services/signer.service';
 import { ChainService } from '../rpc/services/chain.service';
 import { TypedTransaction } from '@ethereumjs/tx';
-import { onCreateUserOpTxHash } from '../../configs/bundler-common';
+import { onCreateUserOpTxHash, onEmitUserOpEvent } from '../../configs/bundler-common';
+import { ListenerService } from './listener.service';
 
 @Injectable()
 export class HandleLocalTransactionService {
@@ -27,8 +28,13 @@ export class HandleLocalTransactionService {
         private readonly transactionService: TransactionService,
         private readonly userOperationService: UserOperationService,
         private readonly signerService: SignerService,
+        private readonly listenerService: ListenerService,
         private readonly handlePendingTransactionService: HandlePendingTransactionService,
-    ) {}
+    ) {
+        if (canRunCron()) {
+            this.listenerService.initialize(this.handlePendingTransactionByEvent.bind(this));
+        }
+    }
 
     @Cron('* * * * * *')
     public async handleLocalTransactions() {
@@ -99,15 +105,18 @@ export class HandleLocalTransactionService {
         const userOpHashes = allUserOperationDocuments.map((o) => o.userOpHash);
 
         const transactionObjectId = new Types.ObjectId();
-        await this.userOperationService.setLocalUserOperationsAsPending(userOpHashes, transactionObjectId);
-
         this.onCreateUserOpTxHash(signedTx, userOpHashes);
 
-        // if failed, the userops is abandoned
-        const localTransaction = await this.transactionService.createTransaction(transactionObjectId, chainId, signedTx, userOpHashes);
-        this.signerService.incrChainSignerPendingTxCount(chainId, signer.address);
+        const [localTransaction] = await Promise.all([
+            this.transactionService.createTransaction(transactionObjectId, chainId, signedTx, userOpHashes),
+            this.userOperationService.setLocalUserOperationsAsPending(userOpHashes, transactionObjectId),
+        ]);
 
+        Logger.debug(`[createBundleTransaction] Create Transaction ${transactionObjectId.toString()}`);
+
+        this.signerService.incrChainSignerPendingTxCount(chainId, signer.address);
         // there is lock, so no need to await
+        this.listenerService.appendUserOpHashPendingTransactionMap(chainId, userOpHashes);
         this.handlePendingTransactionService.trySendAndUpdateTransactionStatus(localTransaction, localTransaction.txHashes[0]);
     }
 
@@ -147,5 +156,11 @@ export class HandleLocalTransactionService {
         const tx: TypedTransaction = tryParseSignedTx(signedTx);
         const txHash = `0x${Buffer.from(tx.hash()).toString('hex')}`;
         userOpHashes.map((userOpHash) => onCreateUserOpTxHash(userOpHash, txHash));
+    }
+
+    public handlePendingTransactionByEvent(chainId: number, event: any) {
+        Logger.debug(`[Receive UserOpEvent From Ws] chainId: ${chainId} | UserOpHash: ${event[7].args[0]}`);
+        const userOpEvent = { args: deepHexlify(event[7].args), txHash: event[7].log.transactionHash };
+        onEmitUserOpEvent(event[7].args[0], userOpEvent);
     }
 }
