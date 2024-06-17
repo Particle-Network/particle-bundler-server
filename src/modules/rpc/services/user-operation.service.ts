@@ -7,6 +7,7 @@ import { Transaction, TransactionDocument } from '../schemas/transaction.schema'
 import { Helper } from '../../../common/helper';
 import { splitOriginNonce } from '../aa/utils';
 import { IUserOperationEventObject } from '../../../common/common-types';
+import { AppException } from '../../../common/app-exception';
 
 @Injectable()
 export class UserOperationService {
@@ -47,7 +48,15 @@ export class UserOperationService {
             status: USER_OPERATION_STATUS.LOCAL,
         });
 
-        return await userOperation.save();
+        try {
+            return await userOperation.save();
+        } catch (error) {
+            if (error?.message?.includes('duplicate key')) {
+                throw new AppException(-32607);
+            }
+
+            throw error;
+        }
     }
 
     public async createBatchUserOperation(
@@ -85,7 +94,15 @@ export class UserOperationService {
             userOperations[0].associatedUserOps.push(otherUserOperation.toJSON());
         }
 
-        return await Promise.all(userOperations.map((userOperation) => userOperation.save()));
+        try {
+            return await Promise.all(userOperations.map((userOperation) => userOperation.save()));
+        } catch (error) {
+            if (error?.message?.includes('duplicate key')) {
+                throw new AppException(-32607);
+            }
+
+            throw error;
+        }
     }
 
     private async checkCanBeReplaced(userOpDoc: UserOperationDocument) {
