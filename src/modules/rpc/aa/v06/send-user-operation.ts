@@ -18,13 +18,7 @@ import { calcPreVerificationGas } from '@account-abstraction/sdk';
 import l1GasPriceOracleAbi from '../abis/l1-gas-price-oracle-abi';
 import { cloneDeep } from 'lodash';
 import MultiCall3Abi from '../abis/multi-call-3-abi';
-import {
-    EVM_CHAIN_ID,
-    L2_GAS_ORACLE,
-    NEED_TO_ESTIMATE_GAS_BEFORE_SEND,
-    SUPPORT_EIP_1559,
-    SUPPORT_MULTCALL3,
-} from '../../../../common/chains';
+import { EVM_CHAIN_ID, L2_GAS_ORACLE, NEED_TO_ESTIMATE_GAS_BEFORE_SEND, SUPPORT_EIP_1559, SUPPORT_MULTCALL3 } from '../../../../common/chains';
 import { UserOperationDocument } from '../../schemas/user-operation.schema';
 import { UserOperationService } from '../../services/user-operation.service';
 
@@ -166,8 +160,11 @@ export async function simulateHandleOpAndGetGasCost(
         tryGetGasCostWholeTransaction(chainId, rpcService, contractEntryPoint, entryPoint, userOp),
     ]);
 
-    // Comptibility with VICTION_NETWORK
-    if ([EVM_CHAIN_ID.VICTION_MAINNET, EVM_CHAIN_ID.VICTION_TESTNET].includes(chainId) && !!resultCallSimulateHandleOp.result) {
+    // Compatibility with VICTION_NETWORK, IOTEX_NETWORK
+    if (
+        [EVM_CHAIN_ID.VICTION_MAINNET, EVM_CHAIN_ID.VICTION_TESTNET, EVM_CHAIN_ID.IOTEX_MAINNET, EVM_CHAIN_ID.IOTEX_TESTNET].includes(chainId) &&
+        !!resultCallSimulateHandleOp.result
+    ) {
         resultCallSimulateHandleOp.error = { data: resultCallSimulateHandleOp.result };
     }
 
@@ -177,11 +174,11 @@ export async function simulateHandleOpAndGetGasCost(
         `simulateHandleOp call error: ${Helper.converErrorToString(resultCallSimulateHandleOp)}`,
     );
 
-    // Comptibility with GNOSIS_NETWORK
+    // Compatibility with GNOSIS_NETWORK, FUSE_NETWORK
     if (resultCallSimulateHandleOp.error.data.startsWith('Reverted ')) {
         resultCallSimulateHandleOp.error.data = resultCallSimulateHandleOp.error.data.replace('Reverted ', '');
     }
-    // Comptibility with BEVM
+    // Compatibility with BEVM
     if (!resultCallSimulateHandleOp.error.data.startsWith('0x')) {
         resultCallSimulateHandleOp.error.data = `0x${resultCallSimulateHandleOp.error.data}`;
     }
