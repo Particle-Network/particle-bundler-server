@@ -5,11 +5,15 @@ import Axios from 'axios';
 
 @Injectable()
 export class LarkService {
-    private readonly larkTitle = 'Particle Bundler Server';
+    private larkTitle = 'Particle Bundler Server';
     private readonly larkUrl: string;
 
     public constructor(private readonly configService: ConfigService) {
         this.larkUrl = this.configService.get('LARK_URL');
+    }
+
+    public setLarkTitle(larkTitle: string) {
+        this.larkTitle = larkTitle;
     }
 
     public async sendMessage(content: string, title?: string): Promise<any> {

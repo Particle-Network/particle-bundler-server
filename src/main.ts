@@ -24,7 +24,7 @@ async function bootstrap() {
         const app = await NestFactory.createApplicationContext(AppModule, {
             logger: !IS_PRODUCTION ? ['error', 'warn', 'log', 'debug', 'verbose'] : [],
         });
-        initApp(app);
+        initApp(app, false);
         return;
     }
 
@@ -43,7 +43,7 @@ async function bootstrap() {
         maxAge: 86400,
     });
 
-    initApp(app);
+    initApp(app, true);
 
     const configService = app.get(ConfigService);
     const larkService = app.get(LarkService);
@@ -82,9 +82,10 @@ async function bootstrap() {
     }
 }
 
-function initApp(app: INestApplication | INestApplicationContext) {
+function initApp(app: INestApplication | INestApplicationContext, isAPI: boolean) {
     Mongoose.set('debug', process.env.ENABLE_MONGO_DEBUG === '1');
     const larkService = app.get(LarkService);
+    larkService.setLarkTitle(isAPI ? 'Particle Bundler Server API' : 'Particle Bundler Server Cron');
 
     if (process.env.LARK_NOTICE_URL) {
         larkService.sendMessage(`Particle Bundler Server Started, ENVIRONMENT: ${process.env.ENVIRONMENT}`);
