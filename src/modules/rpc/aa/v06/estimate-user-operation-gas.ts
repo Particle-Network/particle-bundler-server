@@ -11,6 +11,7 @@ import { DUMMY_SIGNATURE } from '../../../../common/common-types';
 import { getL2ExtraFee, simulateHandleOpAndGetGasCost } from './send-user-operation';
 import { EVM_CHAIN_ID, L2_GAS_ORACLE, NEED_TO_ESTIMATE_GAS_BEFORE_SEND, SUPPORT_EIP_1559 } from '../../../../common/chains';
 import { deserializeUserOpCalldata } from '../deserialize-user-op';
+import { getBundlerChainConfig } from '../../../../configs/bundler-common';
 
 export async function estimateUserOperationGas(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
     Helper.assertTrue(typeof body.params[0] === 'object', -32602, 'Invalid params: userop must be an object');
@@ -64,10 +65,7 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
         userOp.callGasLimit = toBeHexTrimZero(gasCostInContract - initGas);
     }
 
-    if (
-        NEED_TO_ESTIMATE_GAS_BEFORE_SEND.includes(chainId) &&
-        gasCostWholeTransaction - gasCostInContract > BigInt(userOp.preVerificationGas)
-    ) {
+    if (NEED_TO_ESTIMATE_GAS_BEFORE_SEND.includes(chainId) && gasCostWholeTransaction - gasCostInContract > BigInt(userOp.preVerificationGas)) {
         userOp.preVerificationGas = toBeHexTrimZero(gasCostWholeTransaction - gasCostInContract);
     }
 
@@ -81,13 +79,15 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
     Helper.assertTrue(BigInt(userOp.maxFeePerGas) > 0n, -32602, 'maxFeePerGas must be larger than 0 during gas estimation');
 
     try {
+        const bundlerConfig = getBundlerChainConfig(chainId);
+
         return {
             gasCostWholeTransaction: toBeHexTrimZero(gasCostWholeTransaction),
             maxFeePerGas: toBeHexTrimZero(userOp.maxFeePerGas),
             maxPriorityFeePerGas: toBeHexTrimZero(userOp.maxPriorityFeePerGas),
             preVerificationGas: toBeHexTrimZero(userOp.preVerificationGas),
-            verificationGasLimit: toBeHexTrimZero(userOp.verificationGasLimit),
-            callGasLimit: toBeHexTrimZero(userOp.callGasLimit),
+            verificationGasLimit: toBeHexTrimZero(BigInt(userOp.verificationGasLimit) + bundlerConfig.verificationGasLimitBase),
+            callGasLimit: toBeHexTrimZero(BigInt(userOp.callGasLimit) + bundlerConfig.callGasLimitBase),
         };
     } catch (error) {
         Logger.error(error);
