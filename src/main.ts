@@ -22,7 +22,7 @@ async function bootstrap() {
 
     if (canRunCron() && !IS_DEVELOPMENT) {
         const app = await NestFactory.createApplicationContext(AppModule, {
-            logger: !IS_PRODUCTION ? ['error', 'warn', 'log', 'debug', 'verbose'] : false,
+            logger: !IS_PRODUCTION ? ['error', 'warn', 'log', 'debug', 'verbose'] : [],
         });
         initApp(app);
         return;
@@ -35,7 +35,7 @@ async function bootstrap() {
     });
 
     const app = await NestFactory.create<NestFastifyApplication>(AppModule, fastifyAdapter, {
-        logger: !IS_PRODUCTION ? ['error', 'warn', 'log', 'debug', 'verbose'] : false,
+        logger: !IS_PRODUCTION ? ['error', 'warn', 'log', 'debug', 'verbose'] : [],
     });
 
     app.enableCors({
@@ -89,6 +89,16 @@ function initApp(app: INestApplication | INestApplicationContext) {
     if (process.env.LARK_NOTICE_URL) {
         larkService.sendMessage(`Particle Bundler Server Started, ENVIRONMENT: ${process.env.ENVIRONMENT}`);
     }
+
+    process.on('message', (packet: any) => {
+        if (packet.type === 'disable-logger') {
+            app.useLogger([]);
+        }
+
+        if (packet.type === 'enable-logger') {
+            app.useLogger(['error', 'warn', 'log', 'debug', 'verbose']);
+        }
+    });
 }
 
 bootstrap();
