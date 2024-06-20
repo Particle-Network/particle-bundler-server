@@ -166,30 +166,17 @@ describe('Common', () => {
         const u = packedBundles.map((packedBundle) => packedBundle.bundles.map((bundle) => bundle.userOperations).flat()).flat();
         expect(u.length).toBe(2);
 
-        const r2 = handleLocalUserOperationService.packUserOperationsForSigner(
-            99999,
-            userOperationDocuments,
-            [availableSigners[0]],
-        );
+        const r2 = handleLocalUserOperationService.packUserOperationsForSigner(99999, userOperationDocuments, [availableSigners[0]]);
         expect(r2.packedBundles.length).toBe(1);
         expect(r2.packedBundles[0].bundles.length).toBe(2);
 
-
         BUNDLER_CONFIG_MAP[99999].maxBundleGas = 1;
-        const r3 = handleLocalUserOperationService.packUserOperationsForSigner(
-            99999,
-            userOperationDocuments,
-            [availableSigners[0]],
-        );
+        const r3 = handleLocalUserOperationService.packUserOperationsForSigner(99999, userOperationDocuments, [availableSigners[0]]);
         expect(r3.userOperationsToDelete.length).toBe(2);
 
         BUNDLER_CONFIG_MAP[99999].maxBundleGas = Number.MAX_SAFE_INTEGER;
         availableSigners[0].availableTxCount = 1;
-        const r4 = handleLocalUserOperationService.packUserOperationsForSigner(
-            99999,
-            userOperationDocuments,
-            [availableSigners[0]],
-        );
+        const r4 = handleLocalUserOperationService.packUserOperationsForSigner(99999, userOperationDocuments, [availableSigners[0]]);
 
         expect(r4.unusedUserOperations.length).toBe(1);
         expect(r4.unusedUserOperations[0].userOpHash).toBe(userOperationDocument2.userOpHash);
