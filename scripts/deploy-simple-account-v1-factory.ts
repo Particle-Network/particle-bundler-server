@@ -17,7 +17,7 @@ export const deploySimpleAccountFactory = async (chainId: number, signer: Wallet
 
     const code = await provider.getCode(factoryAddress);
     if (code.length > 2) {
-        console.log('Simple account factory already deployed');
+        console.log('Simple account factory V1 already deployed');
         return;
     }
 
