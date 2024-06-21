@@ -323,5 +323,5 @@ async function tryGetGasCostWholeTransaction(
     ]);
 
     toEstimatedTx.from = signer.address;
-    return toBeHex(await provider.estimateGas(toEstimatedTx));
+    return toBeHex(await rpcService.chainService.estimateGas(chainId, toEstimatedTx));
 }

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Helper } from '../../../common/helper';
 import Axios from 'axios';
+import * as Os from 'os';
 
 @Injectable()
 export class LarkService {
@@ -17,7 +18,7 @@ export class LarkService {
     }
 
     public async sendMessage(content: string, title?: string): Promise<any> {
-        const titleWithEnv = `${Date.now()} | ${this.larkTitle} | ${title ?? ''} | ${process.env.ENVIRONMENT}`;
+        const titleWithEnv = `${Os.hostname()} | ${this.larkTitle} | ${title ?? ''} | ${process.env.ENVIRONMENT}`;
 
         try {
             const chunk = Helper.chunkString(content, 2000);

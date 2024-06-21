@@ -97,9 +97,14 @@ export class RpcController {
             }
 
             if (!(error instanceof AppException) || error.errorCode === -32000) {
-                this.larkService.sendMessage(
-                    `Bundler RPC Error\nChainId: ${chainId}\nBody:${JSON.stringify(body)}\n${Helper.converErrorToString(error)}`,
-                );
+                if (error?.errno === -104 && error?.code === 'ECONNRESET' && error?.syscall === 'read') {
+                    // ignore
+                    // may be the client close the connection
+                } else {
+                    this.larkService.sendMessage(
+                        `Bundler RPC Error\nChainId: ${chainId}\nBody:${JSON.stringify(body)}\n${Helper.converErrorToString(error)}`,
+                    );
+                }
             }
 
             return JsonRPCResponse.createErrorResponse(body, error);
