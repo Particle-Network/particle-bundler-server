@@ -1,7 +1,8 @@
 // npx ts-node scripts/deploy-aa.ts privateKey 11155111 false
 import { Wallet } from 'ethers';
 import { deployDetermineDeployer } from './deploy-determine-deployer';
-import { deploySimpleAccountFactory } from './deploy-simple-account-factory';
+import { deploySimpleAccountFactory as deploySimpleAccountFactoryV1 } from './deploy-simple-account-v1-factory';
+import { deploySimpleAccountFactory as deploySimpleAccountFactoryV2 } from './deploy-simple-account-v1-factory';
 import { deployEntryPoint } from './deploy-entry-point';
 import { initializeBundlerConfig } from '../src/configs/bundler-common';
 import { deployBTCAccountFactory as deployBTCAccountFactoryV1 } from './deploy-btc-account-v1-factory';
@@ -20,7 +21,8 @@ const deployBTCAccountV2 = args[3] ? args[3] === 'true' : false;
 
     await initializeBundlerConfig();
     await deployDetermineDeployer(chainId, signer);
-    await deploySimpleAccountFactory(chainId, signer);
+    await deploySimpleAccountFactoryV1(chainId, signer);
+    await deploySimpleAccountFactoryV2(chainId, signer);
     await deployEntryPoint(chainId, signer);
     if (deployBTCAccountV1) {
         await deployBTCAccountFactoryV1(chainId, signer);
