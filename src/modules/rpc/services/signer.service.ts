@@ -82,7 +82,8 @@ export class SignerService {
 
     public async incrChainSignerPendingTxCount(chainId: number, address: string) {
         const cacheKey = this.keyCacheChainSignerPendingTxCount(chainId, address);
-        const targetSignerPendingTxCount = await this.getChainSignerPendingTxCount(chainId, address);
+        // force check and reset, see way need forceReadDB
+        const targetSignerPendingTxCount = await this.getChainSignerPendingTxCount(chainId, address, true);
         this.cachedSignerPendingTxCount.set(cacheKey, targetSignerPendingTxCount + 1);
 
         Logger.debug(`[SignerService] IncrChainSignerPendingTxCount: ${address} | ${targetSignerPendingTxCount + 1}`);
@@ -98,9 +99,10 @@ export class SignerService {
         Logger.debug(`[SignerService] DecrChainSignerPendingTxCount: ${address} | ${targetSignerPendingTxCount - 1}`);
     }
 
-    public async getChainSignerPendingTxCount(chainId: number, address: string): Promise<number> {
+    // why need forceReadDB, because the pending tx in db may be deleted
+    public async getChainSignerPendingTxCount(chainId: number, address: string, forceReadDB: boolean = false): Promise<number> {
         const cacheKey = this.keyCacheChainSignerPendingTxCount(chainId, address);
-        if (!this.cachedSignerPendingTxCount.has(cacheKey)) {
+        if (!this.cachedSignerPendingTxCount.has(cacheKey) || forceReadDB) {
             const targetSignerPendingTxCount = await this.transactionService.getPendingTransactionCountBySigner(chainId, address);
             this.cachedSignerPendingTxCount.set(cacheKey, targetSignerPendingTxCount);
         }
