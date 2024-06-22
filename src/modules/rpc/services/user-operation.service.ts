@@ -32,6 +32,7 @@ export class UserOperationService {
         Helper.assertTrue(nonceValueString.length <= 30, -32608); // ensure nonce is less than Decimals(128)
 
         if (userOpDoc) {
+            // not support random nonce replaced
             Helper.assertTrue(BigInt(nonceKey) === 0n, -32607);
             Helper.assertTrue(await this.checkCanBeReplaced(userOpDoc), -32607);
 
