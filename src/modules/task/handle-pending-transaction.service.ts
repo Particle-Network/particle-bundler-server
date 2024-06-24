@@ -129,9 +129,7 @@ export class HandlePendingTransactionService {
                     const signer = signers.find((x) => x.address === getAddress(tx.getSenderAddress().toString()));
 
                     const signedTx = await this.signEmptyTxWithNonce(transaction.chainId, signer, transaction.nonce);
-
-                    await this.transactionService.replaceTransactionTxHash(transaction, signedTx);
-                    await this.chainService.sendRawTransaction(transaction.chainId, signedTx);
+                    await this.transactionService.replaceTransactionTxHash(transaction, signedTx, TRANSACTION_STATUS.LOCAL);
                 }
 
                 Logger.error(`SendTransaction error: ${getDocumentId(transaction)}`, error);
@@ -462,7 +460,7 @@ export class HandlePendingTransactionService {
             });
 
             // if failed and it's ok, just generate a invalid tx hash
-            await this.transactionService.replaceTransactionTxHash(transaction, signedTx);
+            await this.transactionService.replaceTransactionTxHash(transaction, signedTx, TRANSACTION_STATUS.PENDING);
             await this.chainService.sendRawTransaction(transaction.chainId, signedTx);
         } catch (error) {
             if (error?.message?.toLowerCase()?.includes('already known')) {
@@ -535,6 +533,7 @@ export class HandlePendingTransactionService {
             value: toBeHex(0),
             data: '0x',
             nonce: nonce,
+            gasLimit: 21000,
             ...createTxGasData(chainId, feeData),
         });
         return signedTx;
