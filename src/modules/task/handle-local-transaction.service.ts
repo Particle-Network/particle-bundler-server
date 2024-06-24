@@ -107,11 +107,8 @@ export class HandleLocalTransactionService {
         const transactionObjectId = new Types.ObjectId();
         this.onCreateUserOpTxHash(signedTx, userOpHashes);
 
-        const [localTransaction] = await Promise.all([
-            this.transactionService.createTransaction(transactionObjectId, chainId, signedTx, userOpHashes),
-            this.userOperationService.setLocalUserOperationsAsPending(userOpHashes, transactionObjectId),
-        ]);
-
+        await this.userOperationService.setLocalUserOperationsAsPending(userOpHashes, transactionObjectId);
+        const localTransaction = await this.transactionService.createTransaction(transactionObjectId, chainId, signedTx, userOpHashes);
         Logger.debug(`[createBundleTransaction] Create Transaction ${transactionObjectId.toString()}`);
 
         this.signerService.incrChainSignerPendingTxCount(chainId, signer.address);
