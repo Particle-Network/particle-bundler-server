@@ -61,8 +61,7 @@ export class HandleLocalTransactionService {
         this.lockedLocalTransactions.add(getDocumentId(localTransaction));
 
         try {
-            // local transaction should have only one txHash
-            const receipt = await this.chainService.getTransactionReceipt(localTransaction.chainId, localTransaction.txHashes[0]);
+            const receipt = await this.chainService.getTransactionReceipt(localTransaction.chainId, localTransaction.txHashes.at(-1));
             if (!!receipt) {
                 await this.handlePendingTransactionService.handlePendingTransaction(localTransaction, receipt);
             } else {

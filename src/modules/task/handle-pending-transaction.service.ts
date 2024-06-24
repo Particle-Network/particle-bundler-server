@@ -127,11 +127,17 @@ export class HandlePendingTransactionService {
                     const tx = tryParseSignedTx(transaction.signedTxs[txHash]);
                     const signers = this.signerService.getChainSigners(transaction.chainId);
                     const signer = signers.find((x) => x.address === getAddress(tx.getSenderAddress().toString()));
-                    await signer.sendTransaction({
+
+                    const signedTx = await signer.signTransaction({
+                        chainId: transaction.chainId,
                         to: signer.address,
                         value: toBeHex(0),
                         data: '0x',
+                        nonce: transaction.nonce,
                     });
+        
+                    await this.transactionService.replaceTransactionTxHash(transaction, signedTx);
+                    await this.chainService.sendRawTransaction(transaction.chainId, signedTx);
                 }
 
                 Logger.error(`SendTransaction error: ${getDocumentId(transaction)}`, error);
