@@ -14,7 +14,7 @@ import { TRANSACTION_STATUS, TransactionDocument } from '../rpc/schemas/transact
 import { TransactionService } from '../rpc/services/transaction.service';
 import { UserOperationService } from '../rpc/services/user-operation.service';
 import { getBundlerChainConfig, onEmitUserOpEvent } from '../../configs/bundler-common';
-import { Contract, toBeHex } from 'ethers';
+import { Contract, getAddress, toBeHex } from 'ethers';
 import entryPointAbi from '../rpc/aa/abis/entry-point-abi';
 import { canRunCron, createTxGasData, deepHexlify, getDocumentId, tryParseSignedTx } from '../rpc/aa/utils';
 import { Cron } from '@nestjs/schedule';
@@ -121,6 +121,16 @@ export class HandlePendingTransactionService {
                             transaction.delete({ session }),
                             this.userOperationService.setPendingUserOperationsToLocal(getDocumentId(transaction), session),
                         ]);
+                    });
+                } else if (error?.message?.toLowerCase()?.includes('reverted transaction')) {
+                    // send a empty traction to custom the nonce (for after nonce can send correctly).
+                    const tx = tryParseSignedTx(transaction.signedTxs[txHash]);
+                    const signers = this.signerService.getChainSigners(transaction.chainId);
+                    const signer = signers.find((x) => x.address === getAddress(tx.getSenderAddress().toString()));
+                    await signer.sendTransaction({
+                        to: signer.address,
+                        value: toBeHex(0),
+                        data: '0x',
                     });
                 }
 
