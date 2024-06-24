@@ -65,7 +65,7 @@ export class HandleLocalTransactionService {
             if (!!receipt) {
                 await this.handlePendingTransactionService.handlePendingTransaction(localTransaction, receipt);
             } else {
-                await this.handlePendingTransactionService.trySendAndUpdateTransactionStatus(localTransaction, localTransaction.txHashes[0]);
+                await this.handlePendingTransactionService.trySendAndUpdateTransactionStatus(localTransaction, localTransaction.txHashes.at(-1));
             }
         } catch (error) {
             Logger.error(`Failed to handle local transaction: ${getDocumentId(localTransaction)}`, error);

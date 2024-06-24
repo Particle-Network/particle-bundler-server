@@ -14,7 +14,7 @@ import { TRANSACTION_STATUS, TransactionDocument } from '../rpc/schemas/transact
 import { TransactionService } from '../rpc/services/transaction.service';
 import { UserOperationService } from '../rpc/services/user-operation.service';
 import { getBundlerChainConfig, onEmitUserOpEvent } from '../../configs/bundler-common';
-import { Contract, getAddress, toBeHex } from 'ethers';
+import { Contract, Wallet, getAddress, toBeHex } from 'ethers';
 import entryPointAbi from '../rpc/aa/abis/entry-point-abi';
 import { canRunCron, createTxGasData, deepHexlify, getDocumentId, tryParseSignedTx } from '../rpc/aa/utils';
 import { Cron } from '@nestjs/schedule';
@@ -128,14 +128,8 @@ export class HandlePendingTransactionService {
                     const signers = this.signerService.getChainSigners(transaction.chainId);
                     const signer = signers.find((x) => x.address === getAddress(tx.getSenderAddress().toString()));
 
-                    const signedTx = await signer.signTransaction({
-                        chainId: transaction.chainId,
-                        to: signer.address,
-                        value: toBeHex(0),
-                        data: '0x',
-                        nonce: transaction.nonce,
-                    });
-        
+                    const signedTx = await this.signEmptyTxWithNonce(transaction.chainId, signer, transaction.nonce);
+
                     await this.transactionService.replaceTransactionTxHash(transaction, signedTx);
                     await this.chainService.sendRawTransaction(transaction.chainId, signedTx);
                 }
@@ -531,5 +525,18 @@ export class HandlePendingTransactionService {
 
         this.signerService.decrChainSignerPendingTxCount(transaction.chainId, transaction.from);
         this.signerService.setSignerDoneTransactionMaxNonce(transaction.chainId, transaction.from, transaction.nonce);
+    }
+
+    private async signEmptyTxWithNonce(chainId: number, signer: Wallet, nonce: number): Promise<string> {
+        const feeData = await this.chainService.getFeeDataIfCache(chainId);
+        const signedTx = await signer.signTransaction({
+            chainId: chainId,
+            to: signer.address,
+            value: toBeHex(0),
+            data: '0x',
+            nonce: nonce,
+            ...createTxGasData(chainId, feeData),
+        });
+        return signedTx;
     }
 }
