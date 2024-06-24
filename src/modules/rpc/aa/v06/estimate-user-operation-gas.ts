@@ -297,6 +297,10 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
             EVM_CHAIN_ID.PEQA_AGUNG_TESTNET,
             EVM_CHAIN_ID.CYBER_MAINNET,
             EVM_CHAIN_ID.CYBER_TESTNET,
+            // Sei
+            EVM_CHAIN_ID.SEI_MAINNET,
+            EVM_CHAIN_ID.SEI_TESTNET,
+            EVM_CHAIN_ID.SEI_DEVNET,
         ].includes(chainId)
     ) {
         let ratio = 1.05;
@@ -304,6 +308,9 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
             ratio = 1.6;
         }
         if ([EVM_CHAIN_ID.OPTIMISM_TESTNET_SEPOLIA, EVM_CHAIN_ID.BLAST_TESTNET_SEPOLIA, EVM_CHAIN_ID.BASE_TESTNET_SEPOLIA].includes(chainId)) {
+            ratio = 2;
+        }
+        if ([EVM_CHAIN_ID.SEI_MAINNET, EVM_CHAIN_ID.SEI_TESTNET, EVM_CHAIN_ID.SEI_DEVNET].includes(chainId)) {
             ratio = 2;
         }
 
