@@ -61,12 +61,11 @@ export class HandleLocalTransactionService {
         this.lockedLocalTransactions.add(getDocumentId(localTransaction));
 
         try {
-            // local transaction should have only one txHash
-            const receipt = await this.chainService.getTransactionReceipt(localTransaction.chainId, localTransaction.txHashes[0]);
+            const receipt = await this.chainService.getTransactionReceipt(localTransaction.chainId, localTransaction.txHashes.at(-1));
             if (!!receipt) {
                 await this.handlePendingTransactionService.handlePendingTransaction(localTransaction, receipt);
             } else {
-                await this.handlePendingTransactionService.trySendAndUpdateTransactionStatus(localTransaction, localTransaction.txHashes[0]);
+                await this.handlePendingTransactionService.trySendAndUpdateTransactionStatus(localTransaction, localTransaction.txHashes.at(-1));
             }
         } catch (error) {
             Logger.error(`Failed to handle local transaction: ${getDocumentId(localTransaction)}`, error);
@@ -114,7 +113,7 @@ export class HandleLocalTransactionService {
         this.signerService.incrChainSignerPendingTxCount(chainId, signer.address);
         // there is lock, so no need to await
         this.listenerService.appendUserOpHashPendingTransactionMap(chainId, userOpHashes);
-        this.handlePendingTransactionService.trySendAndUpdateTransactionStatus(localTransaction, localTransaction.txHashes[0]);
+        this.handlePendingTransactionService.trySendAndUpdateTransactionStatus(localTransaction, localTransaction.txHashes.at(-1));
     }
 
     public async calculateGasLimitByBundleGasLimit(chainId: number, bundleGasLimit: bigint, handleOpsTx: any): Promise<bigint> {

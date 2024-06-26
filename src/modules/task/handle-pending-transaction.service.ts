@@ -14,7 +14,7 @@ import { TRANSACTION_STATUS, TransactionDocument } from '../rpc/schemas/transact
 import { TransactionService } from '../rpc/services/transaction.service';
 import { UserOperationService } from '../rpc/services/user-operation.service';
 import { getBundlerChainConfig, onEmitUserOpEvent } from '../../configs/bundler-common';
-import { Contract, toBeHex } from 'ethers';
+import { Contract, Wallet, getAddress, toBeHex } from 'ethers';
 import entryPointAbi from '../rpc/aa/abis/entry-point-abi';
 import { canRunCron, createTxGasData, deepHexlify, getDocumentId, tryParseSignedTx } from '../rpc/aa/utils';
 import { Cron } from '@nestjs/schedule';
@@ -122,6 +122,13 @@ export class HandlePendingTransactionService {
                             this.userOperationService.setPendingUserOperationsToLocal(getDocumentId(transaction), session),
                         ]);
                     });
+                } else if (error?.message?.toLowerCase()?.includes('reverted transaction')) {
+                    // send a empty traction to custom the nonce (for after nonce can send correctly).
+                    const signers = this.signerService.getChainSigners(transaction.chainId);
+                    const signer = signers.find((x) => x.address === transaction.from);
+
+                    const signedTx = await this.signEmptyTxWithNonce(transaction.chainId, signer, transaction.nonce);
+                    await this.transactionService.replaceTransactionTxHash(transaction, signedTx, TRANSACTION_STATUS.LOCAL);
                 }
 
                 Logger.error(`SendTransaction error: ${getDocumentId(transaction)}`, error);
@@ -452,7 +459,7 @@ export class HandlePendingTransactionService {
             });
 
             // if failed and it's ok, just generate a invalid tx hash
-            await this.transactionService.replaceTransactionTxHash(transaction, signedTx);
+            await this.transactionService.replaceTransactionTxHash(transaction, signedTx, TRANSACTION_STATUS.PENDING);
             await this.chainService.sendRawTransaction(transaction.chainId, signedTx);
         } catch (error) {
             if (error?.message?.toLowerCase()?.includes('already known')) {
@@ -515,5 +522,18 @@ export class HandlePendingTransactionService {
 
         this.signerService.decrChainSignerPendingTxCount(transaction.chainId, transaction.from);
         this.signerService.setSignerDoneTransactionMaxNonce(transaction.chainId, transaction.from, transaction.nonce);
+    }
+
+    private async signEmptyTxWithNonce(chainId: number, signer: Wallet, nonce: number): Promise<string> {
+        const feeData = await this.chainService.getFeeDataIfCache(chainId);
+        return await signer.signTransaction({
+            chainId,
+            to: signer.address,
+            value: toBeHex(0),
+            data: '0x',
+            nonce,
+            gasLimit: 21000,
+            ...createTxGasData(chainId, feeData),
+        });
     }
 }
