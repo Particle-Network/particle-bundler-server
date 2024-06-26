@@ -124,9 +124,8 @@ export class HandlePendingTransactionService {
                     });
                 } else if (error?.message?.toLowerCase()?.includes('reverted transaction')) {
                     // send a empty traction to custom the nonce (for after nonce can send correctly).
-                    const tx = tryParseSignedTx(transaction.signedTxs[txHash]);
                     const signers = this.signerService.getChainSigners(transaction.chainId);
-                    const signer = signers.find((x) => x.address === getAddress(tx.getSenderAddress().toString()));
+                    const signer = signers.find((x) => x.address === transaction.from);
 
                     const signedTx = await this.signEmptyTxWithNonce(transaction.chainId, signer, transaction.nonce);
                     await this.transactionService.replaceTransactionTxHash(transaction, signedTx, TRANSACTION_STATUS.LOCAL);
@@ -527,15 +526,14 @@ export class HandlePendingTransactionService {
 
     private async signEmptyTxWithNonce(chainId: number, signer: Wallet, nonce: number): Promise<string> {
         const feeData = await this.chainService.getFeeDataIfCache(chainId);
-        const signedTx = await signer.signTransaction({
-            chainId: chainId,
+        return await signer.signTransaction({
+            chainId,
             to: signer.address,
             value: toBeHex(0),
             data: '0x',
-            nonce: nonce,
+            nonce,
             gasLimit: 21000,
             ...createTxGasData(chainId, feeData),
         });
-        return signedTx;
     }
 }

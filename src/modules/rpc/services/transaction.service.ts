@@ -121,7 +121,7 @@ export class TransactionService {
         return await transaction.save();
     }
 
-    public async replaceTransactionTxHash(transaction: TransactionDocument, newSignedTx: string, currStatus: TRANSACTION_STATUS) {
+    public async replaceTransactionTxHash(transaction: TransactionDocument, newSignedTx: string, currentStatus: TRANSACTION_STATUS) {
         const tx: TypedTransaction = tryParseSignedTx(newSignedTx);
         const newTxHash = `0x${Buffer.from(tx.hash()).toString('hex')}`;
         const newTxData = tx.toJSON();
@@ -133,7 +133,7 @@ export class TransactionService {
         const newTxHashes = transaction.txHashes.concat(newTxHash);
 
         return await this.transactionModel.updateOne(
-            { _id: transaction.id, status: currStatus },
+            { _id: transaction.id, status: currentStatus },
             {
                 $set: {
                     incrRetry: false,

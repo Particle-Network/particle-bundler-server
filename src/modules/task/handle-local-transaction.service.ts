@@ -113,7 +113,7 @@ export class HandleLocalTransactionService {
         this.signerService.incrChainSignerPendingTxCount(chainId, signer.address);
         // there is lock, so no need to await
         this.listenerService.appendUserOpHashPendingTransactionMap(chainId, userOpHashes);
-        this.handlePendingTransactionService.trySendAndUpdateTransactionStatus(localTransaction, localTransaction.txHashes[0]);
+        this.handlePendingTransactionService.trySendAndUpdateTransactionStatus(localTransaction, localTransaction.txHashes.at(-1));
     }
 
     public async calculateGasLimitByBundleGasLimit(chainId: number, bundleGasLimit: bigint, handleOpsTx: any): Promise<bigint> {
