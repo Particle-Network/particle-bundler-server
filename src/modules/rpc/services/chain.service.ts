@@ -59,7 +59,7 @@ export class ChainService {
 
     public async estimateGas(chainId: number, tx: any, stateOverride?: any) {
         const bundlerChainConfig = getBundlerChainConfig(chainId);
-        const rpcUrl = bundlerChainConfig.sendRawTransactionRpcUrl ?? bundlerChainConfig.rpcUrl;
+        const rpcUrl = bundlerChainConfig.rpcUrl;
         const response = await Axios.post(
             rpcUrl,
             {
@@ -80,7 +80,7 @@ export class ChainService {
 
     public async staticCall(chainId: number, tx: any, allowError: boolean = false, stateOverride?: any) {
         const bundlerChainConfig = getBundlerChainConfig(chainId);
-        const rpcUrl = bundlerChainConfig.sendRawTransactionRpcUrl ?? bundlerChainConfig.rpcUrl;
+        const rpcUrl = bundlerChainConfig.rpcUrl;
         const response = await Axios.post(
             rpcUrl,
             {

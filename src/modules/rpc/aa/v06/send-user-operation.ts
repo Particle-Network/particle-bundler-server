@@ -171,7 +171,7 @@ export async function simulateHandleOpAndGetGasCost(
     Helper.assertTrue(
         !!resultCallSimulateHandleOp?.error?.data,
         10001,
-        `simulateHandleOp call error: ${Helper.converErrorToString(resultCallSimulateHandleOp)}`,
+        `SimulateHandleOp call error on chain ${chainId}: ${Helper.converErrorToString(resultCallSimulateHandleOp)}`,
     );
 
     // Compatibility with GNOSIS_NETWORK, FUSE_NETWORK

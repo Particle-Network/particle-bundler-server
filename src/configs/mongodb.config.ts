@@ -1,11 +1,23 @@
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModuleAsyncOptions, MongooseModuleOptions } from '@nestjs/mongoose';
+import { canRunCron } from '../modules/rpc/aa/utils';
 
 export default class MongodbConfig {
     public static getConfig(configService: ConfigService): MongooseModuleOptions {
-        return {
-            uri: configService.get('MONGODB_URI'),
-        };
+        if (canRunCron()) {
+            return {
+                uri: configService.get('MONGODB_URI'),
+                keepAlive: true,
+                socketTimeoutMS: 360000,
+                connectTimeoutMS: 360000,
+                retryDelay: 1000,
+                retryAttempts: Number.MAX_SAFE_INTEGER,
+            };
+        } else {
+            return {
+                uri: configService.get('MONGODB_URI'),
+            };
+        }
     }
 }
 
