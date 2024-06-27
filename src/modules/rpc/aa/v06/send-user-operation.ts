@@ -155,6 +155,17 @@ export async function simulateHandleOpAndGetGasCost(
         from: signers[0].address,
     });
 
+    if (!IS_PRODUCTION) {
+        console.log(
+            'Estimate Call: [4]',
+            JSON.stringify({
+                chainId,
+                txSimulateHandleOp,
+                stateOverride,
+            }),
+        );
+    }
+
     let [resultCallSimulateHandleOp, gasCostWholeTransaction] = await Promise.all([
         rpcService.chainService.staticCall(chainId, txSimulateHandleOp, true, stateOverride),
         tryGetGasCostWholeTransaction(chainId, rpcService, contractEntryPoint, entryPoint, userOp),
