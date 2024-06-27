@@ -158,6 +158,7 @@ export async function simulateHandleOpAndGetGasCost(
     if (!IS_PRODUCTION) {
         console.log(
             'Estimate Call: [4]',
+            `chainId: ${chainId}`,
             JSON.stringify({
                 chainId,
                 txSimulateHandleOp,

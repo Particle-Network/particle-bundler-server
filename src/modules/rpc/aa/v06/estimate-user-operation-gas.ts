@@ -112,6 +112,7 @@ async function estimateGasLimit(rpcService: RpcService, chainId: number, entryPo
             if (!IS_PRODUCTION) {
                 console.log(
                     'Estimate Call: [2]',
+                    `chainId: ${chainId}`,
                     JSON.stringify({
                         from: entryPoint,
                         to: factory,
@@ -135,6 +136,7 @@ async function estimateGasLimit(rpcService: RpcService, chainId: number, entryPo
             if (!IS_PRODUCTION) {
                 console.log(
                     'Estimate Call: [3]',
+                    `chainId: ${chainId}`,
                     JSON.stringify({
                         from: entryPoint,
                         to: userOp.sender,
@@ -194,6 +196,7 @@ async function tryEstimateGasForFirstAccount(rpcService: RpcService, chainId: nu
                 if (!IS_PRODUCTION) {
                     console.log(
                         'Estimate Call: [1]',
+                        `chainId: ${chainId}`,
                         JSON.stringify({
                             from: userOp.sender,
                             to: tx.to,
