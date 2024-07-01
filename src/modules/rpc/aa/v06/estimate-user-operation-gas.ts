@@ -305,9 +305,18 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
             EVM_CHAIN_ID.SEI_MAINNET,
             EVM_CHAIN_ID.SEI_TESTNET,
             EVM_CHAIN_ID.SEI_DEVNET,
+            // SatoshiVM
+            EVM_CHAIN_ID.SATOSHIVM_ALPHA_MAINNET,
+            EVM_CHAIN_ID.SATOSHIVM_TESTNET,
+            // Lorenzo
+            EVM_CHAIN_ID.LORENZO_MAINNET,
+            EVM_CHAIN_ID.LORENZO_TESTNET,
         ].includes(chainId)
     ) {
         let ratio = 1.05;
+        if ([EVM_CHAIN_ID.SATOSHIVM_ALPHA_MAINNET, EVM_CHAIN_ID.SATOSHIVM_TESTNET].includes(chainId)) {
+            ratio = 1.5;
+        }
         if ([EVM_CHAIN_ID.MANTLE_MAINNET, EVM_CHAIN_ID.MANTLE_SEPOLIA_TESTNET].includes(chainId)) {
             ratio = 1.6;
         }
@@ -316,6 +325,9 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
         }
         if ([EVM_CHAIN_ID.SEI_MAINNET, EVM_CHAIN_ID.SEI_TESTNET, EVM_CHAIN_ID.SEI_DEVNET].includes(chainId)) {
             ratio = 2;
+        }
+        if ([EVM_CHAIN_ID.LORENZO_MAINNET, EVM_CHAIN_ID.LORENZO_TESTNET].includes(chainId)) {
+            ratio = 2.5;
         }
 
         minGasPrice = (minGasPrice * BigInt(Math.round(ratio * 100))) / 100n;
