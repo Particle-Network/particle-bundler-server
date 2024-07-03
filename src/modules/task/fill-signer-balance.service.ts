@@ -6,7 +6,7 @@ import { Helper } from '../../common/helper';
 import { IS_PRODUCTION } from '../../common/common-types';
 import { Cron } from '@nestjs/schedule';
 import { $enum } from 'ts-enum-util';
-import { EVM_CHAIN_ID } from '../../common/chains';
+import { DISABLE_DEPOSIT_CHAINS, EVM_CHAIN_ID } from '../../common/chains';
 import { getBundlerChainConfig } from '../../configs/bundler-common';
 import { canRunCron } from '../rpc/aa/utils';
 import { SignerService } from '../rpc/services/signer.service';
@@ -39,6 +39,9 @@ export class FillSignerBalanceService {
             currentChainId = Number(chainId);
             const bundlerConfig = getBundlerChainConfig(Number(chainId));
             if (!bundlerConfig.minSignerBalance) {
+                continue;
+            }
+            if (DISABLE_DEPOSIT_CHAINS.includes(currentChainId)) {
                 continue;
             }
 
