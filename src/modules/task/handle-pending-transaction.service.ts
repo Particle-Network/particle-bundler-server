@@ -14,13 +14,14 @@ import { TRANSACTION_STATUS, TransactionDocument } from '../rpc/schemas/transact
 import { TransactionService } from '../rpc/services/transaction.service';
 import { UserOperationService } from '../rpc/services/user-operation.service';
 import { getBundlerChainConfig, onEmitUserOpEvent } from '../../configs/bundler-common';
-import { Contract, Wallet, getAddress, toBeHex } from 'ethers';
+import { Contract, Wallet, toBeHex } from 'ethers';
 import entryPointAbi from '../rpc/aa/abis/entry-point-abi';
 import { canRunCron, createTxGasData, deepHexlify, getDocumentId, tryParseSignedTx } from '../rpc/aa/utils';
 import { Cron } from '@nestjs/schedule';
 import { FeeMarketEIP1559Transaction, LegacyTransaction } from '@ethereumjs/tx';
 import { SignerService } from '../rpc/services/signer.service';
 import { ChainService } from '../rpc/services/chain.service';
+import { NEED_TO_ESTIMATE_GAS_BEFORE_SEND } from '../../common/chains';
 
 @Injectable()
 export class HandlePendingTransactionService {
@@ -122,7 +123,10 @@ export class HandlePendingTransactionService {
                             this.userOperationService.setPendingUserOperationsToLocal(getDocumentId(transaction), session),
                         ]);
                     });
-                } else if (error?.message?.toLowerCase()?.includes('reverted transaction')) {
+                } else if (
+                    error?.message?.toLowerCase()?.includes('reverted transaction') ||
+                    error?.message?.toLowerCase()?.includes('intrinsic gas too low')
+                ) {
                     // send a empty traction to custom the nonce (for after nonce can send correctly).
                     const signers = this.signerService.getChainSigners(transaction.chainId);
                     const signer = signers.find((x) => x.address === transaction.from);
@@ -526,13 +530,18 @@ export class HandlePendingTransactionService {
 
     private async signEmptyTxWithNonce(chainId: number, signer: Wallet, nonce: number): Promise<string> {
         const feeData = await this.chainService.getFeeDataIfCache(chainId);
+        let gasLimit = 21000;
+        if (NEED_TO_ESTIMATE_GAS_BEFORE_SEND.includes(chainId)) {
+            gasLimit = 210000;
+        }
+
         return await signer.signTransaction({
             chainId,
             to: signer.address,
             value: toBeHex(0),
             data: '0x',
             nonce,
-            gasLimit: 21000,
+            gasLimit,
             ...createTxGasData(chainId, feeData),
         });
     }
