@@ -13,6 +13,7 @@ WORKDIR /data/code/particle-bundler-server
 
 COPY ecosystem.config.js /data/code/particle-bundler-server/ecosystem.config.js
 COPY package.json /data/code/particle-bundler-server/package.json
+COPY yarn.lock /data/code/particle-bundler-server/yarn.lock
 RUN yarn install --production=true
 
 COPY .env.debug /data/code/particle-bundler-server/.env.debug

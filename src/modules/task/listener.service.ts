@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Contract, Network, WebSocketProvider } from 'ethers';
 import entryPointAbi from '../rpc/aa/abis/entry-point-abi';
-import { TransactionDocument } from '../rpc/schemas/transaction.schema';
 import { Helper } from '../../common/helper';
 import { LarkService } from '../common/services/lark.service';
 import { DEFAULT_ENTRY_POINT_ADDRESS, getBundlerChainConfig } from '../../configs/bundler-common';
