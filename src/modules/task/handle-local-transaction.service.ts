@@ -95,11 +95,6 @@ export class HandleLocalTransactionService {
 
         // may userops contain folded userop, so we need to sort again
         userOps.sort((a, b) => {
-            const r1 = a.sender.localeCompare(b.sender);
-            if (r1 !== 0) {
-                return r1;
-            }
-
             const { nonceKey: aNonceKey, nonceValue: aNonceValue } = splitOriginNonce(a.nonce);
             const { nonceKey: bNonceKey, nonceValue: bNonceValue } = splitOriginNonce(b.nonce);
 
