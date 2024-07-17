@@ -134,7 +134,7 @@ export class HandleLocalUserOperationService {
             }
 
             if (BigInt(a.userOpNonceKey) !== BigInt(b.userOpNonceKey)) {
-                return BigInt(a.userOpNonceKey.toString()) > BigInt(b.userOpNonceKey.toString()) ? 1 : -1;
+                return BigInt(a.userOpNonceKey) > BigInt(b.userOpNonceKey) ? 1 : -1;
             }
 
             return BigInt(a.userOpNonce.toString()) > BigInt(b.userOpNonce.toString()) ? 1 : -1;

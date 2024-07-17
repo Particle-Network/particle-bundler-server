@@ -11,7 +11,7 @@ import { TransactionService } from '../rpc/services/transaction.service';
 import { UserOperationService } from '../rpc/services/user-operation.service';
 import { HandlePendingTransactionService } from './handle-pending-transaction.service';
 import { Cron } from '@nestjs/schedule';
-import { canRunCron, createTxGasData, deepHexlify, getDocumentId, tryParseSignedTx } from '../rpc/aa/utils';
+import { canRunCron, createTxGasData, deepHexlify, getDocumentId, splitOriginNonce, tryParseSignedTx } from '../rpc/aa/utils';
 import { SignerService } from '../rpc/services/signer.service';
 import { ChainService } from '../rpc/services/chain.service';
 import { TypedTransaction } from '@ethereumjs/tx';
@@ -92,6 +92,23 @@ export class HandleLocalTransactionService {
         const entryPointContract = new Contract(entryPoint, entryPointAbi, null);
         const allUserOperationDocuments = this.flatAllUserOperationDocuments(userOperationDocuments);
         const userOps = allUserOperationDocuments.map((o) => o.origin);
+
+        // may userops contain folded userop, so we need to sort again
+        userOps.sort((a, b) => {
+            const r1 = a.sender.localeCompare(b.sender);
+            if (r1 !== 0) {
+                return r1;
+            }
+
+            const { nonceKey: aNonceKey, nonceValue: aNonceValue } = splitOriginNonce(a.nonce);
+            const { nonceKey: bNonceKey, nonceValue: bNonceValue } = splitOriginNonce(b.nonce);
+
+            if (BigInt(aNonceKey) !== BigInt(bNonceKey)) {
+                return BigInt(aNonceKey) > BigInt(bNonceKey) ? 1 : -1;
+            }
+
+            return BigInt(aNonceValue) > BigInt(bNonceValue) ? 1 : -1;
+        });
 
         const finalizedTx = await entryPointContract.handleOps.populateTransaction(userOps, beneficiary, {
             nonce,
