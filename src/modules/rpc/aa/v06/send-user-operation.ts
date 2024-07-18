@@ -147,8 +147,7 @@ export async function simulateHandleOpAndGetGasCost(
     userOp.maxFeePerGas = '0x1';
     userOp.maxPriorityFeePerGas = '0x1';
 
-    const provider = rpcService.chainService.getJsonRpcProvider(chainId);
-    const contractEntryPoint = new Contract(entryPoint, EntryPointAbi, provider);
+    const contractEntryPoint = new Contract(entryPoint, EntryPointAbi, null);
 
     const signers = rpcService.signerService.getChainSigners(chainId);
     const txSimulateHandleOp = await contractEntryPoint.simulateHandleOp.populateTransaction(userOp, ZeroAddress, '0x', {
@@ -218,9 +217,8 @@ export async function getL2ExtraFee(rpcService: RpcService, chainId: number, use
         return '0x00';
     }
 
-    const provider = rpcService.chainService.getJsonRpcProvider(chainId);
-    const contractEntryPoint = new Contract(entryPoint, EntryPointAbi, provider);
-    const l1GasPriceOracleContract = new Contract(L2_GAS_ORACLE[chainId], l1GasPriceOracleAbi, provider);
+    const contractEntryPoint = new Contract(entryPoint, EntryPointAbi, null);
+    const l1GasPriceOracleContract = new Contract(L2_GAS_ORACLE[chainId], l1GasPriceOracleAbi, null);
 
     const fakeSigner = rpcService.signerService.getChainSigners(chainId)[0];
     const simulateTx = await contractEntryPoint.handleOps.populateTransaction([userOp], fakeSigner.address);
@@ -228,8 +226,10 @@ export async function getL2ExtraFee(rpcService: RpcService, chainId: number, use
 
     const rawTransaction = await fakeSigner.signTransaction(simulateTx);
 
-    const l2ExtraFee = await l1GasPriceOracleContract.getL1Fee(rawTransaction);
-    return toBeHex(l2ExtraFee);
+    const callTx = await l1GasPriceOracleContract.getL1Fee.populateTransaction(rawTransaction);
+    const rl2ExtraFee = await rpcService.chainService.staticCall(chainId, callTx);
+
+    return toBeHex(rl2ExtraFee.result);
 }
 
 function checkUserOpGasPriceIsSatisfied(chainId: number, userOp: any, gasCost: bigint, extraFee: string, signerFeeData?: any) {
@@ -273,18 +273,18 @@ function checkUserOpGasPriceIsSatisfied(chainId: number, userOp: any, gasCost: b
 }
 
 async function checkUserOpCanExecutedSucceed(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string) {
-    const provider = rpcService.chainService.getJsonRpcProvider(chainId);
-    const contractEntryPoint = new Contract(entryPoint, EntryPointAbi, provider);
+    const contractEntryPoint = new Contract(entryPoint, EntryPointAbi, null);
     const signer = rpcService.signerService.getChainSigners(chainId)[0];
 
-    const promises = [contractEntryPoint.handleOps.staticCall([userOp], signer.address, { from: signer.address })];
+    const callTx = contractEntryPoint.handleOps.populateTransaction([userOp], signer.address, { from: signer.address });
+    const promises = [rpcService.chainService.staticCall(chainId, callTx)];
     const { nonceValue } = splitOriginNonce(userOp.nonce);
 
     // check account exists to replace check nonce??
     if (BigInt(nonceValue) >= 1n) {
         // check account call is success because entry point will catch the error
         promises.push(
-            provider.estimateGas({
+            rpcService.chainService.estimateGas(chainId, {
                 from: entryPoint,
                 to: userOp.sender,
                 data: userOp.callData,
@@ -319,13 +319,12 @@ async function tryGetGasCostWholeTransaction(
     entryPoint: string,
     userOp: any,
 ) {
-    const provider = rpcService.chainService.getJsonRpcProvider(chainId);
     if (!SUPPORT_MULTCALL3.includes(chainId)) {
         return '0x00';
     }
 
     const simulateHandleOpTx = await contractEntryPoint.simulateHandleOp.populateTransaction(userOp, ZeroAddress, '0x');
-    const multiCallContract = new Contract(MULTI_CALL_3_ADDRESS, MultiCall3Abi, provider);
+    const multiCallContract = new Contract(MULTI_CALL_3_ADDRESS, MultiCall3Abi, null);
     const signer = rpcService.signerService.getChainSigners(chainId)[0];
     const toEstimatedTx = await multiCallContract.tryAggregate.populateTransaction(false, [
         {
