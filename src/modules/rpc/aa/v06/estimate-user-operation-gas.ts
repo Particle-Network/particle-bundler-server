@@ -318,8 +318,19 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
         if ([EVM_CHAIN_ID.MANTLE_MAINNET, EVM_CHAIN_ID.MANTLE_SEPOLIA_TESTNET].includes(chainId)) {
             ratio = 1.6;
         }
-        if ([EVM_CHAIN_ID.OPTIMISM_TESTNET_SEPOLIA, EVM_CHAIN_ID.BLAST_TESTNET_SEPOLIA, EVM_CHAIN_ID.BASE_TESTNET_SEPOLIA].includes(chainId)) {
-            ratio = 2;
+        // Sepolia gas price is not stable
+        if (
+            [
+                EVM_CHAIN_ID.OPTIMISM_TESTNET_SEPOLIA,
+                EVM_CHAIN_ID.BLAST_TESTNET_SEPOLIA,
+                EVM_CHAIN_ID.BASE_TESTNET_SEPOLIA,
+                EVM_CHAIN_ID.SCROLL_SEPOLIA,
+                EVM_CHAIN_ID.CYBER_TESTNET,
+                EVM_CHAIN_ID.XTERIO_TESTNET,
+                EVM_CHAIN_ID.GMNETWORK_TESTNET,
+            ].includes(chainId)
+        ) {
+            ratio = 3;
         }
         if ([EVM_CHAIN_ID.SEI_MAINNET, EVM_CHAIN_ID.SEI_TESTNET, EVM_CHAIN_ID.SEI_DEVNET].includes(chainId)) {
             ratio = 2;
