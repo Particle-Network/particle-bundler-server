@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { Wallet, parseEther } from 'ethers';
-import { RpcService } from '../rpc/services/rpc.service';
 import { LarkService } from '../common/services/lark.service';
 import { Helper } from '../../common/helper';
 import { IS_PRODUCTION } from '../../common/common-types';
@@ -19,7 +18,6 @@ export class FillSignerBalanceService {
     public constructor(
         private readonly larkService: LarkService,
         private readonly signerService: SignerService,
-        private readonly rpcService: RpcService,
         private readonly chainService: ChainService,
     ) {}
 
@@ -52,7 +50,8 @@ export class FillSignerBalanceService {
                 const signers = this.signerService.getChainSigners(currentChainId);
                 for (const signer of signers) {
                     currentAddress = signer.address;
-                    const balance = await provider.getBalance(currentAddress);
+                    const rBalance = await this.chainService.getBalance(currentChainId, currentAddress);
+                    const balance = BigInt(rBalance.result);
                     const balanceEther = Number(balance / 10n ** 9n) / 1e9;
 
                     console.log(`[Check signer balance] chainId=${currentChainId}, address=${currentAddress}, balance=${balanceEther}`);

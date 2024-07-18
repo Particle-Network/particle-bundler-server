@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { parseEther } from 'ethers';
-import { RpcService } from '../rpc/services/rpc.service';
 import { LarkService } from '../common/services/lark.service';
 import { BLOCK_SIGNER_REASON } from '../../common/common-types';
 import { Cron } from '@nestjs/schedule';
@@ -39,8 +38,8 @@ export class UnblockAndReleaseSignersService {
 
         for (const blockedSigner of blockedSigners) {
             if (blockedSigner.info.reason === BLOCK_SIGNER_REASON.INSUFFICIENT_BALANCE) {
-                const provider = this.chainService.getJsonRpcProvider(blockedSigner.chainId);
-                const balance = await provider.getBalance(blockedSigner.signerAddress);
+                const rBalance = await this.chainService.getBalance(blockedSigner.chainId, blockedSigner.signerAddress);
+                const balance = BigInt(rBalance.result);
 
                 const bundlerConfig = getBundlerChainConfig(blockedSigner.chainId);
                 if (!bundlerConfig) {

@@ -6,7 +6,6 @@ import { CACHE_GAS_FEE_TIMEOUT, CACHE_TRANSACTION_COUNT_TIMEOUT, GAS_FEE_LEVEL, 
 import { ConfigService } from '@nestjs/config';
 import { LarkService } from '../../common/services/lark.service';
 import P2PCache from '../../../common/p2p-cache';
-import { RpcService } from './rpc.service';
 import { PARTICLE_PUBLIC_RPC_URL, getBundlerChainConfig } from '../../../configs/bundler-common';
 import { EVM_CHAIN_ID } from '../../../common/chains';
 import Axios from 'axios';
@@ -95,6 +94,23 @@ export class ChainService {
         if (!allowError && !response.data?.result) {
             throw new Error(`Failed to send call: ${Helper.converErrorToString(response.data)}`);
         }
+
+        return response.data;
+    }
+
+    public async getBalance(chainId: number, address: string) {
+        const bundlerChainConfig = getBundlerChainConfig(chainId);
+        const rpcUrl = bundlerChainConfig.rpcUrl;
+        const response = await Axios.post(
+            rpcUrl,
+            {
+                jsonrpc: '2.0',
+                id: Date.now(),
+                method: 'eth_getBalance',
+                params: [address, 'latest'],
+            },
+            { timeout: 12000 },
+        );
 
         return response.data;
     }
