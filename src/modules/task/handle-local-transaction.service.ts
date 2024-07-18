@@ -4,7 +4,7 @@ import { Contract, Wallet } from 'ethers';
 import { UserOperationDocument } from '../rpc/schemas/user-operation.schema';
 import { LarkService } from '../common/services/lark.service';
 import { Helper } from '../../common/helper';
-import { NEED_TO_ESTIMATE_GAS_BEFORE_SEND } from '../../common/chains';
+import { EVM_CHAIN_ID, NEED_TO_ESTIMATE_GAS_BEFORE_SEND } from '../../common/chains';
 import entryPointAbi from '../rpc/aa/abis/entry-point-abi';
 import { TRANSACTION_STATUS, TransactionDocument } from '../rpc/schemas/transaction.schema';
 import { TransactionService } from '../rpc/services/transaction.service';
@@ -129,7 +129,12 @@ export class HandleLocalTransactionService {
     }
 
     public async calculateGasLimitByBundleGasLimit(chainId: number, bundleGasLimit: bigint, handleOpsTx: any): Promise<bigint> {
-        let gasLimit = (bundleGasLimit * 15n) / 10n;
+        let multiplier = 15n;
+        // HACK
+        if (chainId === EVM_CHAIN_ID.SEI_TESTNET) {
+            multiplier = 11n;
+        }
+        let gasLimit = (bundleGasLimit * multiplier) / 10n;
         if (NEED_TO_ESTIMATE_GAS_BEFORE_SEND.includes(chainId)) {
             gasLimit *= 5n;
             if (gasLimit < 10000000n) {
