@@ -276,7 +276,7 @@ async function checkUserOpCanExecutedSucceed(rpcService: RpcService, chainId: nu
     const contractEntryPoint = new Contract(entryPoint, EntryPointAbi, null);
     const signer = rpcService.signerService.getChainSigners(chainId)[0];
 
-    const callTx = contractEntryPoint.handleOps.populateTransaction([userOp], signer.address, { from: signer.address });
+    const callTx = await contractEntryPoint.handleOps.populateTransaction([userOp], signer.address, { from: signer.address });
     const promises = [rpcService.chainService.staticCall(chainId, callTx)];
     const { nonceValue } = splitOriginNonce(userOp.nonce);
 
