@@ -106,6 +106,9 @@ export enum EVM_CHAIN_ID {
     // Lorenzo
     LORENZO_MAINNET = 8329,
     LORENZO_TESTNET = 83291,
+    // Elastos
+    ELASTOS_MAINNET = 20,
+    ELASTOS_TESTNET = 21,
     // Only testnets
     BOTANIX_TESTNET = 3636,
     READON_TESTNET = 12015,
