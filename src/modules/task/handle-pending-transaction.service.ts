@@ -347,7 +347,10 @@ export class HandlePendingTransactionService {
                         pendingTransaction.signedTxs[pendingTransaction.txHashes[pendingTransaction.txHashes.length - 1]],
                     );
                 } catch (error) {
-                    if (error?.message?.toLowerCase()?.includes('already known')) {
+                    if (
+                        error?.message?.toLowerCase()?.includes('already known') ||
+                        error?.message?.toLowerCase()?.includes('known transaction')
+                    ) {
                         // already send ?? can skip return
                     } else {
                         const tId = getDocumentId(pendingTransaction);
