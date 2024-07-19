@@ -339,7 +339,7 @@ export class HandlePendingTransactionService {
                 pendingTransaction.txHashes.length < bundlerConfig.canIncrGasPriceRetryMaxCount
             ) {
                 await this.tryIncrTransactionGasPriceAndReplace(pendingTransaction);
-            } else if (pendingTransaction.isOld()) {
+            } else if (pendingTransaction.isOld() && !pendingTransaction.isTooOld()) {
                 try {
                     // Transactions may be discarded by the node tx pool and need to be reissued
                     await this.chainService.sendRawTransaction(
