@@ -323,7 +323,7 @@ export class HandlePendingTransactionService {
 
             // force retry
             if (pendingTransaction.incrRetry) {
-                await this.tryIncrTransactionGasPriceAndReplace(pendingTransaction);
+                await this.tryIncrTransactionGasPriceAndReplace(pendingTransaction, 1.5);
                 return null;
             }
 
@@ -376,7 +376,7 @@ export class HandlePendingTransactionService {
         }
     }
 
-    private async tryIncrTransactionGasPriceAndReplace(transaction: TransactionDocument) {
+    private async tryIncrTransactionGasPriceAndReplace(transaction: TransactionDocument, coefficient = 1.1) {
         const keyLock = keyLockPendingTransaction(getDocumentId(transaction));
         if (this.lockPendingTransactions.has(keyLock)) {
             return;
@@ -420,8 +420,6 @@ export class HandlePendingTransactionService {
         }
 
         try {
-            const coefficient = 1.1;
-
             const currentSignedTx = transaction.signedTxs[transaction.txHashes[transaction.txHashes.length - 1]];
             const tx = tryParseSignedTx(currentSignedTx);
             const txData: any = tx.toJSON();
