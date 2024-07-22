@@ -12,6 +12,8 @@ export default class MongodbConfig {
                 connectTimeoutMS: 360000,
                 retryDelay: 1000,
                 retryAttempts: Number.MAX_SAFE_INTEGER,
+                maxPoolSize: 500,
+                minPoolSize: 100,
             };
         } else {
             return {
