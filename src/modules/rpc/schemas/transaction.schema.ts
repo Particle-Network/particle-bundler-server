@@ -58,20 +58,16 @@ export class Transaction {
 
     @Prop({ required: true, type: Schema.Types.Date })
     public latestSentAt: Date;
+
+    @Prop({ required: false, type: Schema.Types.Date })
+    public createdAt: Date;
+
+    @Prop({ required: false, type: Schema.Types.Date })
+    public updatedAt: Date;
 }
 
-export type TransactionDocument = Transaction & Document & ITransactionDocument;
+export type TransactionDocument = Transaction & Document;
 export const TransactionSchema = SchemaFactory.createForClass(Transaction);
-
-interface ITransactionDocument {
-    isPendingTimeout(): boolean;
-    getCurrentSignedTx(): string;
-    isLocal(): boolean;
-    isPending(): boolean;
-    isDone(): boolean;
-    isOld(): boolean;
-    isTooOld(): boolean;
-}
 
 TransactionSchema.set('toJSON', {
     transform: function (doc, ret, options) {
@@ -80,33 +76,26 @@ TransactionSchema.set('toJSON', {
     },
 });
 
-TransactionSchema.methods.isPendingTimeout = function (): boolean {
+export function isPendingTimeout(transaction: Transaction): boolean {
     return (
-        [TRANSACTION_STATUS.PENDING].includes(this.status) && Date.now() - this.latestSentAt.valueOf() > PENDING_TRANSACTION_WAITING_TIME * 1000
+        [TRANSACTION_STATUS.PENDING].includes(transaction.status) &&
+        Date.now() - new Date(transaction.latestSentAt).valueOf() > PENDING_TRANSACTION_WAITING_TIME * 1000
     );
-};
+}
 
-TransactionSchema.methods.isOld = function (): boolean {
+export function isOld(transaction: Transaction): boolean {
     return (
-        [TRANSACTION_STATUS.PENDING].includes(this.status) && Date.now() - this.latestSentAt.valueOf() > PENDING_TRANSACTION_EXPIRED_TIME * 1000
+        [TRANSACTION_STATUS.PENDING].includes(transaction.status) &&
+        Date.now() - new Date(transaction.latestSentAt).valueOf() > PENDING_TRANSACTION_EXPIRED_TIME * 1000
     );
-};
+}
 
-TransactionSchema.methods.isTooOld = function (): boolean {
-    return [TRANSACTION_STATUS.PENDING].includes(this.status) && Date.now() - this.createdAt.valueOf() > PENDING_TRANSACTION_ABANDON_TIME * 1000;
-};
-
-TransactionSchema.methods.isDone = function (): boolean {
-    return [TRANSACTION_STATUS.DONE].includes(this.status);
-};
-
-TransactionSchema.methods.isPending = function (): boolean {
-    return [TRANSACTION_STATUS.PENDING].includes(this.status);
-};
-
-TransactionSchema.methods.isLocal = function (): boolean {
-    return [TRANSACTION_STATUS.LOCAL].includes(this.status);
-};
+export function isTooOld(transaction: Transaction): boolean {
+    return (
+        [TRANSACTION_STATUS.PENDING].includes(transaction.status) &&
+        Date.now() - new Date(transaction.createdAt).valueOf() > PENDING_TRANSACTION_ABANDON_TIME * 1000
+    );
+}
 
 TransactionSchema.index(
     {
