@@ -1,12 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Types } from 'mongoose';
-import { Contract, Wallet } from 'ethers';
+import { Contract, parseEther, Wallet } from 'ethers';
 import { UserOperationDocument } from '../rpc/schemas/user-operation.schema';
 import { LarkService } from '../common/services/lark.service';
 import { Helper } from '../../common/helper';
 import { EVM_CHAIN_ID, NEED_TO_ESTIMATE_GAS_BEFORE_SEND } from '../../common/chains';
 import entryPointAbi from '../rpc/aa/abis/entry-point-abi';
-import { TRANSACTION_STATUS, TransactionDocument } from '../rpc/schemas/transaction.schema';
+import { Transaction, TRANSACTION_STATUS, TransactionDocument } from '../rpc/schemas/transaction.schema';
 import { TransactionService } from '../rpc/services/transaction.service';
 import { UserOperationService } from '../rpc/services/user-operation.service';
 import { HandlePendingTransactionService } from './handle-pending-transaction.service';
@@ -53,7 +53,7 @@ export class HandleLocalTransactionService {
         }
     }
 
-    public async handleLocalTransaction(localTransaction: TransactionDocument) {
+    public async handleLocalTransaction(localTransaction: Transaction) {
         if (this.lockedLocalTransactions.has(getDocumentId(localTransaction))) {
             return;
         }
@@ -109,6 +109,7 @@ export class HandleLocalTransactionService {
             nonce,
             ...createTxGasData(chainId, feeData),
         });
+
         const gasLimit = await this.calculateGasLimitByBundleGasLimit(chainId, BigInt(bundleGasLimit), finalizedTx);
         finalizedTx.gasLimit = gasLimit;
         finalizedTx.chainId = BigInt(chainId);
@@ -120,8 +121,7 @@ export class HandleLocalTransactionService {
 
         await this.userOperationService.setLocalUserOperationsAsPending(userOpHashes, transactionObjectId);
         const localTransaction = await this.transactionService.createTransaction(transactionObjectId, chainId, signedTx, userOpHashes);
-        Logger.debug(`[createBundleTransaction] Create Transaction ${transactionObjectId.toString()}`);
-
+        
         this.signerService.incrChainSignerPendingTxCount(chainId, signer.address);
         // there is lock, so no need to await
         this.listenerService.appendUserOpHashPendingTransactionMap(chainId, userOpHashes);

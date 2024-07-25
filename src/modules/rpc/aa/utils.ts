@@ -194,7 +194,7 @@ export function parsePaymasterAndDataAndGetExpiredAt(paymasterAndData: string): 
     return Number(expiredAt);
 }
 
-export function getDocumentId(doc: Document): string {
+export function getDocumentId(doc: Document & any): string {
     if (typeof doc.id === 'string') {
         return doc.id;
     }

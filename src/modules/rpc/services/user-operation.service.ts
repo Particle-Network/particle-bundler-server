@@ -141,7 +141,10 @@ export class UserOperationService {
     }
 
     public async getPendingUserOperationCount(chainId: number): Promise<number> {
-        return await this.userOperationModel.count({ status: { $in: [USER_OPERATION_STATUS.LOCAL, USER_OPERATION_STATUS.PENDING] }, chainId });
+        return await this.userOperationModel.countDocuments({
+            status: { $in: [USER_OPERATION_STATUS.LOCAL, USER_OPERATION_STATUS.PENDING] },
+            chainId,
+        });
     }
 
     public async deleteUserOperationByUserOpHash(userOpHash: string) {
@@ -167,11 +170,17 @@ export class UserOperationService {
     }
 
     public async setLocalUserOperationsAsPending(userOpHashes: string[], transactionObjectId: Types.ObjectId, session?: any) {
-        return await this.userOperationModel.updateMany(
+        const start = Date.now();
+
+        const r = await this.userOperationModel.updateMany(
             { userOpHash: { $in: userOpHashes }, status: { $in: [USER_OPERATION_STATUS.LOCAL, USER_OPERATION_STATUS.ASSOCIATED] } },
             { $set: { status: USER_OPERATION_STATUS.PENDING, transactionId: transactionObjectId.toString() } },
             { session },
         );
+
+        Logger.debug(`[SetLocalUserOperationsAsPending] ${transactionObjectId}, Cost: ${Date.now() - start} ms`);
+
+        return r;
     }
 
     public async setPendingUserOperationsToLocal(transactionId: string, session: any) {
@@ -194,7 +203,7 @@ export class UserOperationService {
     }
 
     public async getLocalUserOperationsCountByChainId(chainId: number): Promise<number> {
-        return await this.userOperationModel.count({ status: USER_OPERATION_STATUS.LOCAL, chainId });
+        return await this.userOperationModel.countDocuments({ status: USER_OPERATION_STATUS.LOCAL, chainId });
     }
 
     public async createUserOperationEvents(userOperationEventObjects: IUserOperationEventObject[]) {

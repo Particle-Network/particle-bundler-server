@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Wallet, parseEther } from 'ethers';
 import { LarkService } from '../common/services/lark.service';
 import { Helper } from '../../common/helper';
-import { IS_PRODUCTION } from '../../common/common-types';
+import { IS_DEVELOPMENT, IS_PRODUCTION } from '../../common/common-types';
 import { Cron } from '@nestjs/schedule';
 import { $enum } from 'ts-enum-util';
 import { DISABLE_DEPOSIT_CHAINS, EVM_CHAIN_ID } from '../../common/chains';
@@ -24,6 +24,10 @@ export class FillSignerBalanceService {
     @Cron('0 * * * * *')
     public async checkAndFillSignerBalance() {
         if (!canRunCron() || this.inCheckingSignerBalance || !process.env.PAYMENT_SIGNER) {
+            return;
+        }
+
+        if (IS_DEVELOPMENT) {
             return;
         }
 

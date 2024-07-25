@@ -7,7 +7,6 @@ export default class MongodbConfig {
         if (canRunCron()) {
             return {
                 uri: configService.get('MONGODB_URI'),
-                keepAlive: true,
                 socketTimeoutMS: 360000,
                 connectTimeoutMS: 360000,
                 retryDelay: 1000,
