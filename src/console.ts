@@ -6,6 +6,7 @@ import { TransactionService } from './modules/rpc/services/transaction.service';
 import { UserOperationService } from './modules/rpc/services/user-operation.service';
 import * as pm2 from 'pm2';
 import { SERVER_NAME } from './common/common-types';
+import { getDocumentId } from './modules/rpc/aa/utils';
 
 const nodeIds = [];
 
@@ -21,6 +22,7 @@ pm2.connect(function () {
 
 // Execute In Pod
 // DISABLE_TASK=true ENVIRONMENT=dev node dist/console.js delete-transactions-by-signer chainId signerAddress
+// DISABLE_TASK=true ENVIRONMENT=dev node dist/console.js delete-transaction [transactionId]
 async function bootstrap() {
     process.env.DISABLE_TASK = 'true';
     process.env.EXECUTE_MODE = 'console';
@@ -48,8 +50,8 @@ async function bootstrap() {
                 console.log(`Deleted userOperation: ${userOperationHash}, deleted`, deleted);
             }
 
-            console.log('delete pendingTransaction: ', pendingTransaction.id);
-            await pendingTransaction.delete();
+            console.log('delete pendingTransaction: ', getDocumentId(pendingTransaction));
+            await transactionService.deleteTransaction(pendingTransaction._id);
         }
     } else if (command === 'delete-transaction') {
         const transactionId = process.argv[3];
@@ -67,8 +69,8 @@ async function bootstrap() {
             console.log(`Deleted userOperation: ${userOperationHash}, deleted`, deleted);
         }
 
-        console.log('delete pendingTransaction: ', transaction.id);
-        await transaction.delete();
+        console.log('delete pendingTransaction: ', getDocumentId(transaction));
+        await transactionService.deleteTransaction(transaction._id);
     } else if (command === 'disable-logger') {
         for (const nodeId of nodeIds) {
             pm2.sendDataToProcessId(
