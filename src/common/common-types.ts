@@ -37,6 +37,7 @@ export interface IBundlerChainConfig {
     sendRawTransactionRpcUrl?: string;
     callGasLimitBase?: bigint;
     verificationGasLimitBase?: bigint;
+    maxPickSignerOnceCount?: number;
     minGasFee?: {
         gasPrice?: string;
         maxFeePerGas?: string;
