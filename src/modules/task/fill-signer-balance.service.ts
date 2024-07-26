@@ -21,7 +21,7 @@ export class FillSignerBalanceService {
         private readonly chainService: ChainService,
     ) {}
 
-    @Cron('0 * * * * *')
+    @Cron('* * * * * *')
     public async checkAndFillSignerBalance() {
         if (!canRunCron() || this.inCheckingSignerBalance || !process.env.PAYMENT_SIGNER) {
             return;

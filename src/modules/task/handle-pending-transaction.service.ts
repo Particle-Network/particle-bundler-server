@@ -6,7 +6,6 @@ import { Helper } from '../../common/helper';
 import {
     BLOCK_SIGNER_REASON,
     EVENT_ENTRY_POINT_USER_OPERATION,
-    IS_DEVELOPMENT,
     IUserOperationEventObject,
     keyLockPendingTransaction,
     keyLockSendingTransaction,
@@ -22,7 +21,7 @@ import { Cron } from '@nestjs/schedule';
 import { FeeMarketEIP1559Transaction, LegacyTransaction } from '@ethereumjs/tx';
 import { SignerService } from '../rpc/services/signer.service';
 import { ChainService } from '../rpc/services/chain.service';
-import { EVM_CHAIN_ID, NEED_TO_ESTIMATE_GAS_BEFORE_SEND } from '../../common/chains';
+import { NEED_TO_ESTIMATE_GAS_BEFORE_SEND } from '../../common/chains';
 
 @Injectable()
 export class HandlePendingTransactionService {
