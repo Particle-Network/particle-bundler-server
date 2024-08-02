@@ -10,7 +10,7 @@
 ![](https://img.shields.io/badge/Typescript-💪-blue?style=round)
 ![GitHub](https://img.shields.io/github/license/silviopaganini/nft-market?style=round)
 
-Particle Bundler RPC completes compatible with [ERC4337 standards](https://eips.ethereum.org/EIPS/eip-4337). It is extremely stable and supports high concurrency requests.
+Particle Bundler RPC fully compatible with [ERC4337 standards](https://eips.ethereum.org/EIPS/eip-4337). It is extremely stable and supports high concurrency requests.
 
 ## ⚡️ Live
 👉 We have deployed a server on production: https://docs.particle.network/developers/node-service/evm-chains-api/bundler-rpc
@@ -59,14 +59,14 @@ create a new terminal and run the test
 npx jest rpc.controller.spec -t 'Gasless Basic' --chainId=${the chain you want to test}
 ```
 
-### 🧷 Custom the bundler config
+### 🧷 Customize the bundler config
 Set your configuration in **/src/configs/bundler-config.ts**.
 
 * CHAIN_SIGNER_MIN_BALANCE: the minimum balance of the signer, if the signer's balance is less than this value, the payment signer will automatically transfer the token to the signer.
 * CHAIN_VERIFYING_PAYMASTER_MIN_DEPOSIT: the minimum deposit of the paymaster, if the paymaster's deposit is less than this value, the payment signer will automatically transfer the token to the paymaster.
 
 ### 📝 Scripts
-deploy AA & Simple Account for a new chain
+Deploy AA & Simple Account for a new chain
 ```bash
 // set a signer in scripts/deploy-aa.ts
 
@@ -82,4 +82,4 @@ Learn more on [https://docs.particle.network/developers/node-service/evm-chains-
 
 If you got some problems, please report bugs or issues.
 
-You can also join our [Discord](https://discord.gg/2y44qr6CR2).
+You can also join us on [Discord](https://discord.gg/2y44qr6CR2).
