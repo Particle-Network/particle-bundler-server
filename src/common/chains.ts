@@ -112,6 +112,9 @@ export enum EVM_CHAIN_ID {
     // 5ire
     FIVEIRE_MAINNET = 995,
     FIVEIRE_TESTNET = 997,
+    // Aura
+    AURA_MAINNET = 6322,
+    AURA_EUPHORIA_TESTNET = 6321,
     // Only testnets
     BOTANIX_TESTNET = 3636,
     READON_TESTNET = 12015,
