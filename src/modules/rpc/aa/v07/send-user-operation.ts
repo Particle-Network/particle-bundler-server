@@ -151,7 +151,9 @@ async function checkUserOpCanExecutedSucceed(rpcService: RpcService, chainId: nu
 }
 
 function checkUserOpGasPriceIsSatisfied(chainId: number, userOp: any, gasCost: bigint, extraFee: string, signerFeeData?: any) {
-    const signerGasPrice = calcUserOpGasPrice(signerFeeData, signerFeeData.baseFee);
+    const signerGasPrice = SUPPORT_EIP_1559.includes(chainId)
+        ? calcUserOpGasPrice(signerFeeData, signerFeeData.baseFee)
+        : signerFeeData.gasPrice;
 
     const [maxPriorityFeePerGas, maxFeePerGas] = unpackUint(userOp.gasFees);
     const userOpGasPrice = calcUserOpGasPrice({ maxPriorityFeePerGas, maxFeePerGas }, signerFeeData.baseFee);

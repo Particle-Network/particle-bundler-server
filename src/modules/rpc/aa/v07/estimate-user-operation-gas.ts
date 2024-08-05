@@ -87,7 +87,10 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
         ? packUint(userOpFeeData.maxPriorityFeePerGas, userOpFeeData.maxFeePerGas)
         : packUint(userOpFeeData.gasPrice, userOpFeeData.gasPrice);
 
-    const userOpGasPrice = calcUserOpGasPrice(userOpFeeData, userOpFeeData.baseFee);
+    const userOpGasPrice = SUPPORT_EIP_1559.includes(chainId)
+        ? calcUserOpGasPrice(userOpFeeData, userOpFeeData.baseFee)
+        : userOpFeeData.gasPrice;
+
     let minGasPrice = BigInt(userOpGasPrice);
     if (Object.keys(L2_GAS_ORACLE).includes(String(chainId))) {
         const signerPaid = gasCost + 5000n * BigInt(userOpGasPrice);
