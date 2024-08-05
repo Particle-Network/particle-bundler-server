@@ -1,11 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Types } from 'mongoose';
-import { Contract, parseEther, Wallet } from 'ethers';
+import { Wallet } from 'ethers';
 import { UserOperationDocument } from '../rpc/schemas/user-operation.schema';
 import { LarkService } from '../common/services/lark.service';
 import { Helper } from '../../common/helper';
 import { EVM_CHAIN_ID, NEED_TO_ESTIMATE_GAS_BEFORE_SEND } from '../../common/chains';
-import entryPointAbi from '../rpc/aa/abis/entry-point-abi';
 import { Transaction, TRANSACTION_STATUS, TransactionDocument } from '../rpc/schemas/transaction.schema';
 import { TransactionService } from '../rpc/services/transaction.service';
 import { UserOperationService } from '../rpc/services/user-operation.service';
@@ -17,12 +16,15 @@ import { ChainService } from '../rpc/services/chain.service';
 import { TypedTransaction } from '@ethereumjs/tx';
 import { onCreateUserOpTxHash, onEmitUserOpEvent } from '../../configs/bundler-common';
 import { ListenerService } from './listener.service';
+import { RpcService } from '../rpc/services/rpc.service';
+import { entryPointAbis } from '../rpc/aa/abis/entry-point-abis';
 
 @Injectable()
 export class HandleLocalTransactionService {
     private readonly lockedLocalTransactions: Set<string> = new Set();
 
     public constructor(
+        private readonly rpcService: RpcService,
         private readonly chainService: ChainService,
         private readonly larkService: LarkService,
         private readonly transactionService: TransactionService,
@@ -89,7 +91,8 @@ export class HandleLocalTransactionService {
         Logger.debug(`[createBundleTransaction] signer: ${signer.address} | nonce: ${nonce} | userOpDocCount: ${userOperationDocuments.length}`);
 
         const beneficiary = signer.address;
-        const entryPointContract = new Contract(entryPoint, entryPointAbi, null);
+        const entryPointVersion = this.rpcService.getVersionByEntryPoint(entryPoint);
+        const entryPointContract = this.rpcService.getSetCachedContract(entryPoint, entryPointAbis[entryPointVersion]);
         const allUserOperationDocuments = this.flatAllUserOperationDocuments(userOperationDocuments);
         const userOps = allUserOperationDocuments.map((o) => o.origin);
 
@@ -121,7 +124,7 @@ export class HandleLocalTransactionService {
 
         await this.userOperationService.setLocalUserOperationsAsPending(userOpHashes, transactionObjectId);
         const localTransaction = await this.transactionService.createTransaction(transactionObjectId, chainId, signedTx, userOpHashes);
-        
+
         this.signerService.incrChainSignerPendingTxCount(chainId, signer.address);
         // there is lock, so no need to await
         this.listenerService.appendUserOpHashPendingTransactionMap(chainId, userOpHashes);
@@ -173,7 +176,7 @@ export class HandleLocalTransactionService {
 
     public handlePendingTransactionByEvent(chainId: number, event: any) {
         Logger.debug(`[Receive UserOpEvent From Ws] chainId: ${chainId} | UserOpHash: ${event[7].args[0]}`);
-        const userOpEvent = { args: deepHexlify(event[7].args), txHash: event[7].log.transactionHash };
+        const userOpEvent = { args: deepHexlify(event[7].args), txHash: event[7].log.transactionHash, entryPoint: event[7].log.address };
         onEmitUserOpEvent(event[7].args[0], userOpEvent);
     }
 }

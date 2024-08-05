@@ -1,13 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Contract, Network, WebSocketProvider } from 'ethers';
-import entryPointAbi from '../rpc/aa/abis/entry-point-abi';
 import { Helper } from '../../common/helper';
 import { LarkService } from '../common/services/lark.service';
-import { DEFAULT_ENTRY_POINT_ADDRESS, getBundlerChainConfig } from '../../configs/bundler-common';
+import { ENTRY_POINT_ADDRESS_V06, ENTRY_POINT_ADDRESS_V07, getBundlerChainConfig } from '../../configs/bundler-common';
 import { EVM_CHAIN_ID } from '../../common/chains';
 import { $enum } from 'ts-enum-util';
 import { LRUCache } from 'lru-cache';
 import { IS_PRODUCTION } from '../../common/common-types';
+import { entryPointAbis } from '../rpc/aa/abis/entry-point-abis';
 
 const WEBSOCKET_PING_INTERVAL = 5000;
 const WEBSOCKET_PONG_TIMEOUT = 3000;
@@ -85,8 +85,24 @@ export class ListenerService {
     }
 
     private onListen(chainId: number, wsProvider: WebSocketProvider) {
-        const contract = new Contract(DEFAULT_ENTRY_POINT_ADDRESS, entryPointAbi, wsProvider);
-        contract.on('UserOperationEvent', (...event: any[]) => {
+        const contractV06 = new Contract(ENTRY_POINT_ADDRESS_V06, entryPointAbis.v06, wsProvider);
+        contractV06.on('UserOperationEvent', (...event: any[]) => {
+            try {
+                const userOpHash = event[0];
+                const key = this.keyChainIdUserOpHash(chainId, userOpHash);
+
+                if (!!this.cacheUserOpHashPendingTransaction.get(key)) {
+                    this.eventHandler(chainId, event);
+                }
+            } catch (error) {
+                if (!IS_PRODUCTION) {
+                    Logger.error(`[onListen UserOperationEvent Error]`, error);
+                }
+            }
+        });
+
+        const contractV07 = new Contract(ENTRY_POINT_ADDRESS_V07, entryPointAbis.v07, wsProvider);
+        contractV07.on('UserOperationEvent', (...event: any[]) => {
             try {
                 const userOpHash = event[0];
                 const key = this.keyChainIdUserOpHash(chainId, userOpHash);

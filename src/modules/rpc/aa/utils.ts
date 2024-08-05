@@ -1,14 +1,30 @@
 import { isEmpty } from 'lodash';
-import { AbiCoder, BigNumberish, BytesLike, hexlify, keccak256, toBeHex } from 'ethers';
+import { AbiCoder, BigNumberish, BytesLike, getBytes, hexlify, keccak256, toBeHex, ZeroAddress, zeroPadValue } from 'ethers';
 import { IS_DEBUG, IS_DEVELOPMENT, PRODUCTION_HOSTNAME } from '../../../common/common-types';
 import { TransactionFactory, TypedTransaction } from '@ethereumjs/tx';
 import { AppException } from '../../../common/app-exception';
-import { EVM_CHAIN_ID, SUPPORT_EIP_1559 } from '../../../common/chains';
+import { EVM_CHAIN_ID, L2_GAS_ORACLE, SUPPORT_EIP_1559 } from '../../../common/chains';
 import * as Os from 'os';
 import { Document } from 'mongoose';
+import { RpcService } from '../services/rpc.service';
+import { entryPointAbis } from './abis/entry-point-abis';
+import l1GasPriceOracleAbi from './abis/l1-gas-price-oracle-abi';
 
 // TODO need to test
 export function calcUserOpTotalGasLimit(userOp: any, chainId: number): bigint {
+    // v0.7
+    if (!!userOp.accountGasLimits) {
+        const { verificationGasLimit, callGasLimit } = unpackAccountGasLimits(userOp.accountGasLimits);
+        let packedPaymasterGasLimit = 0n;
+        let postOpGasLimit = 0n;
+        if (userOp.paymasterAndData.length > 2) {
+            packedPaymasterGasLimit = BigInt(`0x${userOp.paymasterAndData.substring(42, 74)}`);
+            postOpGasLimit = BigInt(`0x${userOp.paymasterAndData.substring(74, 106)}`);
+        }
+
+        return 21000n + verificationGasLimit + callGasLimit + BigInt(userOp.preVerificationGas) + packedPaymasterGasLimit + postOpGasLimit;
+    }
+
     const mul = 3n;
     const g1 = BigInt(userOp.callGasLimit) + BigInt(userOp.verificationGasLimit) * mul + BigInt(userOp.preVerificationGas) + 5000n;
 
@@ -22,7 +38,7 @@ export function calcUserOpTotalGasLimit(userOp: any, chainId: number): bigint {
     return g1 < g2 ? g1 : g2; // return min(g1, g2)
 }
 
-export function isUserOpValid(userOp: any, requireSignature = true, requireGasParams = true): boolean {
+export function isUserOpValidV06(userOp: any, requireSignature = true, requireGasParams = true): boolean {
     if (isEmpty(userOp)) {
         return false;
     }
@@ -33,6 +49,32 @@ export function isUserOpValid(userOp: any, requireSignature = true, requireGasPa
     }
     if (requireGasParams) {
         fields.push('preVerificationGas', 'verificationGasLimit', 'callGasLimit', 'maxFeePerGas', 'maxPriorityFeePerGas');
+    }
+
+    for (const key of fields) {
+        if (typeof userOp[key] !== 'string') {
+            return false;
+        }
+
+        if (!userOp[key].startsWith('0x')) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+export function isUserOpValidV07(userOp: any, requireSignature = true, requireGasParams = true): boolean {
+    if (isEmpty(userOp)) {
+        return false;
+    }
+
+    const fields = ['sender', 'nonce', 'initCode', 'callData', 'paymasterAndData'];
+    if (requireSignature) {
+        fields.push('signature');
+    }
+    if (requireGasParams) {
+        fields.push('preVerificationGas', 'gasFees', 'accountGasLimits');
     }
 
     for (const key of fields) {
@@ -102,18 +144,9 @@ export function splitOriginNonce(originNonce: string) {
     return { nonceKey: toBeHex(key), nonceValue: toBeHex(valueString) };
 }
 
-export function getUserOpHash(chainId: number, userOp: any, entryPoint: string) {
-    const abiCoder = new AbiCoder();
-
-    const userOpHash = keccak256(packUserOp(userOp, true));
-    const enc = abiCoder.encode(['bytes32', 'address', 'uint256'], [userOpHash, entryPoint, chainId]);
-    return keccak256(enc);
-}
-
-export function packUserOp(userOp: any, forSignature = true): string {
-    const abiCoder = new AbiCoder();
-    if (forSignature) {
-        return abiCoder.encode(
+export function getUserOpHashV06(chainId: number, userOp: any, entryPoint: string) {
+    const userOpHash = keccak256(
+        AbiCoder.defaultAbiCoder().encode(
             ['address', 'uint256', 'bytes32', 'bytes32', 'uint256', 'uint256', 'uint256', 'uint256', 'uint256', 'bytes32'],
             [
                 userOp.sender,
@@ -127,23 +160,47 @@ export function packUserOp(userOp: any, forSignature = true): string {
                 userOp.maxPriorityFeePerGas,
                 keccak256(userOp.paymasterAndData),
             ],
+        ),
+    );
+    const enc = AbiCoder.defaultAbiCoder().encode(['bytes32', 'address', 'uint256'], [userOpHash, entryPoint, chainId]);
+    return keccak256(enc);
+}
+
+export function getUserOpHashV07(chainId: number, userOp: any, entryPoint: string): string {
+    const userOpHash = keccak256(encodeUserOpV07(userOp, true));
+    const enc = AbiCoder.defaultAbiCoder().encode(['bytes32', 'address', 'uint256'], [userOpHash, entryPoint, chainId]);
+    return keccak256(enc);
+}
+
+export function encodeUserOpV07(op: any, forSignature = true): string {
+    if (forSignature) {
+        return AbiCoder.defaultAbiCoder().encode(
+            ['address', 'uint256', 'bytes32', 'bytes32', 'bytes32', 'uint256', 'bytes32', 'bytes32'],
+            [
+                op.sender,
+                op.nonce,
+                keccak256(op.initCode),
+                keccak256(op.callData),
+                op.accountGasLimits,
+                op.preVerificationGas,
+                op.gasFees,
+                keccak256(op.paymasterAndData),
+            ],
         );
     } else {
         // for the purpose of calculating gas cost encode also signature (and no keccak of bytes)
-        return abiCoder.encode(
-            ['address', 'uint256', 'bytes', 'bytes', 'uint256', 'uint256', 'uint256', 'uint256', 'uint256', 'bytes', 'bytes'],
+        return AbiCoder.defaultAbiCoder().encode(
+            ['address', 'uint256', 'bytes', 'bytes', 'bytes32', 'uint256', 'bytes32', 'bytes', 'bytes'],
             [
-                userOp.sender,
-                userOp.nonce,
-                userOp.initCode,
-                userOp.callData,
-                userOp.callGasLimit,
-                userOp.verificationGasLimit,
-                userOp.preVerificationGas,
-                userOp.maxFeePerGas,
-                userOp.maxPriorityFeePerGas,
-                userOp.paymasterAndData,
-                userOp.signature,
+                op.sender,
+                op.nonce,
+                op.initCode,
+                op.callData,
+                op.accountGasLimits,
+                op.preVerificationGas,
+                op.gasFees,
+                op.paymasterAndData,
+                op.signature,
             ],
         );
     }
@@ -216,4 +273,84 @@ export function canRunCron() {
     }
 
     return process.env.NODE_APP_INSTANCE === '0' && Os.hostname() === PRODUCTION_HOSTNAME;
+}
+
+export function packAccountGasLimits(validationGasLimit: string | bigint | number, callGasLimit: string | bigint | number): string {
+    return packUint(validationGasLimit, callGasLimit);
+}
+
+export function unpackAccountGasLimits(accountGasLimits: string | bigint): {
+    verificationGasLimit: bigint;
+    callGasLimit: bigint;
+} {
+    const [verificationGasLimit, callGasLimit] = unpackUint(accountGasLimits);
+    return {
+        verificationGasLimit,
+        callGasLimit,
+    };
+}
+
+export async function getL2ExtraFee(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string) {
+    if (!Object.keys(L2_GAS_ORACLE).includes(String(chainId))) {
+        return '0x00';
+    }
+
+    const entryPointVersion = rpcService.getVersionByEntryPoint(entryPoint);
+    const contractEntryPoint = rpcService.getSetCachedContract(entryPoint, entryPointAbis[entryPointVersion]);
+    const l1GasPriceOracleContract = rpcService.getSetCachedContract(L2_GAS_ORACLE[chainId], l1GasPriceOracleAbi);
+
+    const fakeSigner = rpcService.signerService.getChainSigners(chainId)[0];
+    const simulateTx = await contractEntryPoint.handleOps.populateTransaction([userOp], fakeSigner.address);
+    simulateTx.from = fakeSigner.address;
+
+    const rawTransaction = await fakeSigner.signTransaction(simulateTx);
+
+    const callTx = await l1GasPriceOracleContract.getL1Fee.populateTransaction(rawTransaction);
+    const rl2ExtraFee = await rpcService.chainService.staticCall(chainId, callTx);
+
+    return toBeHex(rl2ExtraFee.result);
+}
+
+export function packUint(high128: BigNumberish, low128: BigNumberish): string {
+    return zeroPadValue(toBeHex((BigInt(high128) << 128n) + BigInt(low128)), 32);
+}
+
+export function unpackUint(packed: string | bigint): [high128: bigint, low128: bigint] {
+    const bnPacked = BigInt(packed);
+    return [bnPacked >> 128n, bnPacked & ((1n << 128n) - 1n)];
+}
+
+export function packPaymasterData(
+    paymaster: string,
+    paymasterVerificationGasLimit: BigNumberish,
+    postOpGasLimit: BigNumberish,
+    paymasterData?: BytesLike,
+): BytesLike {
+    return hexConcat([paymaster, packUint(paymasterVerificationGasLimit, postOpGasLimit), paymasterData ?? '0x']);
+}
+
+export const DefaultGasOverheads = {
+    fixed: 21000,
+    perUserOp: 18300,
+    perUserOpWord: 4,
+    zeroByte: 4,
+    nonZeroByte: 16,
+    bundleSize: 1,
+    sigSize: 65,
+};
+
+export function calcPreVerificationGasV07(userOp: any): number {
+    const ov = { ...DefaultGasOverheads };
+    const p = {
+        // dummy values, in case the UserOp is incomplete.
+        preVerificationGas: 21000, // dummy value, just for calldata cost
+        signature: hexlify(Buffer.alloc(ov.sigSize, 1)), // dummy signature
+        ...userOp,
+    } as any;
+
+    const packed = getBytes(encodeUserOpV07(p, false));
+    const lengthInWord = (packed.length + 31) / 32;
+    const callDataCost = packed.map((x) => (x === 0 ? ov.zeroByte : ov.nonZeroByte)).reduce((sum, x) => sum + x);
+    const ret = Math.round(callDataCost + ov.fixed / ov.bundleSize + ov.perUserOp + ov.perUserOpWord * lengthInWord);
+    return ret;
 }

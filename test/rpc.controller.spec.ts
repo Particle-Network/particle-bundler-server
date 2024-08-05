@@ -1,17 +1,24 @@
 import { Test } from '@nestjs/testing';
 import { RpcController } from '../src/modules/rpc/rpc.controller';
 import { RpcService } from '../src/modules/rpc/services/rpc.service';
-import { Wallet, JsonRpcProvider, resolveProperties, toBeHex } from 'ethers';
-import { AA_METHODS, initializeBundlerConfig, getBundlerChainConfig } from '../src/configs/bundler-common';
+import { Wallet, JsonRpcProvider, resolveProperties, toBeHex, Contract } from 'ethers';
+import {
+    AA_METHODS,
+    initializeBundlerConfig,
+    getBundlerChainConfig,
+    ENTRY_POINT_ADDRESS_V06,
+    ENTRY_POINT_ADDRESS_V07,
+} from '../src/configs/bundler-common';
 import { deepHexlify } from '../src/modules/rpc/aa/utils';
 import { IContractAccount } from '../src/modules/rpc/aa/interface-contract-account';
-import { ENTRY_POINT, gaslessSponsor } from './lib/common';
+import { gaslessSponsor } from './lib/common';
 import { deserializeUserOpCalldata } from '../src/modules/rpc/aa/deserialize-user-op';
-import { SimpleSmartAccount } from './lib/simple-smart-account';
+import { SimpleSmartAccountV06 } from './lib/simple-smart-account-v06';
 import { EVM_CHAIN_ID } from '../src/common/chains';
 import { AppModule } from '../src/app.module';
 import * as request from 'supertest';
 import { INestApplication } from '@nestjs/common';
+import { SimpleSmartAccountV07 } from './lib/simple-smart-account-v07';
 
 let rpcController: RpcController;
 let rpcService: RpcService;
@@ -35,20 +42,20 @@ describe('RpcController', () => {
     }, 60000);
 
     describe('basic', () => {
-        it('Gasless Basic Single', async () => {
+        it('Gasless Basic Single V06', async () => {
             const customChainId = process.argv.find((arg) => arg.includes('--chainId='));
             const chainId = Number(customChainId ? customChainId.split('=')[1] : EVM_CHAIN_ID.ETHEREUM_SEPOLIA_TESTNET);
             console.log('Test chainId', chainId);
 
-            const simpleAccount = await createSimpleAccount(chainId);
+            const simpleAccount = await createSimpleAccountV06(chainId);
             let userOp = await createFakeUserOp(chainId, simpleAccount);
 
             console.log('unsignedUserOp', deepHexlify(userOp));
 
-            userOp = await estimateGas(chainId, userOp);
+            userOp = await estimateGasV06(chainId, userOp);
             console.log('estimateGas', JSON.stringify(deepHexlify(userOp)));
 
-            userOp = await gaslessSponsor(chainId, userOp, rpcController);
+            userOp = await gaslessSponsor(chainId, userOp, ENTRY_POINT_ADDRESS_V06);
             console.log('sponsoredOp', deepHexlify(userOp));
 
             userOp.signature = await getSignature(simpleAccount, userOp);
@@ -57,14 +64,40 @@ describe('RpcController', () => {
             await sendUserOp(chainId, userOp);
         }, 60000);
 
+        it('Gasless Basic Single V07', async () => {
+            const customChainId = process.argv.find((arg) => arg.includes('--chainId='));
+            const chainId = Number(customChainId ? customChainId.split('=')[1] : EVM_CHAIN_ID.ETHEREUM_SEPOLIA_TESTNET);
+            console.log('Test chainId', chainId);
+
+            const simpleAccount = await createSimpleAccountV07(chainId);
+            let userOp = await createFakeUserOp(chainId, simpleAccount);
+
+            // dummy paymasterAndData
+            userOp.paymasterAndData =
+                '0xbdb4d240062bc461797ee9a4d9193a466443e187000000000000000000000000000186a0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000066b06c280000000000000000000000000000000000000000000000000000000000000000945b9dc51c8176e756f17e94c819531db508a53f856cb767698611ace21f86242b8c26967e76526d28301d5d3f16651977d3728b16d4e28c9e6505c92581a7071c';
+
+            console.log('unsignedUserOp', deepHexlify(userOp));
+
+            userOp = await estimateGasV07(chainId, userOp, ENTRY_POINT_ADDRESS_V07);
+            console.log('estimateGas', JSON.stringify(deepHexlify(userOp)));
+
+            userOp = await gaslessSponsor(chainId, userOp, ENTRY_POINT_ADDRESS_V07);
+            console.log('sponsoredOp', deepHexlify(userOp));
+
+            userOp.signature = await getSignature(simpleAccount, userOp);
+            console.log('signedOp', deepHexlify(userOp));
+
+            await sendUserOp(chainId, userOp, ENTRY_POINT_ADDRESS_V07);
+        }, 60000);
+
         it('Gasless Basic Batch', async () => {
             const customChainId = process.argv.find((arg) => arg.includes('--chainId='));
             const chainId = Number(customChainId ? customChainId.split('=')[1] : EVM_CHAIN_ID.ETHEREUM_SEPOLIA_TESTNET);
             console.log('Test chainId', chainId);
 
-            const simpleAccount1 = await createSimpleAccount(chainId);
+            const simpleAccount1 = await createSimpleAccountV06(chainId);
             let userOp1 = await createFakeUserOp(chainId, simpleAccount1);
-            const simpleAccount2 = await createSimpleAccount(chainId);
+            const simpleAccount2 = await createSimpleAccountV06(chainId);
             let userOp2 = await createFakeUserOp(chainId, simpleAccount2);
 
             const userOps = [];
@@ -74,10 +107,10 @@ describe('RpcController', () => {
             ]) {
                 let userOp = item.userOp;
                 console.log('unsignedUserOp', deepHexlify(userOp));
-                userOp = await estimateGas(chainId, userOp);
+                userOp = await estimateGasV06(chainId, userOp);
                 console.log('estimateGas', JSON.stringify(deepHexlify(userOp)));
 
-                userOp = await gaslessSponsor(chainId, userOp, rpcController);
+                userOp = await gaslessSponsor(chainId, userOp, ENTRY_POINT_ADDRESS_V06);
                 console.log('sponsoredOp', deepHexlify(userOp));
 
                 userOp.signature = await getSignature(item.simpleAccount, userOp);
@@ -133,12 +166,20 @@ describe('RpcController', () => {
     });
 });
 
-async function createSimpleAccount(chainId: number): Promise<IContractAccount> {
+async function createSimpleAccountV06(chainId: number): Promise<IContractAccount> {
     const rpcUrl = getBundlerChainConfig(chainId).rpcUrl;
     const provider = new JsonRpcProvider(rpcUrl, null, { batchMaxCount: 1 });
 
     const owner: Wallet = new Wallet(Wallet.createRandom().privateKey, provider);
-    return new SimpleSmartAccount(owner);
+    return new SimpleSmartAccountV06(owner);
+}
+
+async function createSimpleAccountV07(chainId: number): Promise<IContractAccount> {
+    const rpcUrl = getBundlerChainConfig(chainId).rpcUrl;
+    const provider = new JsonRpcProvider(rpcUrl, null, { batchMaxCount: 1 });
+
+    const owner: Wallet = new Wallet(Wallet.createRandom().privateKey, provider);
+    return new SimpleSmartAccountV07(owner);
 }
 
 async function createFakeUserOp(chainId: number, simpleAccount: IContractAccount) {
@@ -162,14 +203,10 @@ async function getSignature(accountApi: IContractAccount, userOp: any) {
     return signature;
 }
 
-async function estimateGas(chainId: number, userOp: any) {
-    delete userOp.callGasLimit;
-    delete userOp.verificationGasLimit;
-    delete userOp.preVerificationGas;
-
+async function estimateGasV06(chainId: number, userOp: any, entryPoint: string = ENTRY_POINT_ADDRESS_V06) {
     const bodyEstimate = {
         method: AA_METHODS.ESTIMATE_USER_OPERATION_GAS,
-        params: [userOp, ENTRY_POINT],
+        params: [userOp, entryPoint],
     };
 
     const rEstimate = await rpcController.handleRpc(chainId, bodyEstimate);
@@ -184,10 +221,26 @@ async function estimateGas(chainId: number, userOp: any) {
     return deepHexlify(userOp);
 }
 
-async function sendUserOp(chainId: number, userOp: any) {
+async function estimateGasV07(chainId: number, userOp: any, entryPoint: string = ENTRY_POINT_ADDRESS_V06) {
+    const bodyEstimate = {
+        method: AA_METHODS.ESTIMATE_USER_OPERATION_GAS,
+        params: [userOp, entryPoint],
+    };
+
+    const rEstimate = await rpcController.handleRpc(chainId, bodyEstimate);
+    console.log('rEstimate', rEstimate);
+
+    userOp.accountGasLimits = rEstimate.result.accountGasLimits;
+    userOp.gasFees = rEstimate.result.gasFees;
+    userOp.preVerificationGas = rEstimate.result.preVerificationGas;
+
+    return deepHexlify(userOp);
+}
+
+async function sendUserOp(chainId: number, userOp: any, entryPoint: string = ENTRY_POINT_ADDRESS_V06) {
     const bodySend = {
         method: AA_METHODS.SEND_USER_OPERATION,
-        params: [userOp, ENTRY_POINT],
+        params: [userOp, entryPoint],
     };
 
     let r3: any = await request(app.getHttpServer()).post('').query({ chainId }).auth('test_user', 'test_pass').send(bodySend);
@@ -224,7 +277,7 @@ async function sendUserOp(chainId: number, userOp: any) {
 async function sendUserOpBatch(chainId: number, userOps: any[]) {
     const bodySend = {
         method: AA_METHODS.SEND_USER_OPERATION_BATCH,
-        params: [userOps, ENTRY_POINT],
+        params: [userOps, ENTRY_POINT_ADDRESS_V06],
     };
 
     let r3: any = await request(app.getHttpServer()).post('').query({ chainId }).auth('test_user', 'test_pass').send(bodySend);

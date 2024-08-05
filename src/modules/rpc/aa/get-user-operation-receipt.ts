@@ -2,11 +2,10 @@ import { JsonRPCRequestDto } from '../dtos/json-rpc-request.dto';
 import { RpcService } from '../services/rpc.service';
 import { Helper } from '../../../common/helper';
 import { USER_OPERATION_STATUS, UserOperationDocument } from '../schemas/user-operation.schema';
-import { Contract } from 'ethers';
-import entryPointAbi from './abis/entry-point-abi';
 import { TRANSACTION_STATUS } from '../schemas/transaction.schema';
 import { deepHexlify, toBeHexTrimZero } from './utils';
 import { IS_PRODUCTION } from '../../../common/common-types';
+import { entryPointAbis } from './abis/entry-point-abis';
 
 export async function getUserOperationReceipt(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
     Helper.assertTrue(body.params.length === 1, -32602);
@@ -40,11 +39,14 @@ export async function getUserOperationReceipt(rpcService: RpcService, chainId: n
 export function formatReceipt(rpcService: RpcService, userOperation: UserOperationDocument, receipt: any) {
     try {
         // failed transaction use local database value
+        // failed transaction has no logs
+        // TODO should return simple info
         if (BigInt(receipt.status) === 0n) {
             return null;
         }
 
-        const contract = new Contract(userOperation.entryPoint, entryPointAbi);
+        const entryPointVersion = rpcService.getVersionByEntryPoint(userOperation.entryPoint);
+        const contract = rpcService.getSetCachedContract(userOperation.entryPoint, entryPointAbis[entryPointVersion]);
         const logs = [];
         let userOperationEvent: any;
         for (const log of receipt?.logs ?? []) {

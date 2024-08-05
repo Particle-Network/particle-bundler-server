@@ -49,9 +49,12 @@ export function getBundlerChainConfig(chainId: number): IBundlerChainConfig {
     return config;
 }
 
-export const DEFAULT_ENTRY_POINT_ADDRESS = '0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789';
+export const ENTRY_POINT_ADDRESS_V06 = '0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789';
+export const ENTRY_POINT_ADDRESS_V07 = '0x0000000071727De22E5E9d8BAf0edAc6f37da032';
+
 export const ENTRY_POINT_VERSION_MAP = {
     v06: ['0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789'],
+    v07: ['0x0000000071727De22E5E9d8BAf0edAc6f37da032'],
 };
 
 export enum AA_METHODS {

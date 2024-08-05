@@ -12,7 +12,7 @@
   resolved "https://registry.npmmirror.com/@account-abstraction/contracts/-/contracts-0.6.0.tgz#7188a01839999226e6b2796328af338329543b76"
   integrity sha512-8ooRJuR7XzohMDM4MV34I12Ci2bmxfE9+cixakRL7lA4BAwJKQ3ahvd8FbJa9kiwkUPCUNtj+/zxDQWYYalLMQ==
 
-"@account-abstraction/sdk@^0.6.0":
+"@account-abstraction/sdk@^0.7.0":
   version "0.6.0"
   resolved "https://registry.npmmirror.com/@account-abstraction/sdk/-/sdk-0.6.0.tgz#a9257e872ba54e6312d322af0802b40002e745b5"
   integrity sha512-zZNOhMCNUTi8UkCks5x5GKAbuc7pjbsZzbCivfqlPRoldulG7ieauyVwQfnDxR3Qe0jsop7WWnShMmObe4sw/A==
@@ -3330,10 +3330,10 @@ ethers@^5.7.0:
     "@ethersproject/web" "5.7.1"
     "@ethersproject/wordlists" "5.7.0"
 
-ethers@^6.12.0:
-  version "6.12.0"
-  resolved "https://registry.npmmirror.com/ethers/-/ethers-6.12.0.tgz#b0c2ce207ae5a3b5125be966e32ffea7c1f2481a"
-  integrity sha512-zL5NlOTjML239gIvtVJuaSk0N9GQLi1Hom3ZWUszE5lDTQE/IVB62mrPkQ2W1bGcZwVGSLaetQbWNQSvI4rGDQ==
+ethers@^6.13.2:
+  version "6.13.2"
+  resolved "https://registry.npmmirror.com/ethers/-/ethers-6.13.2.tgz#4b67d4b49e69b59893931a032560999e5e4419fe"
+  integrity sha512-9VkriTTed+/27BGuY1s0hf441kqwHJ1wtN2edksEtiRvXx+soxRX3iSXTfFqq2+YwrOqbDoTHjIhQnjJRlzKmg==
   dependencies:
     "@adraffy/ens-normalize" "1.10.1"
     "@noble/curves" "1.2.0"
@@ -3341,7 +3341,7 @@ ethers@^6.12.0:
     "@types/node" "18.15.13"
     aes-js "4.0.0-beta.5"
     tslib "2.4.0"
-    ws "8.5.0"
+    ws "8.17.1"
 
 event-target-shim@^5.0.0:
   version "5.0.1"
@@ -6888,10 +6888,10 @@ ws@8.13.0:
   resolved "https://registry.npmmirror.com/ws/-/ws-8.13.0.tgz#9a9fb92f93cf41512a0735c8f4dd09b8a1211cd0"
   integrity sha512-x9vcZYTrFPC7aSIbj7sRCYo7L/Xb8Iy+pW0ng0wt2vCJv7M9HOMy0UoN3rr+IFC7hb7vXoqS+P9ktyLLLhO+LA==
 
-ws@8.5.0:
-  version "8.5.0"
-  resolved "https://registry.npmmirror.com/ws/-/ws-8.5.0.tgz#bfb4be96600757fe5382de12c670dab984a1ed4f"
-  integrity sha512-BWX0SWVgLPzYwF8lTzEy1egjhS4S4OEAHfsO8o65WOVsrnSRGaSiUaa9e0ggGlkMTtBlmOpEXiie9RUcBO86qg==
+ws@8.17.1:
+  version "8.17.1"
+  resolved "https://registry.npmmirror.com/ws/-/ws-8.17.1.tgz#9293da530bb548febc95371d90f9c878727d919b"
+  integrity sha512-6XQFvXTkbfUOZOKKILFG1PDK2NDQs4azKQl26T0YS5CxqWLgXajbPZ+h4gZekJyRqFU8pvnbAbbs/3TgRPy+GQ==
 
 ws@^7.0.0:
   version "7.5.9"

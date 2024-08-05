@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { IBundle, IPackedBundle, IS_DEVELOPMENT, IS_PRODUCTION, SignerWithPendingTxCount, keyLockSigner } from '../../common/common-types';
+import { IBundle, IPackedBundle, IS_DEVELOPMENT, SignerWithPendingTxCount, keyLockSigner } from '../../common/common-types';
 import { Helper } from '../../common/helper';
 import { UserOperationService } from '../rpc/services/user-operation.service';
 import { Cron } from '@nestjs/schedule';
@@ -104,7 +104,9 @@ export class HandleLocalUserOperationService {
         );
 
         signerWithPendingTxCount.sort((a, b) => b.availableTxCount - a.availableTxCount);
-        let takeOnce = IS_DEVELOPMENT ? randomValidSigners.length : Math.min(Math.ceil(randomValidSigners.length / 5), bundlerConfig.maxUserOpPackCount);
+        let takeOnce = IS_DEVELOPMENT
+            ? randomValidSigners.length
+            : Math.min(Math.ceil(randomValidSigners.length / 5), bundlerConfig.maxUserOpPackCount);
 
         for (let index = 0; index < signerWithPendingTxCount.length; index++) {
             const signer = signerWithPendingTxCount[index].signer;
