@@ -3,7 +3,15 @@ import { RpcService } from '../../services/rpc.service';
 import { Helper } from '../../../../common/helper';
 import { JsonRPCRequestDto } from '../../dtos/json-rpc-request.dto';
 import { DUMMY_SIGNATURE } from '../../../../common/common-types';
-import { calcPreVerificationGasV07, calcUserOpGasPrice, getL2ExtraFee, isUserOpValidV07, packAccountGasLimits, packUint } from '../utils';
+import {
+    calcPreVerificationGasV07,
+    calcUserOpGasPrice,
+    getL2ExtraFee,
+    isUserOpValidV07,
+    packAccountGasLimits,
+    packUint,
+    toBeHexTrimZero,
+} from '../utils';
 import { estimateGasLimit, tryEstimateGasForFirstAccount } from '../v06';
 import { EVM_CHAIN_ID, L2_GAS_ORACLE, NEED_TO_ESTIMATE_GAS_BEFORE_SEND, SUPPORT_EIP_1559 } from '../../../../common/chains';
 import { simulateHandleOpAndGetGasCost } from './send-user-operation';
@@ -52,10 +60,12 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
 
     try {
         return {
-            gasCostWholeTransaction: gasCostWholeTransaction,
+            gasCostWholeTransaction: toBeHexTrimZero(gasCostWholeTransaction),
             gasFees: userOp.gasFees,
             accountGasLimits: userOp.accountGasLimits,
             preVerificationGas: userOp.preVerificationGas,
+            verificationGasLimit: toBeHexTrimZero(verificationGasLimit),
+            callGasLimit: toBeHexTrimZero(callGasLimit),
         };
     } catch (error) {
         if (error instanceof AppException) {
