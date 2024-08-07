@@ -2,11 +2,11 @@ import { Test } from '@nestjs/testing';
 import { RpcController } from '../src/modules/rpc/rpc.controller';
 import { RpcService } from '../src/modules/rpc/services/rpc.service';
 import { Wallet, JsonRpcProvider, resolveProperties, toBeHex } from 'ethers';
-import { AA_METHODS, getBundlerChainConfig, initializeBundlerConfig } from '../src/configs/bundler-common';
+import { AA_METHODS, ENTRY_POINT_ADDRESS_V06, getBundlerChainConfig, initializeBundlerConfig } from '../src/configs/bundler-common';
 import { deepHexlify } from '../src/modules/rpc/aa/utils';
 import { IContractAccount } from '../src/modules/rpc/aa/interface-contract-account';
-import { ENTRY_POINT, gaslessSponsor } from './lib/common';
-import { SimpleSmartAccount } from './lib/simple-smart-account';
+import {  gaslessSponsor } from './lib/common';
+import { SimpleSmartAccountV06 } from './lib/simple-smart-account-v06';
 import { EVM_CHAIN_ID } from '../src/common/chains';
 import { AppModule } from '../src/app.module';
 import Axios from 'axios';
@@ -66,7 +66,7 @@ async function createAndExecuteUserOp(chainId: number) {
     const simpleAccount = await createSimpleAccount(chainId);
     let userOp = await createFakeUserOp(chainId, simpleAccount);
     userOp = await estimateGas(chainId, userOp);
-    userOp = await gaslessSponsor(chainId, userOp, rpcController);
+    userOp = await gaslessSponsor(chainId, userOp, ENTRY_POINT_ADDRESS_V06);
     userOp.signature = await getSignature(simpleAccount, userOp);
 
     return userOp;
@@ -77,7 +77,7 @@ async function createSimpleAccount(chainId: number): Promise<IContractAccount> {
     const provider = new JsonRpcProvider(rpcUrl, null, { batchMaxCount: 1 });
 
     const owner: Wallet = new Wallet(Wallet.createRandom().privateKey, provider);
-    return new SimpleSmartAccount(owner);
+    return new SimpleSmartAccountV06(owner);
 }
 
 async function createFakeUserOp(chainId: number, simpleAccount: IContractAccount) {
@@ -105,7 +105,7 @@ async function estimateGas(chainId: number, userOp: any) {
 
     const response = await Axios.post(`${BUNDLER_URL}?chainId=${chainId}`, {
         method: AA_METHODS.ESTIMATE_USER_OPERATION_GAS,
-        params: [userOp, ENTRY_POINT],
+        params: [userOp, ENTRY_POINT_ADDRESS_V06],
     });
 
     const rEstimate = response.data;
@@ -122,7 +122,7 @@ async function estimateGas(chainId: number, userOp: any) {
 async function sendUserOp(chainId: number, userOp: any) {
     const bodySend = {
         method: AA_METHODS.SEND_USER_OPERATION,
-        params: [userOp, ENTRY_POINT],
+        params: [userOp, ENTRY_POINT_ADDRESS_V06],
     };
 
     const response = await Axios.post(`${BUNDLER_URL}?chainId=${chainId}`, bodySend);

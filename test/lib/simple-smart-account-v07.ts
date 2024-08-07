@@ -2,13 +2,14 @@ import { BigNumberish, Contract, Interface, JsonRpcProvider, Wallet, getAddress,
 import { calcPreVerificationGas } from '@account-abstraction/sdk';
 import { arrayify } from '@ethersproject/bytes';
 import { IContractAccount } from './interface-contract-account';
-import entryPointAbi from '../../src/modules/rpc/aa/abis/entry-point-abi';
 import { hexConcat } from '@ethersproject/bytes';
+import { packAccountGasLimits, packUint } from '../../src/modules/rpc/aa/utils';
+import { entryPointAbis } from '../../src/modules/rpc/aa/abis/entry-point-abis';
 
-const FACTORY_ADDRESS = '0x9406cc6185a346906296840746125a0e44976454';
-const ENTRY_POINT = '0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789';
+const FACTORY_ADDRESS = '0x91E60e0613810449d098b0b5Ec8b51A0FE8c8985';
+const ENTRY_POINT = '0x0000000071727De22E5E9d8BAf0edAc6f37da032';
 
-export class SimpleSmartAccount implements IContractAccount {
+export class SimpleSmartAccountV07 implements IContractAccount {
     private accountAddress: string;
     private simpleAccountContract: Contract;
     private readonly provider: JsonRpcProvider;
@@ -18,7 +19,7 @@ export class SimpleSmartAccount implements IContractAccount {
 
     public constructor(private readonly owner: Wallet) {
         this.provider = owner.provider as JsonRpcProvider;
-        this.epContract = new Contract(this.entryPointAddress, entryPointAbi, owner);
+        this.epContract = new Contract(this.entryPointAddress, entryPointAbis.v07, owner);
         this.simpleAccountFactoryContract = new Contract(FACTORY_ADDRESS, factoryAbi, owner);
     }
 
@@ -44,24 +45,19 @@ export class SimpleSmartAccount implements IContractAccount {
             initCode = await this.createInitCode();
         }
 
-        const initGas = toBeHex(500000);
-        const verificationGasLimit = toBeHex(BigInt(await this.getVerificationGasLimit()) + BigInt(initGas));
-
         const partialUserOp: any = {
             sender: this.getAccountAddress(),
             nonce,
             initCode,
             callData,
-            callGasLimit,
-            verificationGasLimit,
-            maxFeePerGas: '0x00',
-            maxPriorityFeePerGas: '0x00',
+            accountGasLimits: packAccountGasLimits(500000, 500000),
+            gasFees: packUint('0x01', '0x01'),
             paymasterAndData: '0x',
         };
 
         return {
             ...partialUserOp,
-            preVerificationGas: this.getPreVerificationGas(partialUserOp),
+            preVerificationGas: 100000,
             signature: '0x',
         };
     }
@@ -75,14 +71,16 @@ export class SimpleSmartAccount implements IContractAccount {
         if (detailsForUserOp.length !== 1) {
             const targets = [];
             const datas = [];
+            const values = [];
             for (const detailForUserOp of detailsForUserOp) {
                 targets.push(detailForUserOp.to);
                 datas.push(detailForUserOp.data);
+                values.push(detailForUserOp.value);
             }
 
-            callData = await this.encodeExecuteBatch(targets, datas);
+            callData = await this.encodeExecuteBatch(targets, values, datas);
         } else {
-            callData = await this.encodeExecute(detailsForUserOp[0].to, toBeHex(detailsForUserOp[0].value ?? 0), detailsForUserOp[0].data);
+            callData = await this.encodeExecute(detailsForUserOp[0].to, detailsForUserOp[0].value, detailsForUserOp[0].data);
         }
 
         return {
@@ -106,9 +104,9 @@ export class SimpleSmartAccount implements IContractAccount {
         return (await simpleAccount.execute.populateTransaction(target, value, data)).data;
     }
 
-    public async encodeExecuteBatch(targets: string[], datas: string[]): Promise<string> {
+    public async encodeExecuteBatch(targets: string[], values: string[], datas: string[]): Promise<string> {
         const simpleAccount = await this.getSimpleAccountContract();
-        return (await simpleAccount.executeBatch.populateTransaction(targets, datas)).data;
+        return (await simpleAccount.executeBatch.populateTransaction(targets, values, datas)).data;
     }
 
     public async createInitCode(index = 0): Promise<string> {
@@ -133,8 +131,7 @@ export class SimpleSmartAccount implements IContractAccount {
             return 0;
         }
 
-        const simpleAccountContract = await this.getSimpleAccountContract();
-        return await simpleAccountContract.getNonce();
+        return Number(await this.epContract.getNonce(await this.getAccountAddress(), 0));
     }
 
     public async isAccountDeploied(): Promise<boolean> {
@@ -164,7 +161,7 @@ export class SimpleSmartAccount implements IContractAccount {
 }
 
 interface TransactionDetailsForUserOp {
-    value?: any;
+    value: string;
     to: string;
     data: string;
 }
@@ -182,45 +179,98 @@ export const abi = [
         type: 'constructor',
     },
     {
-        anonymous: false,
         inputs: [
             {
-                indexed: false,
                 internalType: 'address',
-                name: 'previousAdmin',
-                type: 'address',
-            },
-            {
-                indexed: false,
-                internalType: 'address',
-                name: 'newAdmin',
+                name: 'target',
                 type: 'address',
             },
         ],
-        name: 'AdminChanged',
-        type: 'event',
+        name: 'AddressEmptyCode',
+        type: 'error',
+    },
+    {
+        inputs: [],
+        name: 'ECDSAInvalidSignature',
+        type: 'error',
+    },
+    {
+        inputs: [
+            {
+                internalType: 'uint256',
+                name: 'length',
+                type: 'uint256',
+            },
+        ],
+        name: 'ECDSAInvalidSignatureLength',
+        type: 'error',
+    },
+    {
+        inputs: [
+            {
+                internalType: 'bytes32',
+                name: 's',
+                type: 'bytes32',
+            },
+        ],
+        name: 'ECDSAInvalidSignatureS',
+        type: 'error',
+    },
+    {
+        inputs: [
+            {
+                internalType: 'address',
+                name: 'implementation',
+                type: 'address',
+            },
+        ],
+        name: 'ERC1967InvalidImplementation',
+        type: 'error',
+    },
+    {
+        inputs: [],
+        name: 'ERC1967NonPayable',
+        type: 'error',
+    },
+    {
+        inputs: [],
+        name: 'FailedInnerCall',
+        type: 'error',
+    },
+    {
+        inputs: [],
+        name: 'InvalidInitialization',
+        type: 'error',
+    },
+    {
+        inputs: [],
+        name: 'NotInitializing',
+        type: 'error',
+    },
+    {
+        inputs: [],
+        name: 'UUPSUnauthorizedCallContext',
+        type: 'error',
+    },
+    {
+        inputs: [
+            {
+                internalType: 'bytes32',
+                name: 'slot',
+                type: 'bytes32',
+            },
+        ],
+        name: 'UUPSUnsupportedProxiableUUID',
+        type: 'error',
     },
     {
         anonymous: false,
         inputs: [
             {
-                indexed: true,
-                internalType: 'address',
-                name: 'beacon',
-                type: 'address',
-            },
-        ],
-        name: 'BeaconUpgraded',
-        type: 'event',
-    },
-    {
-        anonymous: false,
-        inputs: [
-            {
                 indexed: false,
-                internalType: 'uint8',
+                internalType: 'uint64',
                 name: 'version',
-                type: 'uint8',
+                type: 'uint64',
             },
         ],
         name: 'Initialized',
@@ -257,6 +307,19 @@ export const abi = [
         ],
         name: 'Upgraded',
         type: 'event',
+    },
+    {
+        inputs: [],
+        name: 'UPGRADE_INTERFACE_VERSION',
+        outputs: [
+            {
+                internalType: 'string',
+                name: '',
+                type: 'string',
+            },
+        ],
+        stateMutability: 'view',
+        type: 'function',
     },
     {
         inputs: [],
@@ -307,6 +370,11 @@ export const abi = [
                 internalType: 'address[]',
                 name: 'dest',
                 type: 'address[]',
+            },
+            {
+                internalType: 'uint256[]',
+                name: 'value',
+                type: 'uint256[]',
             },
             {
                 internalType: 'bytes[]',
@@ -519,57 +587,6 @@ export const abi = [
         inputs: [
             {
                 internalType: 'address',
-                name: '',
-                type: 'address',
-            },
-            {
-                internalType: 'address',
-                name: '',
-                type: 'address',
-            },
-            {
-                internalType: 'address',
-                name: '',
-                type: 'address',
-            },
-            {
-                internalType: 'uint256',
-                name: '',
-                type: 'uint256',
-            },
-            {
-                internalType: 'bytes',
-                name: '',
-                type: 'bytes',
-            },
-            {
-                internalType: 'bytes',
-                name: '',
-                type: 'bytes',
-            },
-        ],
-        name: 'tokensReceived',
-        outputs: [],
-        stateMutability: 'pure',
-        type: 'function',
-    },
-    {
-        inputs: [
-            {
-                internalType: 'address',
-                name: 'newImplementation',
-                type: 'address',
-            },
-        ],
-        name: 'upgradeTo',
-        outputs: [],
-        stateMutability: 'nonpayable',
-        type: 'function',
-    },
-    {
-        inputs: [
-            {
-                internalType: 'address',
                 name: 'newImplementation',
                 type: 'address',
             },
@@ -609,14 +626,9 @@ export const abi = [
                         type: 'bytes',
                     },
                     {
-                        internalType: 'uint256',
-                        name: 'callGasLimit',
-                        type: 'uint256',
-                    },
-                    {
-                        internalType: 'uint256',
-                        name: 'verificationGasLimit',
-                        type: 'uint256',
+                        internalType: 'bytes32',
+                        name: 'accountGasLimits',
+                        type: 'bytes32',
                     },
                     {
                         internalType: 'uint256',
@@ -624,14 +636,9 @@ export const abi = [
                         type: 'uint256',
                     },
                     {
-                        internalType: 'uint256',
-                        name: 'maxFeePerGas',
-                        type: 'uint256',
-                    },
-                    {
-                        internalType: 'uint256',
-                        name: 'maxPriorityFeePerGas',
-                        type: 'uint256',
+                        internalType: 'bytes32',
+                        name: 'gasFees',
+                        type: 'bytes32',
                     },
                     {
                         internalType: 'bytes',
@@ -644,7 +651,7 @@ export const abi = [
                         type: 'bytes',
                     },
                 ],
-                internalType: 'struct UserOperation',
+                internalType: 'struct PackedUserOperation',
                 name: 'userOp',
                 type: 'tuple',
             },

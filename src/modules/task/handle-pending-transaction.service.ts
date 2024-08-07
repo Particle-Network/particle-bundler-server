@@ -15,13 +15,14 @@ import { TransactionService } from '../rpc/services/transaction.service';
 import { UserOperationService } from '../rpc/services/user-operation.service';
 import { getBundlerChainConfig, onEmitUserOpEvent } from '../../configs/bundler-common';
 import { Contract, Wallet, toBeHex } from 'ethers';
-import entryPointAbi from '../rpc/aa/abis/entry-point-abi';
 import { canRunCron, createTxGasData, deepHexlify, getDocumentId, tryParseSignedTx } from '../rpc/aa/utils';
 import { Cron } from '@nestjs/schedule';
 import { FeeMarketEIP1559Transaction, LegacyTransaction } from '@ethereumjs/tx';
 import { SignerService } from '../rpc/services/signer.service';
 import { ChainService } from '../rpc/services/chain.service';
 import { NEED_TO_ESTIMATE_GAS_BEFORE_SEND } from '../../common/chains';
+import { RpcService } from '../rpc/services/rpc.service';
+import { entryPointAbis } from '../rpc/aa/abis/entry-point-abis';
 
 @Injectable()
 export class HandlePendingTransactionService {
@@ -30,6 +31,7 @@ export class HandlePendingTransactionService {
 
     public constructor(
         @InjectConnection() private readonly connection: Connection,
+        private readonly rpcService: RpcService,
         private readonly larkService: LarkService,
         private readonly transactionService: TransactionService,
         private readonly userOperationService: UserOperationService,
@@ -493,7 +495,8 @@ export class HandlePendingTransactionService {
         const blockHash = receipt.blockHash;
         const blockNumber = receipt.blockNumber;
 
-        const contract = new Contract(receipt.to, entryPointAbi);
+        const entryPointVersion = this.rpcService.getVersionByEntryPoint(receipt.to);
+        const contract = this.rpcService.getSetCachedContract(receipt.to, entryPointAbis[entryPointVersion]);
         for (const log of receipt?.logs ?? []) {
             try {
                 const parsed = contract.interface.parseLog(log);

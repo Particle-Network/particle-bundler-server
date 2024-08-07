@@ -4,11 +4,11 @@ import { Logger } from '@nestjs/common';
 import { hexConcat } from '@ethersproject/bytes';
 import { RpcService } from '../../services/rpc.service';
 import { Helper } from '../../../../common/helper';
-import { calcUserOpGasPrice, isUserOpValid, toBeHexTrimZero } from '../utils';
+import { calcUserOpGasPrice, getL2ExtraFee, isUserOpValidV06, toBeHexTrimZero } from '../utils';
 import { AppException } from '../../../../common/app-exception';
 import { JsonRPCRequestDto } from '../../dtos/json-rpc-request.dto';
 import { DUMMY_SIGNATURE, IS_PRODUCTION } from '../../../../common/common-types';
-import { getL2ExtraFee, simulateHandleOpAndGetGasCost } from './send-user-operation';
+import { simulateHandleOpAndGetGasCost } from './send-user-operation';
 import { EVM_CHAIN_ID, L2_GAS_ORACLE, NEED_TO_ESTIMATE_GAS_BEFORE_SEND, SUPPORT_EIP_1559 } from '../../../../common/chains';
 import { deserializeUserOpCalldata } from '../deserialize-user-op';
 import { getBundlerChainConfig } from '../../../../configs/bundler-common';
@@ -46,7 +46,7 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
     Helper.assertTrue(isHexString(userOp.signature), -32602, 'Invalid params: signature must be hex string');
 
     userOp.preVerificationGas = toBeHexTrimZero(calcPreVerificationGas(userOp) + 5000);
-    Helper.assertTrue(isUserOpValid(userOp), -32602, 'Invalid userOp');
+    Helper.assertTrue(isUserOpValidV06(userOp), -32602, 'Invalid userOp');
 
     const [{ callGasLimit, initGas }, { maxFeePerGas, maxPriorityFeePerGas, gasCostInContract, gasCostWholeTransaction, verificationGasLimit }] =
         await Promise.all([
@@ -100,7 +100,7 @@ export async function estimateUserOperationGas(rpcService: RpcService, chainId: 
     }
 }
 
-async function estimateGasLimit(rpcService: RpcService, chainId: number, entryPoint: string, userOp: any, stateOverride?: any) {
+export async function estimateGasLimit(rpcService: RpcService, chainId: number, entryPoint: string, userOp: any, stateOverride?: any) {
     let callGasLimit = 500000n;
     let initGas = 0n;
 
@@ -177,7 +177,7 @@ async function estimateGasLimit(rpcService: RpcService, chainId: number, entryPo
     return { callGasLimit, initGas };
 }
 
-async function tryEstimateGasForFirstAccount(rpcService: RpcService, chainId: number, userOp: any, stateOverride?: any) {
+export async function tryEstimateGasForFirstAccount(rpcService: RpcService, chainId: number, userOp: any, stateOverride?: any) {
     if (userOp.initCode?.length <= 2) {
         return;
     }
