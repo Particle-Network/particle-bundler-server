@@ -11,9 +11,12 @@ import { CommonModule } from '../common/common.module';
 import { LarkService } from '../common/services/lark.service';
 import { SignerService } from './services/signer.service';
 import { ChainService } from './services/chain.service';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { UserOperationEntity } from './entities/user-operation.entity';
 
 @Module({
     imports: [
+        TypeOrmModule.forFeature([UserOperationEntity]),
         CommonModule,
         MongooseModule.forFeature([
             { name: UserOperation.name, schema: UserOperationSchema },

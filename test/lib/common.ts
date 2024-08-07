@@ -1,7 +1,7 @@
 import { deepHexlify } from '../../src/modules/rpc/aa/utils';
 import Axios from 'axios';
 
-export const PARTICLE_PAYMASTER_URL = 'https://paymaster.particle.network';
+export const PARTICLE_PAYMASTER_URL = 'https://paymaster-debug.particle.network';
 
 // TODO fit for public dev ?
 export async function gaslessSponsor(chainId: number, userOp: any, entryPoint: string) {

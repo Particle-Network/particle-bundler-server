@@ -8,10 +8,14 @@ import { Helper } from '../../../common/helper';
 import { splitOriginNonce } from '../aa/utils';
 import { IUserOperationEventObject } from '../../../common/common-types';
 import { AppException } from '../../../common/app-exception';
+import { InjectRepository } from '@nestjs/typeorm';
+import { UserOperationEntity } from '../entities/user-operation.entity';
+import { Repository } from 'typeorm';
 
 @Injectable()
 export class UserOperationService {
     public constructor(
+        @InjectRepository(UserOperationEntity) private readonly userOperationRepository: Repository<UserOperationEntity>,
         @InjectModel(UserOperation.name) public readonly userOperationModel: Model<UserOperationDocument>,
         @InjectModel(UserOperationEvent.name) public readonly userOperationEventModel: Model<UserOperationEventDocument>,
         @InjectModel(Transaction.name) public readonly transactionModel: Model<TransactionDocument>,
@@ -29,7 +33,6 @@ export class UserOperationService {
         const { nonceKey, nonceValue } = splitOriginNonce(userOp.nonce);
 
         const nonceValueString = BigInt(nonceValue).toString();
-        Helper.assertTrue(nonceValueString.length <= 30, -32608); // ensure nonce is less than Decimals(128)
 
         if (userOpDoc) {
             // not support random nonce replaced
@@ -49,6 +52,19 @@ export class UserOperationService {
             origin: userOp,
             status: USER_OPERATION_STATUS.LOCAL,
         });
+
+        const newUserOperation = new UserOperationEntity({
+            chainId,
+            entryPoint,
+            userOpHash,
+            userOpSender: userOp.sender,
+            userOpNonceKey: BigInt(nonceKey).toString(),
+            userOpNonce: Number(BigInt(nonceValue)),
+            origin: userOp,
+            status: USER_OPERATION_STATUS.LOCAL,
+        });
+
+        await this.userOperationRepository.save(newUserOperation);
 
         try {
             return await userOperation.save();
@@ -169,7 +185,15 @@ export class UserOperationService {
         return await this.userOperationModel.aggregate([{ $match: { status: USER_OPERATION_STATUS.LOCAL } }, { $sample: { size: limit } }]);
     }
 
-    public async setLocalUserOperationsAsPending(userOpHashes: string[], transactionObjectId: Types.ObjectId, session?: any) {
+    // Warning: can cause user nonce is not continuous
+    public async getLocalUserOperations2(limit: number = 1000): Promise<UserOperationEntity[]> {
+        return await this.userOperationRepository.find({
+            where: { status: USER_OPERATION_STATUS.LOCAL },
+            take: limit,
+        });
+    }
+
+    public async setLocalUserOperationsAsPending(userOpHashes: string[], transactionId: number) {
         const start = Date.now();
 
         const r = await this.userOperationModel.updateMany(

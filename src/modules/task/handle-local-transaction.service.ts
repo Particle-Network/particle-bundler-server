@@ -18,6 +18,7 @@ import { onCreateUserOpTxHash, onEmitUserOpEvent } from '../../configs/bundler-c
 import { ListenerService } from './listener.service';
 import { RpcService } from '../rpc/services/rpc.service';
 import { entryPointAbis } from '../rpc/aa/abis/entry-point-abis';
+import { UserOperationEntity } from '../rpc/entities/user-operation.entity';
 
 @Injectable()
 export class HandleLocalTransactionService {
@@ -82,19 +83,19 @@ export class HandleLocalTransactionService {
     public async createBundleTransaction(
         chainId: number,
         entryPoint: string,
-        userOperationDocuments: UserOperationDocument[],
+        userOperationEntities: UserOperationEntity[],
         bundleGasLimit: string,
         signer: Wallet,
         nonce: number,
         feeData: any,
     ) {
-        Logger.debug(`[createBundleTransaction] signer: ${signer.address} | nonce: ${nonce} | userOpDocCount: ${userOperationDocuments.length}`);
+        Logger.debug(`[createBundleTransaction] signer: ${signer.address} | nonce: ${nonce} | userOpDocCount: ${userOperationEntities.length}`);
 
         const beneficiary = signer.address;
         const entryPointVersion = this.rpcService.getVersionByEntryPoint(entryPoint);
         const entryPointContract = this.rpcService.getSetCachedContract(entryPoint, entryPointAbis[entryPointVersion]);
-        const allUserOperationDocuments = this.flatAllUserOperationDocuments(userOperationDocuments);
-        const userOps = allUserOperationDocuments.map((o) => o.origin);
+        const allUserOperationEntities = this.flatAllUserOperationDocuments(userOperationEntities);
+        const userOps = allUserOperationEntities.map((o) => o.origin);
 
         // may userops contain folded userop, so we need to sort again
         userOps.sort((a, b) => {
@@ -117,9 +118,8 @@ export class HandleLocalTransactionService {
         finalizedTx.gasLimit = gasLimit;
         finalizedTx.chainId = BigInt(chainId);
         const signedTx = await signer.signTransaction(finalizedTx);
-        const userOpHashes = allUserOperationDocuments.map((o) => o.userOpHash);
+        const userOpHashes = allUserOperationEntities.map((o) => o.userOpHash);
 
-        const transactionObjectId = new Types.ObjectId();
         this.onCreateUserOpTxHash(signedTx, userOpHashes);
 
         await this.userOperationService.setLocalUserOperationsAsPending(userOpHashes, transactionObjectId);
@@ -155,8 +155,8 @@ export class HandleLocalTransactionService {
         return gasLimit;
     }
 
-    public flatAllUserOperationDocuments(userOperationDocuments: UserOperationDocument[]): UserOperationDocument[] {
-        return userOperationDocuments
+    public flatAllUserOperationDocuments(userOperationEntities: UserOperationEntity[]): UserOperationEntity[] {
+        return userOperationEntities
             .map((userOperationDocument) => {
                 let items = [userOperationDocument];
                 if (!!userOperationDocument.associatedUserOps && userOperationDocument.associatedUserOps.length > 0) {

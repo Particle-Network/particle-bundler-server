@@ -10,10 +10,11 @@ import { LarkService } from '../common/services/lark.service';
 import { calcUserOpTotalGasLimit, canRunCron, getDocumentId, waitSeconds } from '../rpc/aa/utils';
 import { HandlePendingUserOperationService } from './handle-pending-user-operation.service';
 import { SignerService } from '../rpc/services/signer.service';
+import { UserOperationEntity } from '../rpc/entities/user-operation.entity';
 
 @Injectable()
 export class HandleLocalUserOperationService {
-    public readonly lockedUserOperationHashes: Set<string> = new Set();
+    public readonly lockedUserOperationHashes: Set<number> = new Set();
     public readonly lockChainSigner: Set<string> = new Set();
 
     public constructor(
@@ -30,7 +31,7 @@ export class HandleLocalUserOperationService {
         }
 
         try {
-            let userOperations = await this.userOperationService.getLocalUserOperations(1000);
+            let userOperations = await this.userOperationService.getLocalUserOperations2(1000);
             userOperations = this.tryLockUserOperationsAndGetUnuseds(userOperations);
             if (userOperations.length <= 0) {
                 return;
@@ -48,17 +49,17 @@ export class HandleLocalUserOperationService {
         }
     }
 
-    private async assignSignerAndSealUserOps(chainId: number, userOperations: UserOperationDocument[]) {
+    private async assignSignerAndSealUserOps(chainId: number, userOperationEntities: UserOperationEntity[]) {
         const signersWithPendingTxCount: SignerWithPendingTxCount[] = await this.pickAvailableSigners(chainId);
         if (signersWithPendingTxCount.length <= 0) {
             this.larkService.sendMessage(`No signer available on ${chainId}`);
-            this.unlockUserOperations(userOperations);
+            this.unlockUserOperations(userOperationEntities);
             return;
         }
 
         const { packedBundles, unusedUserOperations, userOperationsToDelete } = this.packUserOperationsForSigner(
             chainId,
-            userOperations,
+            userOperationEntities,
             signersWithPendingTxCount,
         );
 
@@ -132,10 +133,10 @@ export class HandleLocalUserOperationService {
 
     public packUserOperationsForSigner(
         chainId: number,
-        userOperations: UserOperationDocument[],
+        userOperationEntities: UserOperationEntity[],
         signersWithPendingTxCount: SignerWithPendingTxCount[],
     ) {
-        userOperations.sort((a, b) => {
+        userOperationEntities.sort((a, b) => {
             const r1 = a.userOpSender.localeCompare(b.userOpSender);
             if (r1 !== 0) {
                 return r1;
@@ -145,32 +146,32 @@ export class HandleLocalUserOperationService {
                 return BigInt(a.userOpNonceKey) > BigInt(b.userOpNonceKey) ? 1 : -1;
             }
 
-            return BigInt(a.userOpNonce.toString()) > BigInt(b.userOpNonce.toString()) ? 1 : -1;
+            return BigInt(a.userOpNonce) > BigInt(b.userOpNonce) ? 1 : -1;
         });
 
         const bundlesMap = {};
-        for (let index = 0; index < userOperations.length; index++) {
-            const userOperation = userOperations[index];
-            if (!bundlesMap[userOperation.entryPoint]) {
-                bundlesMap[userOperation.entryPoint] = [];
+        for (let index = 0; index < userOperationEntities.length; index++) {
+            const userOperationEntity = userOperationEntities[index];
+            if (!bundlesMap[userOperationEntity.entryPoint]) {
+                bundlesMap[userOperationEntity.entryPoint] = [];
             }
 
-            bundlesMap[userOperation.entryPoint].push(userOperation);
+            bundlesMap[userOperationEntity.entryPoint].push(userOperationEntity);
         }
 
         // chunk user operations into bundles by calc it's gas limit
         const bundles: IBundle[] = [];
-        const userOperationsToDelete: UserOperationDocument[] = [];
+        const userOperationEntitiesToDelete: UserOperationEntity[] = [];
         for (const entryPoint in bundlesMap) {
-            const userOperationsToPack: UserOperationDocument[] = bundlesMap[entryPoint];
+            const userOperationsToPack: UserOperationEntity[] = bundlesMap[entryPoint];
 
-            let bundle: UserOperationDocument[] = [];
+            let bundle: UserOperationEntity[] = [];
             let totalGasLimit = 0n;
             for (let index = 0; index < userOperationsToPack.length; index++) {
-                const userOperation = userOperationsToPack[index];
+                const userOperationEntity = userOperationsToPack[index];
                 const bundlerConfig = getBundlerChainConfig(chainId);
 
-                const allUserOperations = [userOperation].concat(userOperation.associatedUserOps ?? []);
+                const allUserOperations = [userOperationEntity].concat(userOperationEntity.associatedUserOps ?? []);
                 let calcedGasLimit = 0n;
                 for (const userOperation of allUserOperations) {
                     calcedGasLimit += calcUserOpTotalGasLimit(userOperation.origin, chainId);
@@ -178,7 +179,7 @@ export class HandleLocalUserOperationService {
 
                 // if bundle is full, push it to bundles array
                 if (calcedGasLimit > bundlerConfig.maxBundleGas) {
-                    userOperationsToDelete.push(userOperation);
+                    userOperationEntitiesToDelete.push(userOperationEntity);
                     continue;
                 }
 
@@ -190,7 +191,7 @@ export class HandleLocalUserOperationService {
                 }
 
                 totalGasLimit += calcedGasLimit;
-                bundle.push(userOperation);
+                bundle.push(userOperationEntity);
 
                 if (index === userOperationsToPack.length - 1) {
                     bundles.push({ entryPoint, userOperations: bundle, gasLimit: toBeHex(totalGasLimit) });
@@ -200,11 +201,11 @@ export class HandleLocalUserOperationService {
 
         const { packedBundles, unusedUserOperations } = this.packBundles(signersWithPendingTxCount, bundles);
 
-        return { packedBundles, unusedUserOperations, userOperationsToDelete };
+        return { packedBundles, unusedUserOperations, userOperationsToDelete: userOperationEntitiesToDelete };
     }
 
     private packBundles(signersWithPendingTxCount: SignerWithPendingTxCount[], bundles: IBundle[]) {
-        const unusedUserOperations: UserOperationDocument[] = [];
+        const unusedUserOperations: UserOperationEntity[] = [];
         const packedBundles: IPackedBundle[] = [];
 
         while (true) {
@@ -247,28 +248,28 @@ export class HandleLocalUserOperationService {
         }
     }
 
-    public tryLockUserOperationsAndGetUnuseds(userOperations: UserOperationDocument[]): UserOperationDocument[] {
+    public tryLockUserOperationsAndGetUnuseds(userOperations: UserOperationEntity[]): UserOperationEntity[] {
         const unusedUserOperations = [];
         for (const userOperation of userOperations) {
-            if (this.lockedUserOperationHashes.has(getDocumentId(userOperation))) {
+            if (this.lockedUserOperationHashes.has(userOperation.id)) {
                 continue;
             }
 
-            this.lockedUserOperationHashes.add(getDocumentId(userOperation));
+            this.lockedUserOperationHashes.add(userOperation.id);
             unusedUserOperations.push(userOperation);
         }
 
         return unusedUserOperations;
     }
 
-    public unlockUserOperations(userOperations: UserOperationDocument[]) {
-        for (const userOperation of userOperations) {
-            this.lockedUserOperationHashes.delete(getDocumentId(userOperation));
+    public unlockUserOperations(userOperationEntities: UserOperationEntity[]) {
+        for (const userOperationEntity of userOperationEntities) {
+            this.lockedUserOperationHashes.delete(userOperationEntity.id);
         }
     }
 
-    public groupByUserOperationsByChainId(userOperations: UserOperationDocument[]) {
-        const userOperationsByChainId: { [chainId: number]: UserOperationDocument[] } = {};
+    public groupByUserOperationsByChainId(userOperations: UserOperationEntity[]) {
+        const userOperationsByChainId: { [chainId: number]: UserOperationEntity[] } = {};
         for (const userOperation of userOperations) {
             if (!userOperationsByChainId[userOperation.chainId]) {
                 userOperationsByChainId[userOperation.chainId] = [];

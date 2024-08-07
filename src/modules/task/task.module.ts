@@ -19,9 +19,12 @@ import { FillSignerBalanceService } from './fill-signer-balance.service';
 import { UnblockAndReleaseSignersService } from './unblock-and-release-signers.service';
 import { ChainService } from '../rpc/services/chain.service';
 import { SignerService } from '../rpc/services/signer.service';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { UserOperationEntity } from '../rpc/entities/user-operation.entity';
 
 @Module({
     imports: [
+        TypeOrmModule.forFeature([UserOperationEntity]),
         ScheduleModule.forRoot(),
         CommonModule,
         RpcModule,

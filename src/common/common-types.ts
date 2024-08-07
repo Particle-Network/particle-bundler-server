@@ -1,5 +1,6 @@
 import { Wallet } from 'ethers';
 import { UserOperationDocument } from '../modules/rpc/schemas/user-operation.schema';
+import { UserOperationEntity } from '../modules/rpc/entities/user-operation.entity';
 
 export const IS_DEVELOPMENT = process.env.ENVIRONMENT === 'dev' || !process.env.ENVIRONMENT;
 export const IS_DEBUG = process.env.ENVIRONMENT === 'debug';
@@ -134,6 +135,6 @@ export interface IPackedBundle {
 
 export interface IBundle {
     entryPoint: string;
-    userOperations: UserOperationDocument[];
+    userOperations: UserOperationEntity[];
     gasLimit: string;
 }
