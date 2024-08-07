@@ -61,8 +61,10 @@ export async function beforeSendUserOperation(
     const gasLimit = calcUserOpTotalGasLimit(userOp, chainId);
     Helper.assertTrue(gasLimit < bundlerConfig.maxBundleGas, -32602, 'GasLimit is too large');
 
+    const realPreVerificationGas = BigInt(calcPreVerificationGasV07(userOp));
+    const userPreVerificationGas = BigInt(userOp.preVerificationGas);
     Helper.assertTrue(
-        BigInt(userOp.preVerificationGas) >= BigInt(calcPreVerificationGasV07(userOp) - 1000),
+        userPreVerificationGas >= realPreVerificationGas - 1000n || (userPreVerificationGas * 10000n) / realPreVerificationGas >= 9500n,
         -32602,
         'preVerificationGas is too low',
     );
