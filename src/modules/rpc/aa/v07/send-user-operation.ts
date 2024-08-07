@@ -9,6 +9,7 @@ import {
     getL2ExtraFee,
     getUserOpHashV07,
     isUserOpValidV07,
+    packAccountGasLimits,
     packUint,
     splitOriginNonce,
     unpackAccountGasLimits,
@@ -216,6 +217,7 @@ export async function simulateHandleOpAndGetGasCost(
 ) {
     userOp = cloneDeep(userOp);
     userOp.gasFees = packUint(1, 1);
+    userOp.accountGasLimits = packAccountGasLimits(1000000n, 1000000n);
 
     const tx = {
         to: entryPoint,

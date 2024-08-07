@@ -103,15 +103,21 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
 
     let minGasPrice = BigInt(userOpGasPrice);
     if (Object.keys(L2_GAS_ORACLE).includes(String(chainId))) {
-        const signerPaid = gasCost + 5000n * BigInt(userOpGasPrice);
+        const signerPaid = (gasCost + 5000n) * BigInt(userOpGasPrice);
         minGasPrice = (BigInt(extraFee) + signerPaid) / gasCost;
     }
 
-    if ([EVM_CHAIN_ID.POLYGON_MAINNET, EVM_CHAIN_ID.POLYGON_AMOY_TESTNET].includes(chainId)) {
-        let ratio = 1.05;
+    let ratio = 1;
 
-        minGasPrice = (minGasPrice * BigInt(Math.round(ratio * 100))) / 100n;
+    if ([EVM_CHAIN_ID.POLYGON_MAINNET, EVM_CHAIN_ID.POLYGON_AMOY_TESTNET].includes(chainId)) {
+        ratio = 1.05;
     }
+
+    if ([EVM_CHAIN_ID.CYBER_MAINNET, EVM_CHAIN_ID.CYBER_TESTNET].includes(chainId)) {
+        ratio = 2;
+    }
+
+    minGasPrice = (minGasPrice * BigInt(Math.round(ratio * 100))) / 100n;
 
     if (BigInt(userOpGasPrice) < minGasPrice) {
         const diff = minGasPrice - BigInt(userOpGasPrice);
