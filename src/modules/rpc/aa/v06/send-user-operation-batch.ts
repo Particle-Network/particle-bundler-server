@@ -18,7 +18,7 @@ export async function sendUserOperationBatch(rpcService: RpcService, chainId: nu
         userOps.map((userOp) => beforeSendUserOperation(rpcService, chainId, userOp, entryPoint, body.isAuth, body.skipCheck)),
     );
     for (const resultItem of resultItems) {
-        Helper.assertTrue(!resultItem.userOperationDocument, -32611);
+        Helper.assertTrue(!resultItem.userOperationEntity, -32611);
     }
 
     const userOpHashes = resultItems.map((i) => i.userOpHash);

@@ -18,9 +18,9 @@ import { calcPreVerificationGas } from '@account-abstraction/sdk';
 import { cloneDeep } from 'lodash';
 import MultiCall3Abi from '../abis/multi-call-3-abi';
 import { EVM_CHAIN_ID, NEED_TO_ESTIMATE_GAS_BEFORE_SEND, SUPPORT_EIP_1559, SUPPORT_MULTCALL3 } from '../../../../common/chains';
-import { UserOperationDocument } from '../../schemas/user-operation.schema';
 import { UserOperationService } from '../../services/user-operation.service';
 import { entryPointAbis } from '../abis/entry-point-abis';
+import { UserOperationEntity } from '../../entities/user-operation.entity';
 
 export async function sendUserOperation(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
     Helper.assertTrue(typeof body.params[0] === 'object', -32602, 'Invalid params: userop must be an object');
@@ -28,7 +28,7 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
     const entryPoint = getAddress(body.params[1]);
     Helper.assertTrue(isUserOpValidV06(userOp), -32602, 'Invalid userOp');
 
-    const { userOpHash, userOperationDocument } = await beforeSendUserOperation(
+    const { userOpHash, userOperationEntity } = await beforeSendUserOperation(
         rpcService,
         chainId,
         userOp,
@@ -37,7 +37,7 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
         body.skipCheck,
     );
 
-    return await createOrUpdateUserOperation(rpcService.userOperationService, chainId, userOp, userOpHash, entryPoint, userOperationDocument);
+    return await createOrUpdateUserOperation(rpcService.userOperationService, chainId, userOp, userOpHash, entryPoint, userOperationEntity);
 }
 
 export async function beforeSendUserOperation(
@@ -81,20 +81,20 @@ export async function beforeSendUserOperation(
         }
     }
 
-    let userOperationDocument: UserOperationDocument;
+    let userOperationEntity: UserOperationEntity;
     if (isAuth && skipCheck) {
-        userOperationDocument = await rpcService.userOperationService.getUserOperationByAddressNonce(
+        userOperationEntity = await rpcService.userOperationService.getUserOperationByAddressNonce(
             chainId,
             userOpSender,
             nonceKey,
-            BigInt(nonceValue).toString(),
+            Number(BigInt(nonceValue)),
         );
     } else {
         const [rSimulation, extraFee, signerFeeData, userOpDoc, localUserOperationsCount] = await Promise.all([
             simulateHandleOpAndGetGasCost(rpcService, chainId, userOp, entryPoint),
             getL2ExtraFee(rpcService, chainId, userOp, entryPoint),
             rpcService.chainService.getFeeDataIfCache(chainId),
-            rpcService.userOperationService.getUserOperationByAddressNonce(chainId, userOpSender, nonceKey, BigInt(nonceValue).toString()),
+            rpcService.userOperationService.getUserOperationByAddressNonce(chainId, userOpSender, nonceKey, Number(BigInt(nonceValue))),
             rpcService.userOperationService.getLocalUserOperationsCountByChainId(chainId),
             // do not care return value
             checkUserOpCanExecutedSucceed(rpcService, chainId, userOp, entryPoint),
@@ -111,12 +111,12 @@ export async function beforeSendUserOperation(
             : gasCostInContract;
 
         checkUserOpGasPriceIsSatisfied(chainId, userOp, gasCost, extraFee, signerFeeData);
-        userOperationDocument = userOpDoc;
+        userOperationEntity = userOpDoc;
     }
 
     return {
         userOpHash,
-        userOperationDocument,
+        userOperationEntity,
     };
 }
 
@@ -126,12 +126,9 @@ export async function createOrUpdateUserOperation(
     userOp: any,
     userOpHash: string,
     entryPoint: string,
-    userOperationDocument?: UserOperationDocument,
+    userOperationEntity?: UserOperationEntity,
 ) {
-    const newUserOpDoc = await userOperationService.createOrUpdateUserOperation(chainId, userOp, userOpHash, entryPoint, userOperationDocument);
-
-    // temp disable event emitter
-    // ProcessEventEmitter.sendMessages(PROCESS_EVENT_TYPE.CREATE_USER_OPERATION, newUserOpDoc.toJSON());
+    await userOperationService.createOrUpdateUserOperation(chainId, userOp, userOpHash, entryPoint, userOperationEntity);
 
     return userOpHash;
 }

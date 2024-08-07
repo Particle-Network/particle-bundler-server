@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Wallet } from 'ethers';
-import { UserOperationDocument } from '../rpc/schemas/user-operation.schema';
 import { LarkService } from '../common/services/lark.service';
 import { Helper } from '../../common/helper';
 import { waitSeconds } from '../rpc/aa/utils';
@@ -8,6 +7,7 @@ import { TransactionService } from '../rpc/services/transaction.service';
 import { HandleLocalTransactionService } from './handle-local-transaction.service';
 import { ChainService } from '../rpc/services/chain.service';
 import { UserOperationEntity } from '../rpc/entities/user-operation.entity';
+import { TransactionEntity } from '../rpc/entities/transaction.entity';
 
 @Injectable()
 export class HandlePendingUserOperationService {
@@ -36,9 +36,9 @@ export class HandlePendingUserOperationService {
         signer: Wallet,
         packedBundles: { entryPoint: string; userOperations: UserOperationEntity[]; gasLimit: string }[],
     ) {
-        let latestTransaction: any, latestNonce: any, feeData: any;
+        let latestTransactionEntity: TransactionEntity, latestNonce: any, feeData: any;
         try {
-            [latestTransaction, latestNonce, feeData] = await Promise.all([
+            [latestTransactionEntity, latestNonce, feeData] = await Promise.all([
                 this.transactionService.getLatestTransaction(chainId, signer.address),
                 this.chainService.getTransactionCountIfCache(chainId, signer.address),
                 this.chainService.getFeeDataIfCache(chainId),
@@ -60,7 +60,7 @@ export class HandlePendingUserOperationService {
             return;
         }
 
-        const localLatestNonce = (latestTransaction ? latestTransaction.nonce : -1) + 1;
+        const localLatestNonce = (latestTransactionEntity ? latestTransactionEntity.nonce : -1) + 1;
         let finalizedNonce = localLatestNonce > latestNonce ? localLatestNonce : latestNonce;
 
         for (const bundle of packedBundles) {

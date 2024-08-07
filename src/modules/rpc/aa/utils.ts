@@ -1,11 +1,10 @@
-import { isEmpty } from 'lodash';
+import { isEmpty, random } from 'lodash';
 import { AbiCoder, BigNumberish, BytesLike, getBytes, hexlify, keccak256, toBeHex, ZeroAddress, zeroPadValue } from 'ethers';
 import { IS_DEBUG, IS_DEVELOPMENT, PRODUCTION_HOSTNAME } from '../../../common/common-types';
 import { TransactionFactory, TypedTransaction } from '@ethereumjs/tx';
 import { AppException } from '../../../common/app-exception';
 import { EVM_CHAIN_ID, L2_GAS_ORACLE, SUPPORT_EIP_1559 } from '../../../common/chains';
 import * as Os from 'os';
-import { Document } from 'mongoose';
 import { RpcService } from '../services/rpc.service';
 import { entryPointAbis } from './abis/entry-point-abis';
 import l1GasPriceOracleAbi from './abis/l1-gas-price-oracle-abi';
@@ -251,14 +250,6 @@ export function parsePaymasterAndDataAndGetExpiredAt(paymasterAndData: string): 
     return Number(expiredAt);
 }
 
-export function getDocumentId(doc: Document & any): string {
-    if (typeof doc.id === 'string') {
-        return doc.id;
-    }
-
-    return doc._id.toString();
-}
-
 export function canRunCron() {
     if (!!process.env.DISABLE_TASK) {
         return false;
@@ -353,4 +344,8 @@ export function calcPreVerificationGasV07(userOp: any): number {
     const callDataCost = packed.map((x) => (x === 0 ? ov.zeroByte : ov.nonZeroByte)).reduce((sum, x) => sum + x);
     const ret = Math.round(callDataCost + ov.fixed / ov.bundleSize + ov.perUserOp + ov.perUserOpWord * lengthInWord);
     return ret;
+}
+
+export function createUniqId(): number {
+    return Date.now() * 1000 + random(0, 9999);
 }

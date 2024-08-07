@@ -17,11 +17,11 @@ export class UserOperationEntity extends BaseEntity<UserOperationEntity> {
     @Column({ name: 'chain_id', readonly: true, type: 'bigint' })
     public chainId: number;
 
-    @Column({ name: 'entry_point', readonly: true, type: 'varchar' })
-    public readonly entryPoint: string;
+    @Column({ name: 'entry_point', type: 'varchar' })
+    public entryPoint: string;
 
-    @Column({ name: 'user_op_hash', readonly: true, type: 'varchar' })
-    public readonly userOpHash: string;
+    @Column({ name: 'user_op_hash', type: 'varchar' })
+    public userOpHash: string;
 
     @Column({ name: 'user_op_sender', readonly: true, type: 'varchar' })
     public readonly userOpSender: string;
@@ -32,14 +32,14 @@ export class UserOperationEntity extends BaseEntity<UserOperationEntity> {
     @Column({ name: 'user_op_nonce', readonly: true, type: 'bigint' })
     public readonly userOpNonce: number;
 
-    @Column({ name: 'origin', readonly: true, type: 'json' })
-    public readonly origin: any;
+    @Column({ name: 'origin', type: 'json' })
+    public origin: any;
 
-    @Column({ name: 'status', readonly: true, type: 'tinyint' })
-    public readonly status: USER_OPERATION_STATUS;
+    @Column({ name: 'status', type: 'tinyint' })
+    public status: USER_OPERATION_STATUS;
 
-    @Column({ name: 'transaction_id', readonly: true, type: 'varchar', default: '' })
-    public readonly transactionId: string = '';
+    @Column({ name: 'transaction_id', type: 'bigint', default: 0 })
+    public transactionId: number = 0;
 
     @Column({ name: 'tx_hash', readonly: true, type: 'varchar', default: '' })
     public readonly txHash: string = '';
@@ -50,8 +50,8 @@ export class UserOperationEntity extends BaseEntity<UserOperationEntity> {
     @Column({ name: 'block_number', readonly: true, type: 'bigint', default: 0 })
     public readonly blockNumber: number = 0;
 
-    @Column({ name: 'associated_user_ops', readonly: true, type: 'json' })
-    public readonly associatedUserOps: any;
+    @Column({ name: 'associated_user_ops', type: 'json' })
+    public associatedUserOps: any;
 
     public constructor(partial: Partial<UserOperationEntity>) {
         super(partial);

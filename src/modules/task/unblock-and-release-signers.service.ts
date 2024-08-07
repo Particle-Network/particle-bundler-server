@@ -6,10 +6,10 @@ import { Cron } from '@nestjs/schedule';
 import { getBundlerChainConfig } from '../../configs/bundler-common';
 import { TransactionService } from '../rpc/services/transaction.service';
 import { HandleLocalTransactionService } from './handle-local-transaction.service';
-import { TRANSACTION_STATUS } from '../rpc/schemas/transaction.schema';
 import { SignerService } from '../rpc/services/signer.service';
-import { canRunCron, getDocumentId } from '../rpc/aa/utils';
+import { canRunCron} from '../rpc/aa/utils';
 import { ChainService } from '../rpc/services/chain.service';
+import { TRANSACTION_STATUS } from '../rpc/entities/transaction.entity';
 
 @Injectable()
 export class UnblockAndReleaseSignersService {
@@ -52,7 +52,7 @@ export class UnblockAndReleaseSignersService {
                     this.larkService.sendMessage(`Balance is enough, unblock signer ${blockedSigner.signerAddress}`);
                     const transaction = await this.transactionService.getTransactionById(blockedSigner.info.transactionId);
                     if (transaction.status !== TRANSACTION_STATUS.LOCAL) {
-                        this.larkService.sendMessage(`Unblock signer error: transaction is not local, ${getDocumentId(transaction)}`);
+                        this.larkService.sendMessage(`Unblock signer error: transaction is not local, ${transaction.id}`);
                         continue;
                     }
 

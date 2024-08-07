@@ -5,9 +5,8 @@ import { UserOperationService } from '../rpc/services/user-operation.service';
 import { Cron } from '@nestjs/schedule';
 import { getBundlerChainConfig } from '../../configs/bundler-common';
 import { toBeHex } from 'ethers';
-import { UserOperationDocument } from '../rpc/schemas/user-operation.schema';
 import { LarkService } from '../common/services/lark.service';
-import { calcUserOpTotalGasLimit, canRunCron, getDocumentId, waitSeconds } from '../rpc/aa/utils';
+import { calcUserOpTotalGasLimit, canRunCron, waitSeconds } from '../rpc/aa/utils';
 import { HandlePendingUserOperationService } from './handle-pending-user-operation.service';
 import { SignerService } from '../rpc/services/signer.service';
 import { UserOperationEntity } from '../rpc/entities/user-operation.entity';
@@ -31,7 +30,7 @@ export class HandleLocalUserOperationService {
         }
 
         try {
-            let userOperations = await this.userOperationService.getLocalUserOperations2(1000);
+            let userOperations = await this.userOperationService.getLocalUserOperations(1000);
             userOperations = this.tryLockUserOperationsAndGetUnuseds(userOperations);
             if (userOperations.length <= 0) {
                 return;
@@ -84,7 +83,7 @@ export class HandleLocalUserOperationService {
 
         await Promise.all([
             waitSeconds(2),
-            this.userOperationService.deleteUserOperationsByIds(userOperationsToDelete.map((userOperation) => getDocumentId(userOperation))),
+            this.userOperationService.deleteUserOperationsByIds(userOperationsToDelete.map((userOperationEntity) => userOperationEntity.id)),
         ]);
 
         this.unlockUserOperations(

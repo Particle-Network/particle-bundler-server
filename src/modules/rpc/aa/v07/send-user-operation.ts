@@ -21,8 +21,8 @@ import { IS_PRODUCTION, MULTI_CALL_3_ADDRESS } from '../../../../common/common-t
 import multiCall3Abi from '../abis/multi-call-3-abi';
 import { AppException } from '../../../../common/app-exception';
 import { getBundlerChainConfig } from '../../../../configs/bundler-common';
-import { UserOperationDocument } from '../../schemas/user-operation.schema';
 import { UserOperationService } from '../../services/user-operation.service';
+import { UserOperationEntity } from '../../entities/user-operation.entity';
 
 const simulateEntryPointInterface = new Interface(entryPointSimulationV07Abi);
 
@@ -32,7 +32,7 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
     const entryPoint = getAddress(body.params[1]);
     Helper.assertTrue(isUserOpValidV07(userOp), -32602, 'Invalid userOp');
 
-    const { userOpHash, userOperationDocument } = await beforeSendUserOperation(
+    const { userOpHash, userOperationEntity } = await beforeSendUserOperation(
         rpcService,
         chainId,
         userOp,
@@ -41,7 +41,7 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
         body.skipCheck,
     );
 
-    return await createOrUpdateUserOperation(rpcService.userOperationService, chainId, userOp, userOpHash, entryPoint, userOperationDocument);
+    return await createOrUpdateUserOperation(rpcService.userOperationService, chainId, userOp, userOpHash, entryPoint, userOperationEntity);
 }
 
 export async function beforeSendUserOperation(
@@ -73,20 +73,20 @@ export async function beforeSendUserOperation(
     const userOpSender = getAddress(userOp.sender);
     const { nonceKey, nonceValue } = splitOriginNonce(userOp.nonce);
 
-    let userOperationDocument: UserOperationDocument;
+    let userOperationEntity: UserOperationEntity;
     if (isAuth && skipCheck) {
-        userOperationDocument = await rpcService.userOperationService.getUserOperationByAddressNonce(
+        userOperationEntity = await rpcService.userOperationService.getUserOperationByAddressNonce(
             chainId,
             userOpSender,
             nonceKey,
-            BigInt(nonceValue).toString(),
+            Number(BigInt(nonceValue)),
         );
     } else {
         const [rSimulation, extraFee, signerFeeData, userOpDoc, localUserOperationsCount] = await Promise.all([
             simulateHandleOpAndGetGasCost(rpcService, chainId, userOp, entryPoint),
             getL2ExtraFee(rpcService, chainId, userOp, entryPoint),
             rpcService.chainService.getFeeDataIfCache(chainId),
-            rpcService.userOperationService.getUserOperationByAddressNonce(chainId, userOpSender, nonceKey, BigInt(nonceValue).toString()),
+            rpcService.userOperationService.getUserOperationByAddressNonce(chainId, userOpSender, nonceKey, Number(BigInt(nonceValue))),
             rpcService.userOperationService.getLocalUserOperationsCountByChainId(chainId),
             // do not care return value
             checkUserOpCanExecutedSucceed(rpcService, chainId, userOp, entryPoint),
@@ -103,12 +103,12 @@ export async function beforeSendUserOperation(
             : gasCostInContract;
 
         checkUserOpGasPriceIsSatisfied(chainId, userOp, gasCost, extraFee, signerFeeData);
-        userOperationDocument = userOpDoc;
+        userOperationEntity = userOpDoc;
     }
 
     return {
         userOpHash,
-        userOperationDocument,
+        userOperationEntity,
     };
 }
 
@@ -200,12 +200,9 @@ export async function createOrUpdateUserOperation(
     userOp: any,
     userOpHash: string,
     entryPoint: string,
-    userOperationDocument?: UserOperationDocument,
+    userOperationEntity?: UserOperationEntity,
 ) {
-    const newUserOpDoc = await userOperationService.createOrUpdateUserOperation(chainId, userOp, userOpHash, entryPoint, userOperationDocument);
-
-    // temp disable event emitter
-    // ProcessEventEmitter.sendMessages(PROCESS_EVENT_TYPE.CREATE_USER_OPERATION, newUserOpDoc.toJSON());
+    await userOperationService.createOrUpdateUserOperation(chainId, userOp, userOpHash, entryPoint, userOperationEntity);
 
     return userOpHash;
 }

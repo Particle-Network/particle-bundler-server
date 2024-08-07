@@ -1,4 +1,3 @@
-import { Expose } from 'class-transformer';
 import { BeforeInsert, BeforeUpdate, AfterLoad, AfterInsert, PrimaryGeneratedColumn, Column } from 'typeorm';
 
 export abstract class BaseEntity<T> {
@@ -6,11 +5,9 @@ export abstract class BaseEntity<T> {
     public id: number;
 
     @Column({ name: 'created_at' })
-    @Expose({ name: 'created_at' })
     public createdAt: Date;
 
     @Column({ name: 'updated_at' })
-    @Expose({ name: 'updated_at' })
     public updatedAt: Date;
 
     public constructor(partial: Partial<T>) {
