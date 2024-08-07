@@ -1,11 +1,11 @@
 import { JsonRPCRequestDto } from '../dtos/json-rpc-request.dto';
 import { RpcService } from '../services/rpc.service';
 import { Helper } from '../../../common/helper';
-import { USER_OPERATION_STATUS, UserOperationDocument } from '../schemas/user-operation.schema';
-import { TRANSACTION_STATUS } from '../schemas/transaction.schema';
 import { deepHexlify, toBeHexTrimZero } from './utils';
 import { IS_PRODUCTION } from '../../../common/common-types';
 import { entryPointAbis } from './abis/entry-point-abis';
+import { USER_OPERATION_STATUS, UserOperationEntity } from '../entities/user-operation.entity';
+import { TRANSACTION_STATUS } from '../entities/transaction.entity';
 
 export async function getUserOperationReceipt(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
     Helper.assertTrue(body.params.length === 1, -32602);
@@ -14,29 +14,29 @@ export async function getUserOperationReceipt(rpcService: RpcService, chainId: n
     const userOperationService = rpcService.userOperationService;
     const transactionService = rpcService.transactionService;
 
-    const userOperation = await userOperationService.getUserOperationByHash(body.params[0]);
-    if (!userOperation) {
+    const userOperationEntity = await userOperationService.getUserOperationByHash(body.params[0]);
+    if (!userOperationEntity) {
         return null;
     }
 
-    if (userOperation.status !== USER_OPERATION_STATUS.DONE) {
+    if (userOperationEntity.status !== USER_OPERATION_STATUS.DONE) {
         return null;
     }
 
-    const transaction = await transactionService.getTransactionById(userOperation.transactionId);
-    if (!transaction || transaction.status !== TRANSACTION_STATUS.DONE || !transaction.userOperationHashMapTxHash[userOperation.userOpHash]) {
+    const transaction = await transactionService.getTransactionById(userOperationEntity.transactionId);
+    if (!transaction || transaction.status !== TRANSACTION_STATUS.DONE || !transaction.userOperationHashMapTxHash[userOperationEntity.userOpHash]) {
         return null;
     }
 
-    const receipt = transaction.receipts[transaction.userOperationHashMapTxHash[userOperation.userOpHash]];
+    const receipt = transaction.receipts[transaction.userOperationHashMapTxHash[userOperationEntity.userOpHash]];
     if (!receipt) {
         return null;
     }
 
-    return formatReceipt(rpcService, userOperation, receipt);
+    return formatReceipt(rpcService, userOperationEntity, receipt);
 }
 
-export function formatReceipt(rpcService: RpcService, userOperation: UserOperationDocument, receipt: any) {
+export function formatReceipt(rpcService: RpcService, userOperation: UserOperationEntity, receipt: any) {
     try {
         // failed transaction use local database value
         // failed transaction has no logs

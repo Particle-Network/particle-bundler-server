@@ -3,7 +3,6 @@ import { RpcController } from '../src/modules/rpc/rpc.controller';
 import { RpcService } from '../src/modules/rpc/services/rpc.service';
 import { RpcModule } from '../src/modules/rpc/rpc.module';
 import { MongooseModule } from '@nestjs/mongoose';
-import { USER_OPERATION_STATUS, UserOperation, UserOperationSchema } from '../src/modules/rpc/schemas/user-operation.schema';
 import { mongodbConfigAsync } from '../src/configs/mongodb.config';
 import { configConfig } from '../src/configs/config.config';
 import { ConfigModule } from '@nestjs/config';
@@ -48,7 +47,6 @@ describe('Common', () => {
                 MongooseModule.forRootAsync(mongodbConfigAsync),
                 RpcModule,
                 TaskModule,
-                MongooseModule.forFeature([{ name: UserOperation.name, schema: UserOperationSchema }]),
             ],
         }).compile();
 

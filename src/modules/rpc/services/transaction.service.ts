@@ -1,113 +1,122 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, ObjectId, Types } from 'mongoose';
-import { TRANSACTION_STATUS, Transaction, TransactionDocument } from '../schemas/transaction.schema';
 import { TypedTransaction } from '@ethereumjs/tx';
 import { getAddress } from 'ethers';
-import { getDocumentId, tryParseSignedTx } from '../aa/utils';
+import { tryParseSignedTx } from '../aa/utils';
 import { random } from 'lodash';
 import { LRUCache } from 'lru-cache';
+import { TRANSACTION_STATUS, TransactionEntity } from '../entities/transaction.entity';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, In, LessThan, MoreThanOrEqual, Repository } from 'typeorm';
+import { USER_OPERATION_STATUS, UserOperationEntity } from '../entities/user-operation.entity';
 
 @Injectable()
 export class TransactionService {
-    public readonly globalTransactionCache: LRUCache<string, Transaction> = new LRUCache({
+    public readonly globalTransactionCache: LRUCache<number, TransactionEntity> = new LRUCache({
         max: 100000,
         ttl: 600000, // 10 mins
     });
 
-    public constructor(@InjectModel(Transaction.name) private readonly transactionModel: Model<TransactionDocument>) {}
+    public constructor(
+        @InjectDataSource() private readonly dataSource: DataSource,
+        @InjectRepository(TransactionEntity) private readonly transactionRepository: Repository<TransactionEntity>,
+    ) {}
 
-    public async getTransactionsByStatus(status: TRANSACTION_STATUS, limit: number): Promise<Transaction[]> {
-        return await this.transactionModel.find({ status }).sort({ _id: 1 }).limit(limit).lean();
-    }
-
-    public async getRecentTransactionsByStatusSortConfirmations(status: TRANSACTION_STATUS, limit: number): Promise<Transaction[]> {
-        const recentData = new Date(Date.now() - 10000); // 10s ago
-
-        if (random(0, 1) === 0) {
-            return await this.transactionModel
-                .find({ status, latestSentAt: { $gte: recentData } })
-                .sort({ confirmations: 1 })
-                .limit(limit)
-                .lean();
-        }
-
-        return await this.transactionModel
-            .find({ status, latestSentAt: { $gte: recentData } })
-            .sort({ _id: 1 })
-            .limit(limit)
-            .lean();
-    }
-
-    public async getLongAgoTransactionsByStatusSortConfirmations(status: TRANSACTION_STATUS, limit: number): Promise<TransactionDocument[]> {
-        const recentData = new Date(Date.now() - 10000); // 10s ago
-
-        if (random(0, 1) === 0) {
-            return await this.transactionModel
-                .find({ status, latestSentAt: { $lt: recentData } })
-                .sort({ confirmations: 1 })
-                .limit(limit)
-                .lean();
-        }
-
-        return await this.transactionModel
-            .find({ status, latestSentAt: { $lt: recentData } })
-            .sort({ _id: 1 })
-            .limit(limit)
-            .lean();
-    }
-
-    public async getLatestTransaction(chainId: number, sender: string): Promise<Transaction> {
-        return await this.transactionModel.findOne({ chainId, from: sender }).sort({ nonce: -1 }).lean();
-    }
-
-    public async getTransactionById(id: string): Promise<Transaction> {
-        let transaction = this.getGlobalCacheTransaction(id);
-        if (!!transaction) {
-            if (transaction.status === TRANSACTION_STATUS.DONE) {
-                this.delGlobalCacheTransaction(getDocumentId(transaction));
-            }
-
-            return transaction;
-        }
-
-        transaction = await this.transactionModel.findById(id).lean();
-        if (!!transaction && transaction.status !== TRANSACTION_STATUS.DONE) {
-            this.setGlobalCacheTransaction(transaction);
-        }
-
-        return transaction;
-    }
-
-    public async getPendingTransactionCountBySigner(chainId: number, signerAddress: string): Promise<number> {
-        return await this.transactionModel.countDocuments({
-            chainId,
-            status: { $in: [TRANSACTION_STATUS.PENDING, TRANSACTION_STATUS.LOCAL] },
-            from: signerAddress,
+    public async getTransactionsByStatus(status: TRANSACTION_STATUS, limit: number): Promise<TransactionEntity[]> {
+        return await this.transactionRepository.find({
+            where: { status },
+            order: { id: 'ASC' },
+            take: limit,
         });
     }
 
-    public async getPendingTransactionsBySigner(chainId: number, signerAddress: string): Promise<Transaction[]> {
-        return await this.transactionModel.find({
-            chainId,
-            status: { $in: [TRANSACTION_STATUS.PENDING, TRANSACTION_STATUS.LOCAL] },
-            from: signerAddress,
+    public async getRecentTransactionsByStatusSortConfirmations(status: TRANSACTION_STATUS, limit: number): Promise<TransactionEntity[]> {
+        const recentData = new Date(Date.now() - 10000); // 10s ago
+
+        // sort by confirmations
+        if (random(0, 1) === 0) {
+            return await this.transactionRepository.find({
+                where: { status, latestSentAt: MoreThanOrEqual(recentData) },
+                order: { confirmations: 'ASC' },
+                take: limit,
+            });
+        }
+
+        // sort by id
+        return await this.transactionRepository.find({
+            where: { status, latestSentAt: MoreThanOrEqual(recentData) },
+            order: { id: 'ASC' },
+            take: limit,
+        });
+    }
+
+    public async getLongAgoTransactionsByStatusSortConfirmations(status: TRANSACTION_STATUS, limit: number): Promise<TransactionEntity[]> {
+        const recentData = new Date(Date.now() - 10000); // 10s ago
+
+        if (random(0, 1) === 0) {
+            return await this.transactionRepository.find({
+                where: { status, latestSentAt: LessThan(recentData) },
+                order: { confirmations: 'ASC' },
+                take: limit,
+            });
+        }
+
+        return await this.transactionRepository.find({
+            where: { status, latestSentAt: LessThan(recentData) },
+            order: { id: 'ASC' },
+            take: limit,
+        });
+    }
+
+    public async getLatestTransaction(chainId: number, sender: string): Promise<TransactionEntity> {
+        return await this.transactionRepository.findOne({
+            where: { chainId, from: sender },
+            order: { nonce: 'DESC' },
+        });
+    }
+
+    public async getTransactionById(id: number): Promise<TransactionEntity> {
+        let transactionEntity = this.getGlobalCacheTransaction(id);
+        if (!!transactionEntity) {
+            if (transactionEntity.status === TRANSACTION_STATUS.DONE) {
+                this.delGlobalCacheTransaction(id);
+            }
+
+            return transactionEntity;
+        }
+
+        transactionEntity = await this.transactionRepository.findOneBy({ id });
+        if (!!transactionEntity && transactionEntity.status !== TRANSACTION_STATUS.DONE) {
+            this.setGlobalCacheTransaction(transactionEntity);
+        }
+
+        return transactionEntity;
+    }
+
+    public async getPendingTransactionCountBySigner(chainId: number, signerAddress: string): Promise<number> {
+        return await this.transactionRepository.count({
+            where: { chainId, status: In([TRANSACTION_STATUS.PENDING, TRANSACTION_STATUS.LOCAL]), from: signerAddress },
+        });
+    }
+
+    public async getPendingTransactionsBySigner(chainId: number, signerAddress: string): Promise<TransactionEntity[]> {
+        return await this.transactionRepository.find({
+            where: { chainId, status: In([TRANSACTION_STATUS.PENDING, TRANSACTION_STATUS.LOCAL]), from: signerAddress },
         });
     }
 
     public async createTransaction(
-        transactionObjectId: Types.ObjectId,
+        transactionId: number,
         chainId: number,
         signedTx: any,
         userOperationHashes: string[],
-    ): Promise<TransactionDocument> {
+    ): Promise<TransactionEntity> {
         const tx: TypedTransaction = tryParseSignedTx(signedTx);
         const txHash = `0x${Buffer.from(tx.hash()).toString('hex')}`;
 
         const start = Date.now();
 
-        const transaction = new this.transactionModel({
-            _id: transactionObjectId,
+        const transactionEntity = new TransactionEntity({
+            id: transactionId,
             chainId,
             userOperationHashes,
             from: getAddress(tx.getSenderAddress().toString()),
@@ -118,85 +127,106 @@ export class TransactionService {
             status: TRANSACTION_STATUS.LOCAL,
             txHashes: [txHash],
             confirmations: 0,
-            incrRetry: false,
+            incrRetry: 0,
+            userOperationHashMapTxHash: {},
+            receipts: {},
             latestSentAt: new Date(),
         });
 
-        Logger.debug(`[CreateTransaction] ${transaction.id}, Cost ${Date.now() - start} ms`);
+        await this.transactionRepository.save(transactionEntity);
 
-        const transactionDoc = await transaction.save();
-        this.setGlobalCacheTransaction(transactionDoc);
+        Logger.debug(`[CreateTransaction] ${transactionId}, Cost ${Date.now() - start} ms`);
 
-        return transactionDoc;
+        this.setGlobalCacheTransaction(transactionEntity);
+
+        return transactionEntity;
     }
 
-    public async addTransactionsConfirmations(ids: string[]) {
+    public async addTransactionsConfirmations(ids: number[]) {
         if (ids.length === 0) {
             return;
         }
 
-        return await this.transactionModel.updateMany(
-            { _id: { $in: ids } },
-            {
-                $inc: { confirmations: 1 },
-            },
-        );
+        await this.dataSource.query(`UPDATE transactions SET confirmations = confirmations + 1 WHERE id IN (${ids.join(',')});`);
     }
 
-    public async updateTransaction(transaction: Transaction, updates: any) {
-        Object.assign(transaction, updates);
+    public async updateTransaction(transactionEntity: TransactionEntity, updates: any) {
+        Object.assign(transactionEntity, updates);
 
-        await this.transactionModel.updateOne({ _id: transaction._id }, updates);
+        await this.transactionRepository
+            .createQueryBuilder()
+            .update(TransactionEntity)
+            .set(updates)
+            .where('id = :id', {
+                id: transactionEntity.id,
+            })
+            .execute();
 
-        if (transaction.status === TRANSACTION_STATUS.DONE) {
-            this.delGlobalCacheTransaction(getDocumentId(transaction));
+        if (transactionEntity.status === TRANSACTION_STATUS.DONE) {
+            this.delGlobalCacheTransaction(transactionEntity.id);
         }
     }
 
-    public async deleteTransaction(_id: ObjectId, session?: any) {
-        await this.transactionModel.deleteOne({ _id }, { session });
+    public async deleteTransactionAndResetUserOperations(transactionId: number) {
+        await this.transactionRepository.manager.transaction(async (entityManager) => {
+            const lockedUserOperationEntities = await entityManager.find(UserOperationEntity, {
+                where: { transactionId, status: USER_OPERATION_STATUS.PENDING },
+                lock: { mode: 'pessimistic_write' },
+            });
 
-        this.delGlobalCacheTransaction(_id.toString());
+            await entityManager.delete(TransactionEntity, transactionId);
+
+            for (const lockedUserOperationEntity of lockedUserOperationEntities) {
+                lockedUserOperationEntity.status = USER_OPERATION_STATUS.LOCAL;
+                lockedUserOperationEntity.transactionId = 0;
+                await entityManager.save(lockedUserOperationEntity);
+            }
+        });
+
+        this.delGlobalCacheTransaction(transactionId);
     }
 
-    public async replaceTransactionTxHash(transaction: Transaction, newSignedTx: string, currentStatus: TRANSACTION_STATUS) {
+    public async replaceTransactionTxHash(transactionEntity: TransactionEntity, newSignedTx: string, currentStatus: TRANSACTION_STATUS) {
         const tx: TypedTransaction = tryParseSignedTx(newSignedTx);
         const newTxHash = `0x${Buffer.from(tx.hash()).toString('hex')}`;
         const newTxData = tx.toJSON();
 
-        const newSignedTxs = transaction.signedTxs;
+        const newSignedTxs = transactionEntity.signedTxs;
         newSignedTxs[newTxHash] = newSignedTx;
-        const newInner = transaction.inners;
+        const newInner = transactionEntity.inners;
         newInner[newTxHash] = newTxData;
-        const newTxHashes = transaction.txHashes.concat(newTxHash);
+        const newTxHashes = transactionEntity.txHashes.concat(newTxHash);
 
         const updates = {
-            incrRetry: false,
+            incrRetry: 0,
             txHashes: newTxHashes,
             signedTxs: newSignedTxs,
             inners: newInner,
             latestSentAt: new Date(),
         };
 
-        Object.assign(transaction, updates);
+        Object.assign(transactionEntity, updates);
 
-        return await this.transactionModel.updateOne(
-            { _id: transaction._id, status: currentStatus },
-            {
-                $set: updates,
-            },
-        );
+        await this.transactionRepository
+            .createQueryBuilder()
+            .update(TransactionEntity)
+            .set(updates)
+            .where('id = :id AND status = :status', {
+                id: transactionEntity.id,
+                status: currentStatus,
+            })
+            .execute();
     }
 
-    public setGlobalCacheTransaction(transaction: Transaction) {
-        this.globalTransactionCache.set(getDocumentId(transaction), transaction);
+    public setGlobalCacheTransaction(transactionEntity: TransactionEntity) {
+        this.globalTransactionCache.set(transactionEntity.id, transactionEntity);
     }
 
-    public getGlobalCacheTransaction(transactionId: string): Transaction {
+    public getGlobalCacheTransaction(transactionId: number): TransactionEntity {
         return this.globalTransactionCache.get(transactionId);
     }
 
-    public delGlobalCacheTransaction(transactionId: string) {
+    public delGlobalCacheTransaction(transactionId: number) {
         this.globalTransactionCache.delete(transactionId);
     }
 }
