@@ -1,6 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectConnection } from '@nestjs/mongoose';
-import { Connection } from 'mongoose';
 import { LarkService } from '../common/services/lark.service';
 import { Helper } from '../../common/helper';
 import {
@@ -30,7 +28,6 @@ export class HandlePendingTransactionService {
     private readonly lockPendingTransactions: Set<string> = new Set();
 
     public constructor(
-        @InjectConnection() private readonly connection: Connection,
         private readonly rpcService: RpcService,
         private readonly larkService: LarkService,
         private readonly transactionService: TransactionService,
