@@ -3,6 +3,7 @@ import { Wallet } from 'ethers';
 import { deployDetermineDeployer } from './deploy-determine-deployer';
 import { deploySimpleAccountFactory as deploySimpleAccountFactoryV1 } from './deploy-simple-account-v1-factory';
 import { deploySimpleAccountFactory as deploySimpleAccountFactoryV2 } from './deploy-simple-account-v2-factory';
+import { deploySimpleAccountFactory as deploySimpleAccountFactoryV3 } from './deploy-simple-account-v3-factory';
 import { deployEntryPoint } from './deploy-entry-point';
 import { initializeBundlerConfig } from '../src/configs/bundler-common';
 import { deployBTCAccountFactory as deployBTCAccountFactoryV1 } from './deploy-btc-account-v1-factory';
@@ -27,6 +28,8 @@ const deployBTCAccountV2 = args[3] ? args[3] === 'true' : false;
     console.log('Deployed Simple Account V1 Factory');
     await deploySimpleAccountFactoryV2(chainId, signer);
     console.log('Deployed Simple Account V2 Factory');
+    await deploySimpleAccountFactoryV3(chainId, signer);
+    console.log('Deployed Simple Account V3 Factory');
 
     if (deployBTCAccountV1) {
         await deployBTCAccountFactoryV1(chainId, signer);
