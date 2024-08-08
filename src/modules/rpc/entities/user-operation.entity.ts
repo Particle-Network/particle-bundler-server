@@ -41,14 +41,14 @@ export class UserOperationEntity extends BaseEntity<UserOperationEntity> {
     @Column({ name: 'transaction_id', type: 'bigint', default: 0 })
     public transactionId: number = 0;
 
-    @Column({ name: 'tx_hash', readonly: true, type: 'varchar', default: '' })
-    public readonly txHash: string = '';
+    @Column({ name: 'tx_hash', type: 'varchar', default: '' })
+    public txHash: string = '';
 
-    @Column({ name: 'block_hash', readonly: true, type: 'varchar', default: '' })
-    public readonly blockHash: string = '';
+    @Column({ name: 'block_hash', type: 'varchar', default: '' })
+    public blockHash: string = '';
 
-    @Column({ name: 'block_number', readonly: true, type: 'bigint', default: 0 })
-    public readonly blockNumber: number = 0;
+    @Column({ name: 'block_number', type: 'bigint', default: 0 })
+    public blockNumber: number = 0;
 
     @Column({ name: 'associated_user_ops', type: 'json' })
     public associatedUserOps: any;
@@ -60,5 +60,6 @@ export class UserOperationEntity extends BaseEntity<UserOperationEntity> {
     public resetType() {
         super.resetType();
         this.chainId = Number(this.chainId);
+        this.blockNumber = Number(this.blockNumber);
     }
 }

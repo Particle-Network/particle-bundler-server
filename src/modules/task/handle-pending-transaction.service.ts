@@ -201,7 +201,7 @@ export class HandlePendingTransactionService {
 
                 const txHash = receipt.transactionHash;
                 const blockHash = receipt.blockHash;
-                const blockNumber = receipt.blockNumber;
+                const blockNumber = Number(BigInt(receipt.blockNumber));
                 await this.userOperationService.setUserOperationsAsDone(userOpHashes, txHash, blockNumber, blockHash);
 
                 transactionEntity.receipts = transactionEntity.receipts || {};

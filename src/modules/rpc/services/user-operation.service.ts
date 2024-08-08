@@ -211,13 +211,13 @@ export class UserOperationService {
             return;
         }
 
-        for (const userOperationEventEntity of userOperationEventEntities) {
-            try {
-                await this.userOperationEventRepository.save(userOperationEventEntity);
-            } catch (error) {
-                // nothing                
-            }
-        }
+        await this.userOperationRepository.manager
+            .createQueryBuilder()
+            .insert()
+            .into(UserOperationEventEntity)
+            .values(userOperationEventEntities)
+            .orIgnore()
+            .execute();
     }
 
     public async resetToLocal(
