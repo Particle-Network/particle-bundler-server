@@ -17,11 +17,11 @@ export async function getUserOperationByHash(rpcService: RpcService, chainId: nu
         return null;
     }
 
-    return deepHexlify({
+    return {
         userOperation: userOperationEntity.origin,
         entryPoint: userOperationEntity.entryPoint,
         transactionHash: transaction.txHashes[transaction.txHashes.length - 1],
         blockHash: userOperationEntity.blockHash ?? null,
         blockNumber: userOperationEntity.blockNumber ?? null,
-    });
+    };
 }

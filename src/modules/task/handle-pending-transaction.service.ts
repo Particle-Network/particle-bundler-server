@@ -98,9 +98,7 @@ export class HandlePendingTransactionService {
             await this.chainService.sendRawTransaction(transactionEntity.chainId, transactionEntity.signedTxs[txHash]);
 
             Logger.debug(
-                `[SendRawTransaction] End | Chain ${transactionEntity.chainId} | ${transactionEntity.id} | Cost ${
-                    Date.now() - start
-                } ms`,
+                `[SendRawTransaction] End | Chain ${transactionEntity.chainId} | ${transactionEntity.id} | Cost ${Date.now() - start} ms`,
             );
         } catch (error) {
             if (error?.message?.toLowerCase()?.includes('already known')) {
@@ -141,7 +139,9 @@ export class HandlePendingTransactionService {
 
                 Logger.error(`SendTransaction error: ${transactionEntity.id}`, error);
                 this.larkService.sendMessage(
-                    `Send Transaction Error On Chain ${transactionEntity.chainId} And Transaction ${transactionEntity.id}: ${Helper.converErrorToString(error)}`,
+                    `Send Transaction Error On Chain ${transactionEntity.chainId} And Transaction ${
+                        transactionEntity.id
+                    }: ${Helper.converErrorToString(error)}`,
                 );
 
                 this.lockSendingTransactions.delete(keyLock);
@@ -156,9 +156,7 @@ export class HandlePendingTransactionService {
             Logger.debug(`[UpdateTransactionAsPending] ${transactionEntity.id}, Cost: ${Date.now() - start} ms`);
         } catch (error) {
             Logger.error(`UpdateTransaction error: ${transactionEntity.id}`, error);
-            this.larkService.sendMessage(
-                `UpdateTransaction Error On Transaction ${transactionEntity.id}: ${Helper.converErrorToString(error)}`,
-            );
+            this.larkService.sendMessage(`UpdateTransaction Error On Transaction ${transactionEntity.id}: ${Helper.converErrorToString(error)}`);
         }
 
         this.lockSendingTransactions.delete(keyLock);
@@ -201,8 +199,8 @@ export class HandlePendingTransactionService {
 
                 const txHash = receipt.transactionHash;
                 const blockHash = receipt.blockHash;
-                const blockNumber = Number(BigInt(receipt.blockNumber));
-                await this.userOperationService.setUserOperationsAsDone(userOpHashes, txHash, blockNumber, blockHash);
+                receipt.blockNumber = Number(BigInt(receipt.blockNumber));
+                await this.userOperationService.setUserOperationsAsDone(userOpHashes, txHash, receipt.blockNumber, blockHash);
 
                 transactionEntity.receipts = transactionEntity.receipts || {};
                 transactionEntity.receipts[txHash] = receipt;
@@ -318,9 +316,7 @@ export class HandlePendingTransactionService {
             );
             const receipts = await Promise.all(receiptPromises);
             Logger.debug(
-                `[GetAllTransactionReceipt] ${pendingTransactionEntity.chainId} | ${pendingTransactionEntity.id}, Cost ${
-                    Date.now() - start
-                } ms`,
+                `[GetAllTransactionReceipt] ${pendingTransactionEntity.chainId} | ${pendingTransactionEntity.id}, Cost ${Date.now() - start} ms`,
             );
 
             for (const receipt of receipts) {
