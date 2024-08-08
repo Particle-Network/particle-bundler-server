@@ -82,7 +82,7 @@ export class UserOperationService {
                 userOpNonceKey: BigInt(nonceKey).toString(),
                 userOpNonce: Number(BigInt(nonceValue)),
                 origin: userOp,
-                status: USER_OPERATION_STATUS.LOCAL,
+                status: index === 0 ? USER_OPERATION_STATUS.LOCAL : USER_OPERATION_STATUS.ASSOCIATED,
             });
 
             userOperationEntities.push(userOperationEntity);
