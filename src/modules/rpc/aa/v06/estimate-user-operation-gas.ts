@@ -254,7 +254,7 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
 
     let minGasPrice = (BigInt(signerGasPrice) * 105n) / 100n;
     if (Object.keys(L2_GAS_ORACLE).includes(String(chainId))) {
-        const signerPaid = gasCost + 5000n * BigInt(signerGasPrice);
+        const signerPaid = (gasCost + 5000n) * BigInt(signerGasPrice);
         minGasPrice = (BigInt(extraFee) + signerPaid) / gasCost;
     }
 
