@@ -32,7 +32,6 @@ export function deserializeUserOpCalldata(callData: string): Itx[] {
 
     for (const item of ifaces) {
         const functionFragment = item.iface.getFunction(item.abi[0]);
-        console.log('functionFragment.selector', functionFragment.selector);
         if (!callData.startsWith(functionFragment.selector)) {
             continue;
         }
