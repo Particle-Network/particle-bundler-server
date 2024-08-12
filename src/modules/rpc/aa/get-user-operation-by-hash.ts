@@ -1,6 +1,7 @@
 import { JsonRPCRequestDto } from '../dtos/json-rpc-request.dto';
 import { RpcService } from '../services/rpc.service';
 import { Helper } from '../../../common/helper';
+import { deepHexlify } from './utils';
 
 export async function getUserOperationByHash(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
     Helper.assertTrue(body.params.length === 1, -32602);
@@ -16,11 +17,11 @@ export async function getUserOperationByHash(rpcService: RpcService, chainId: nu
         return null;
     }
 
-    return {
+    return deepHexlify({
         userOperation: userOperationEntity.origin,
         entryPoint: userOperationEntity.entryPoint,
         transactionHash: transaction.txHashes[transaction.txHashes.length - 1],
         blockHash: userOperationEntity.blockHash ?? null,
         blockNumber: userOperationEntity.blockNumber ?? null,
-    };
+    });
 }
