@@ -38,8 +38,18 @@ export function deserializeUserOpCalldata(callData: string): Itx[] {
 
         const decoded = item.iface.decodeFunctionData(item.abi[0], callData);
 
-        if (['0x34fcd5be', '0x5c1c6dcd'].includes(functionFragment.selector)) {
+        if (['0x5c1c6dcd'].includes(functionFragment.selector)) {
             for (const decodedItem of decoded) {
+                txs.push({
+                    to: decodedItem[0],
+                    value: BigInt(decodedItem[1]),
+                    data: decodedItem[2],
+                });
+            }
+        }
+
+        if (['0x34fcd5be'].includes(functionFragment.selector)) {
+            for (const decodedItem of decoded[0]) {
                 txs.push({
                     to: decodedItem[0],
                     value: BigInt(decodedItem[1]),
