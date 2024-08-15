@@ -1,4 +1,4 @@
-import { Contract, ZeroAddress, getAddress, isAddress, toBeHex } from 'ethers';
+import { Contract, ZeroAddress, getAddress, isAddress, isHexString, toBeHex } from 'ethers';
 import { JsonRPCRequestDto } from '../../dtos/json-rpc-request.dto';
 import { RpcService } from '../../services/rpc.service';
 import { Helper } from '../../../../common/helper';
@@ -7,6 +7,7 @@ import { AppException } from '../../../../common/app-exception';
 import {
     calcUserOpGasPrice,
     calcUserOpTotalGasLimit,
+    deepHexlify,
     getL2ExtraFee,
     getUserOpHashV06,
     isUserOpValidV06,
@@ -94,7 +95,12 @@ export async function beforeSendUserOperation(
             simulateHandleOpAndGetGasCost(rpcService, chainId, userOp, entryPoint),
             getL2ExtraFee(rpcService, chainId, userOp, entryPoint),
             rpcService.chainService.getFeeDataIfCache(chainId),
-            rpcService.userOperationService.getUserOperationByAddressNonce(chainId, userOpSender, BigInt(nonceKey).toString(), Number(BigInt(nonceValue))),
+            rpcService.userOperationService.getUserOperationByAddressNonce(
+                chainId,
+                userOpSender,
+                BigInt(nonceKey).toString(),
+                Number(BigInt(nonceValue)),
+            ),
             rpcService.userOperationService.getLocalUserOperationsCountByChainId(chainId),
             // do not care return value
             checkUserOpCanExecutedSucceed(rpcService, chainId, userOp, entryPoint),
@@ -254,7 +260,7 @@ async function checkUserOpCanExecutedSucceed(rpcService: RpcService, chainId: nu
     const signer = rpcService.signerService.getChainSigners(chainId)[0];
 
     const callTx = await contractEntryPoint.handleOps.populateTransaction([userOp], signer.address, { from: signer.address });
-    const promises = [rpcService.chainService.staticCall(chainId, callTx)];
+    const promises = [rpcService.chainService.staticCall(chainId, callTx, true)];
     const { nonceValue } = splitOriginNonce(userOp.nonce);
 
     // check account exists to replace check nonce??
@@ -270,7 +276,17 @@ async function checkUserOpCanExecutedSucceed(rpcService: RpcService, chainId: nu
     }
 
     try {
-        await Promise.all(promises);
+        const [rhandleOps] = await Promise.all(promises);
+
+        if (!!rhandleOps?.error) {
+            let errorMessage = '';
+            if (!!rhandleOps.error?.data && isHexString(rhandleOps.error.data)) {
+                const errorDescription = contractEntryPoint.interface.parseError(rhandleOps.error.data);
+                errorMessage = `${errorDescription.name}: ${JSON.stringify(deepHexlify(errorDescription.args))}`;
+            }
+
+            throw new Error(errorMessage);
+        }
     } catch (error) {
         if (!IS_PRODUCTION) {
             console.error(error);
@@ -278,7 +294,7 @@ async function checkUserOpCanExecutedSucceed(rpcService: RpcService, chainId: nu
 
         throw new AppException(
             -32606,
-            `Simulate user operation failed: ${
+            `Check user operation failed: ${
                 error?.revert?.args.at(-1) ??
                 (error?.info?.error?.code === 10001 ? 'Node RPC Error' : null) ??
                 error?.shortMessage ??
