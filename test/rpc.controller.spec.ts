@@ -1,7 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { RpcController } from '../src/modules/rpc/rpc.controller';
 import { RpcService } from '../src/modules/rpc/services/rpc.service';
-import { Wallet, JsonRpcProvider, resolveProperties, toBeHex, Contract } from 'ethers';
+import { Wallet, JsonRpcProvider, resolveProperties, toBeHex, Contract, Interface, solidityPacked } from 'ethers';
 import {
     AA_METHODS,
     initializeBundlerConfig,
@@ -10,7 +10,6 @@ import {
     ENTRY_POINT_ADDRESS_V07,
 } from '../src/configs/bundler-common';
 import { deepHexlify } from '../src/modules/rpc/aa/utils';
-import { IContractAccount } from '../src/modules/rpc/aa/interface-contract-account';
 import { gaslessSponsor } from './lib/common';
 import { deserializeUserOpCalldata } from '../src/modules/rpc/aa/deserialize-user-op';
 import { SimpleSmartAccountV06 } from './lib/simple-smart-account-v06';
@@ -19,6 +18,9 @@ import { AppModule } from '../src/app.module';
 import * as request from 'supertest';
 import { INestApplication } from '@nestjs/common';
 import { SimpleSmartAccountV07 } from './lib/simple-smart-account-v07';
+import { CoinbaseSmartAccount } from './lib/coinbase-smart-account';
+import { IContractAccount } from './lib/interface-contract-account';
+import { DUMMY_SIGNATURE } from '../src/common/common-types';
 
 let rpcController: RpcController;
 let rpcService: RpcService;
@@ -88,6 +90,48 @@ describe('RpcController', () => {
             console.log('signedOp', deepHexlify(userOp));
 
             await sendUserOp(chainId, userOp, ENTRY_POINT_ADDRESS_V07);
+        }, 60000);
+
+        it('Gasless Coinbase Single V06', async () => {
+            const customChainId = process.argv.find((arg) => arg.includes('--chainId='));
+            const chainId = Number(customChainId ? customChainId.split('=')[1] : EVM_CHAIN_ID.ETHEREUM_SEPOLIA_TESTNET);
+            console.log('Test chainId', chainId);
+
+            const smartAccount = await createCoinbaseAccountV06(chainId);
+            console.log('smartAccount', await smartAccount.getAccountAddress());
+
+            let userOp = await createFakeUserOp(chainId, smartAccount);
+            console.log('unsignedUserOp', deepHexlify(userOp));
+
+            const SignatureWrapperStruct = '(uint256 ownerIndex, bytes signatureData)';
+            
+            const iface = new Interface([`function encode(${SignatureWrapperStruct} calldata) external`]);
+            let data = iface.encodeFunctionData('encode', [
+                {
+                    ownerIndex: 0,
+                    signatureData: DUMMY_SIGNATURE,
+                },
+            ]);
+
+            userOp.signature = `0x${data.slice(10)}`;
+            userOp = await estimateGasV06(chainId, userOp);
+            console.log('estimateGas', JSON.stringify(deepHexlify(userOp)));
+
+            userOp = await gaslessSponsor(chainId, userOp, ENTRY_POINT_ADDRESS_V06);
+            console.log('sponsoredOp', deepHexlify(userOp));
+
+            let signature = await getSignature(smartAccount, userOp);
+            data = iface.encodeFunctionData('encode', [
+                {
+                    ownerIndex: 0,
+                    signatureData: signature,
+                },
+            ]);
+            
+            userOp.signature = `0x${data.slice(10)}`;
+            console.log('signedOp', deepHexlify(userOp));
+
+            await sendUserOp(chainId, userOp);
         }, 60000);
 
         it('Gasless Basic Batch', async () => {
@@ -175,8 +219,16 @@ async function createSimpleAccountV07(chainId: number): Promise<IContractAccount
     return new SimpleSmartAccountV07(owner);
 }
 
-async function createFakeUserOp(chainId: number, simpleAccount: IContractAccount) {
-    const unsignedUserOp = await simpleAccount.createUnsignedUserOp([
+async function createCoinbaseAccountV06(chainId: number): Promise<IContractAccount> {
+    const rpcUrl = getBundlerChainConfig(chainId).rpcUrl;
+    const provider = new JsonRpcProvider(rpcUrl, null, { batchMaxCount: 1 });
+
+    const owner: Wallet = new Wallet(Wallet.createRandom().privateKey, provider);
+    return new CoinbaseSmartAccount(owner);
+}
+
+async function createFakeUserOp(chainId: number, smartAccount: IContractAccount) {
+    const unsignedUserOp = await smartAccount.createUnsignedUserOp([
         {
             to: Wallet.createRandom().address,
             value: toBeHex(0),

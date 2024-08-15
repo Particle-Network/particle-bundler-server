@@ -86,15 +86,15 @@ export async function beforeSendUserOperation(
         userOperationEntity = await rpcService.userOperationService.getUserOperationByAddressNonce(
             chainId,
             userOpSender,
-            nonceKey,
+            BigInt(nonceKey).toString(),
             Number(BigInt(nonceValue)),
         );
     } else {
-        const [rSimulation, extraFee, signerFeeData, userOpDoc, localUserOperationsCount] = await Promise.all([
+        const [rSimulation, extraFee, signerFeeData, userOpEntity, localUserOperationsCount] = await Promise.all([
             simulateHandleOpAndGetGasCost(rpcService, chainId, userOp, entryPoint),
             getL2ExtraFee(rpcService, chainId, userOp, entryPoint),
             rpcService.chainService.getFeeDataIfCache(chainId),
-            rpcService.userOperationService.getUserOperationByAddressNonce(chainId, userOpSender, nonceKey, Number(BigInt(nonceValue))),
+            rpcService.userOperationService.getUserOperationByAddressNonce(chainId, userOpSender, BigInt(nonceKey).toString(), Number(BigInt(nonceValue))),
             rpcService.userOperationService.getLocalUserOperationsCountByChainId(chainId),
             // do not care return value
             checkUserOpCanExecutedSucceed(rpcService, chainId, userOp, entryPoint),
@@ -111,7 +111,7 @@ export async function beforeSendUserOperation(
             : gasCostInContract;
 
         checkUserOpGasPriceIsSatisfied(chainId, userOp, gasCost, extraFee, signerFeeData);
-        userOperationEntity = userOpDoc;
+        userOperationEntity = userOpEntity;
     }
 
     return {

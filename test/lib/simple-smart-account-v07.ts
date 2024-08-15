@@ -23,14 +23,14 @@ export class SimpleSmartAccountV07 implements IContractAccount {
         this.simpleAccountFactoryContract = new Contract(FACTORY_ADDRESS, factoryAbi, owner);
     }
 
-    public async getAccountAddress(): Promise<string> {
+    public async getAccountAddress(index: number = 0): Promise<string> {
         if (this.accountAddress) {
             return this.accountAddress;
         }
 
         // TODO generate address in local (use eth_create2)
         const iface = new Interface(factoryAbi);
-        const callData = iface.encodeFunctionData('getAddress', [this.owner.address, 0]);
+        const callData = iface.encodeFunctionData('getAddress', [this.owner.address, index]);
         const result = await this.provider.call({ to: await this.simpleAccountFactoryContract.getAddress(), data: callData });
 
         this.accountAddress = getAddress(`0x${result.slice(-40)}`);

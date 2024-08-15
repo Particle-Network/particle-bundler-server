@@ -24,7 +24,11 @@ export async function getUserOperationReceipt(rpcService: RpcService, chainId: n
     }
 
     const transaction = await transactionService.getTransactionById(userOperationEntity.transactionId);
-    if (!transaction || transaction.status !== TRANSACTION_STATUS.DONE || !transaction.userOperationHashMapTxHash[userOperationEntity.userOpHash]) {
+    if (
+        !transaction ||
+        transaction.status !== TRANSACTION_STATUS.DONE ||
+        !transaction.userOperationHashMapTxHash[userOperationEntity.userOpHash]
+    ) {
         return null;
     }
 
@@ -40,9 +44,16 @@ export function formatReceipt(rpcService: RpcService, userOperation: UserOperati
     try {
         // failed transaction use local database value
         // failed transaction has no logs
-        // TODO should return simple info
         if (BigInt(receipt.status) === 0n) {
-            return null;
+            return {
+                success: false,
+                ...deepHexlify({
+                    userOpHash: userOperation.userOpHash,
+                    sender: userOperation.userOpSender,
+                    nonce: toBeHexTrimZero(userOperation.origin?.nonce),
+                    receipt,
+                }),
+            };
         }
 
         const entryPointVersion = rpcService.getVersionByEntryPoint(userOperation.entryPoint);
@@ -70,16 +81,18 @@ export function formatReceipt(rpcService: RpcService, userOperation: UserOperati
             }
         }
 
-        return deepHexlify({
-            userOpHash: userOperation.userOpHash,
-            sender: userOperation.userOpSender,
-            nonce: toBeHexTrimZero(userOperation.origin?.nonce),
-            actualGasCost: toBeHexTrimZero(userOperationEvent?.args[5] ?? 0),
-            actualGasUsed: toBeHexTrimZero(userOperationEvent?.args[6] ?? 0),
+        return {
             success: userOperationEvent?.args[4] ?? false,
-            logs,
-            receipt,
-        });
+            ...deepHexlify({
+                userOpHash: userOperation.userOpHash,
+                sender: userOperation.userOpSender,
+                nonce: toBeHexTrimZero(userOperation.origin?.nonce),
+                actualGasCost: toBeHexTrimZero(userOperationEvent?.args[5] ?? 0),
+                actualGasUsed: toBeHexTrimZero(userOperationEvent?.args[6] ?? 0),
+                logs,
+                receipt,
+            }),
+        };
     } catch (error) {
         if (!IS_PRODUCTION) {
             console.error('Failed to format receipt', error);

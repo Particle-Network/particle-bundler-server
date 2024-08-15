@@ -1,6 +1,5 @@
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
-import { IS_DEVELOPMENT } from '../common/common-types';
 
 export default class TypeOrmDefaultConfig {
     public static getConfig(configService: ConfigService): TypeOrmModuleOptions {
@@ -13,7 +12,7 @@ export default class TypeOrmDefaultConfig {
             database: configService.get('DB_DATABASE'),
             autoLoadEntities: true,
             synchronize: false,
-            logging: IS_DEVELOPMENT,
+            logging: false,
         };
     }
 }
