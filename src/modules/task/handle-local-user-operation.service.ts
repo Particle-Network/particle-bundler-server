@@ -75,7 +75,9 @@ export class HandleLocalUserOperationService {
                     );
                 }
 
+                const signerAddress = signerWithPendingTxCount.signer.address;
                 this.lockChainSigner.delete(keyLockSigner(chainId, signerWithPendingTxCount.signer.address));
+                Logger.debug(`[Pick Chain Signer] On Chain ${chainId} ${signerAddress} Unlocked`);
             }),
         );
 
@@ -102,13 +104,17 @@ export class HandleLocalUserOperationService {
         );
 
         signerWithPendingTxCount.sort((a, b) => b.availableTxCount - a.availableTxCount);
-        let takeOnce = IS_DEVELOPMENT ? randomValidSigners.length : Math.ceil(randomValidSigners.length / 5);
+        let takeOnce = IS_DEVELOPMENT ? randomValidSigners.length : Math.min(Math.ceil(randomValidSigners.length / 5), bundlerConfig.maxUserOpPackCount);
 
         for (let index = 0; index < signerWithPendingTxCount.length; index++) {
             const signer = signerWithPendingTxCount[index].signer;
             if (!this.lockChainSigner.has(keyLockSigner(chainId, signer.address))) {
                 if (signerWithPendingTxCount[index].availableTxCount > 0) {
                     this.lockChainSigner.add(keyLockSigner(chainId, signer.address));
+
+                    const availableTxCount = signerWithPendingTxCount[index].availableTxCount;
+                    Logger.debug(`[Pick Chain Signer] On Chain ${chainId} ${signer.address} Locked | AvailableTxCount: ${availableTxCount}`);
+
                     targetSignerWithPendingTxCount.push(signerWithPendingTxCount[index]);
                     takeOnce--;
                 }
