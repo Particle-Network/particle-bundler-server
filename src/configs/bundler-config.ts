@@ -18,6 +18,7 @@ export function exportBundlerConfig(): BundlerConfig {
             canIncrGasPriceRetry: true,
             canIncrGasPriceRetryMaxCount: 5,
             userOperationLocalPoolMaxCount: 500,
+            maxPickSignerOnceCount: 2,
             mevCheck: false,
         },
     };

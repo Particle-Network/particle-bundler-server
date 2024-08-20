@@ -9,7 +9,7 @@ import { deployBTCAccountFactory as deployBTCAccountFactoryV1 } from './deploy-b
 // import { deployBTCAccountFactory as deployBTCAccountFactoryV1_1 } from './deploy-btc-account-v1.1-factory';
 import { deployBTCAccountFactory as deployBTCAccountFactoryV2 } from './deploy-btc-account-v2-factory';
 import { deployBTCAccountFactory as deployBTCAccountFactoryV2_1 } from './deploy-btc-account-v2.1-factory';
-import { deployPassKeyModule } from './deploy-passkey-module';
+import { deployPasskeyModule } from './deploy-passkey-module';
 
 const args = process.argv.slice(2);
 const privateKey = args[0];
@@ -47,7 +47,7 @@ const deployPasskey = args[4] ? args[4] === 'true' : false;
     }
 
     if (deployPasskey) {
-        await deployPassKeyModule(chainId, signer);
+        await deployPasskeyModule(chainId, signer);
         console.log('Deployed Passkey Module');
     }
 })();

@@ -6,10 +6,14 @@ import { TypedTransaction } from '@ethereumjs/tx';
 import { getAddress } from 'ethers';
 import { getDocumentId, tryParseSignedTx } from '../aa/utils';
 import { random } from 'lodash';
+import { LRUCache } from 'lru-cache';
 
 @Injectable()
 export class TransactionService {
-    public readonly globalTransactionCache: Map<string, Transaction> = new Map();
+    public readonly globalTransactionCache: LRUCache<string, Transaction> = new LRUCache({
+        max: 100000,
+        ttl: 600000, // 10 mins
+    });
 
     public constructor(@InjectModel(Transaction.name) private readonly transactionModel: Model<TransactionDocument>) {}
 
