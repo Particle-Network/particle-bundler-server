@@ -6,7 +6,6 @@ import { TransactionService } from './modules/rpc/services/transaction.service';
 import { UserOperationService } from './modules/rpc/services/user-operation.service';
 import * as pm2 from 'pm2';
 import { SERVER_NAME } from './common/common-types';
-import { getDocumentId } from './modules/rpc/aa/utils';
 
 const nodeIds = [];
 
@@ -50,8 +49,8 @@ async function bootstrap() {
                 console.log(`Deleted userOperation: ${userOperationHash}, deleted`, deleted);
             }
 
-            console.log('delete pendingTransaction: ', getDocumentId(pendingTransaction));
-            await transactionService.deleteTransaction(pendingTransaction._id);
+            console.log('delete pendingTransaction: ', pendingTransaction.id);
+            await transactionService.deleteTransactionAndResetUserOperations(pendingTransaction.id);
         }
     } else if (command === 'delete-transaction') {
         const transactionId = process.argv[3];
@@ -62,15 +61,15 @@ async function bootstrap() {
         }
 
         const transactionService = app.get(TransactionService);
-        const transaction = await transactionService.getTransactionById(transactionId);
+        const transaction = await transactionService.getTransactionById(Number(transactionId));
         const userOperationService = app.get(UserOperationService);
         for (const userOperationHash of transaction.userOperationHashes) {
             const deleted = await userOperationService.deleteUserOperationByUserOpHash(userOperationHash);
             console.log(`Deleted userOperation: ${userOperationHash}, deleted`, deleted);
         }
 
-        console.log('delete pendingTransaction: ', getDocumentId(transaction));
-        await transactionService.deleteTransaction(transaction._id);
+        console.log('delete pendingTransaction: ', transaction.id);
+        await transactionService.deleteTransactionAndResetUserOperations(transaction.id);
     } else if (command === 'disable-logger') {
         for (const nodeId of nodeIds) {
             pm2.sendDataToProcessId(

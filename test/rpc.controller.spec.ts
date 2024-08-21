@@ -1,17 +1,26 @@
 import { Test } from '@nestjs/testing';
 import { RpcController } from '../src/modules/rpc/rpc.controller';
 import { RpcService } from '../src/modules/rpc/services/rpc.service';
-import { Wallet, JsonRpcProvider, resolveProperties, toBeHex } from 'ethers';
-import { AA_METHODS, initializeBundlerConfig, getBundlerChainConfig } from '../src/configs/bundler-common';
+import { Wallet, JsonRpcProvider, resolveProperties, toBeHex, Contract, Interface, solidityPacked } from 'ethers';
+import {
+    AA_METHODS,
+    initializeBundlerConfig,
+    getBundlerChainConfig,
+    ENTRY_POINT_ADDRESS_V06,
+    ENTRY_POINT_ADDRESS_V07,
+} from '../src/configs/bundler-common';
 import { deepHexlify } from '../src/modules/rpc/aa/utils';
-import { IContractAccount } from '../src/modules/rpc/aa/interface-contract-account';
-import { ENTRY_POINT, gaslessSponsor } from './lib/common';
+import { gaslessSponsor } from './lib/common';
 import { deserializeUserOpCalldata } from '../src/modules/rpc/aa/deserialize-user-op';
-import { SimpleSmartAccount } from './lib/simple-smart-account';
+import { SimpleSmartAccountV06 } from './lib/simple-smart-account-v06';
 import { EVM_CHAIN_ID } from '../src/common/chains';
 import { AppModule } from '../src/app.module';
 import * as request from 'supertest';
 import { INestApplication } from '@nestjs/common';
+import { SimpleSmartAccountV07 } from './lib/simple-smart-account-v07';
+import { CoinbaseSmartAccount } from './lib/coinbase-smart-account';
+import { IContractAccount } from './lib/interface-contract-account';
+import { DUMMY_SIGNATURE } from '../src/common/common-types';
 
 let rpcController: RpcController;
 let rpcService: RpcService;
@@ -35,23 +44,91 @@ describe('RpcController', () => {
     }, 60000);
 
     describe('basic', () => {
-        it('Gasless Basic Single', async () => {
+        it('Gasless Basic Single V06', async () => {
             const customChainId = process.argv.find((arg) => arg.includes('--chainId='));
             const chainId = Number(customChainId ? customChainId.split('=')[1] : EVM_CHAIN_ID.ETHEREUM_SEPOLIA_TESTNET);
             console.log('Test chainId', chainId);
 
-            const simpleAccount = await createSimpleAccount(chainId);
+            const simpleAccount = await createSimpleAccountV06(chainId);
             let userOp = await createFakeUserOp(chainId, simpleAccount);
 
             console.log('unsignedUserOp', deepHexlify(userOp));
 
-            userOp = await estimateGas(chainId, userOp);
+            userOp = await estimateGasV06(chainId, userOp);
             console.log('estimateGas', JSON.stringify(deepHexlify(userOp)));
 
-            userOp = await gaslessSponsor(chainId, userOp, rpcController);
+            userOp = await gaslessSponsor(chainId, userOp, ENTRY_POINT_ADDRESS_V06);
             console.log('sponsoredOp', deepHexlify(userOp));
 
             userOp.signature = await getSignature(simpleAccount, userOp);
+            console.log('signedOp', deepHexlify(userOp));
+
+            await sendUserOp(chainId, userOp);
+        }, 60000);
+
+        it('Gasless Basic Single V07', async () => {
+            const customChainId = process.argv.find((arg) => arg.includes('--chainId='));
+            const chainId = Number(customChainId ? customChainId.split('=')[1] : EVM_CHAIN_ID.ETHEREUM_SEPOLIA_TESTNET);
+            console.log('Test chainId', chainId);
+
+            const simpleAccount = await createSimpleAccountV07(chainId);
+            let userOp = await createFakeUserOp(chainId, simpleAccount);
+
+            // dummy paymasterAndData
+            userOp.paymasterAndData =
+                '0xbdb4d240062bc461797ee9a4d9193a466443e187000000000000000000000000000186a0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000066b06c280000000000000000000000000000000000000000000000000000000000000000945b9dc51c8176e756f17e94c819531db508a53f856cb767698611ace21f86242b8c26967e76526d28301d5d3f16651977d3728b16d4e28c9e6505c92581a7071c';
+
+            console.log('unsignedUserOp', deepHexlify(userOp));
+
+            userOp = await estimateGasV07(chainId, userOp, ENTRY_POINT_ADDRESS_V07);
+            console.log('estimateGas', JSON.stringify(deepHexlify(userOp)));
+
+            userOp = await gaslessSponsor(chainId, userOp, ENTRY_POINT_ADDRESS_V07);
+            console.log('sponsoredOp', deepHexlify(userOp));
+
+            userOp.signature = await getSignature(simpleAccount, userOp);
+            console.log('signedOp', deepHexlify(userOp));
+
+            await sendUserOp(chainId, userOp, ENTRY_POINT_ADDRESS_V07);
+        }, 60000);
+
+        it('Gasless Coinbase Single V06', async () => {
+            const customChainId = process.argv.find((arg) => arg.includes('--chainId='));
+            const chainId = Number(customChainId ? customChainId.split('=')[1] : EVM_CHAIN_ID.ETHEREUM_SEPOLIA_TESTNET);
+            console.log('Test chainId', chainId);
+
+            const smartAccount = await createCoinbaseAccountV06(chainId);
+            console.log('smartAccount', await smartAccount.getAccountAddress());
+
+            let userOp = await createFakeUserOp(chainId, smartAccount);
+            console.log('unsignedUserOp', deepHexlify(userOp));
+
+            const SignatureWrapperStruct = '(uint256 ownerIndex, bytes signatureData)';
+            
+            const iface = new Interface([`function encode(${SignatureWrapperStruct} calldata) external`]);
+            let data = iface.encodeFunctionData('encode', [
+                {
+                    ownerIndex: 0,
+                    signatureData: DUMMY_SIGNATURE,
+                },
+            ]);
+
+            userOp.signature = `0x${data.slice(10)}`;
+            userOp = await estimateGasV06(chainId, userOp);
+            console.log('estimateGas', JSON.stringify(deepHexlify(userOp)));
+
+            userOp = await gaslessSponsor(chainId, userOp, ENTRY_POINT_ADDRESS_V06);
+            console.log('sponsoredOp', deepHexlify(userOp));
+
+            let signature = await getSignature(smartAccount, userOp);
+            data = iface.encodeFunctionData('encode', [
+                {
+                    ownerIndex: 0,
+                    signatureData: signature,
+                },
+            ]);
+            
+            userOp.signature = `0x${data.slice(10)}`;
             console.log('signedOp', deepHexlify(userOp));
 
             await sendUserOp(chainId, userOp);
@@ -62,9 +139,9 @@ describe('RpcController', () => {
             const chainId = Number(customChainId ? customChainId.split('=')[1] : EVM_CHAIN_ID.ETHEREUM_SEPOLIA_TESTNET);
             console.log('Test chainId', chainId);
 
-            const simpleAccount1 = await createSimpleAccount(chainId);
+            const simpleAccount1 = await createSimpleAccountV06(chainId);
             let userOp1 = await createFakeUserOp(chainId, simpleAccount1);
-            const simpleAccount2 = await createSimpleAccount(chainId);
+            const simpleAccount2 = await createSimpleAccountV06(chainId);
             let userOp2 = await createFakeUserOp(chainId, simpleAccount2);
 
             const userOps = [];
@@ -74,10 +151,10 @@ describe('RpcController', () => {
             ]) {
                 let userOp = item.userOp;
                 console.log('unsignedUserOp', deepHexlify(userOp));
-                userOp = await estimateGas(chainId, userOp);
+                userOp = await estimateGasV06(chainId, userOp);
                 console.log('estimateGas', JSON.stringify(deepHexlify(userOp)));
 
-                userOp = await gaslessSponsor(chainId, userOp, rpcController);
+                userOp = await gaslessSponsor(chainId, userOp, ENTRY_POINT_ADDRESS_V06);
                 console.log('sponsoredOp', deepHexlify(userOp));
 
                 userOp.signature = await getSignature(item.simpleAccount, userOp);
@@ -94,34 +171,27 @@ describe('RpcController', () => {
             const chainId = Number(customChainId ? customChainId.split('=')[1] : EVM_CHAIN_ID.ETHEREUM_SEPOLIA_TESTNET);
             console.log('Test chainId', chainId);
 
-            // const body = {
-            //     method: 'eth_sendUserOperation',
-            //     params: [
-            //         {
-            //             sender: '0xE3E1A5eEc1c8d89C01e65a1da14403B1FEA71165',
-            //             nonce: '0x00',
-            //             initCode:
-            //                 '0xaee9762ce625e0a8f7b184670fb57c37bfe1d0f1296601cd000000000000000000000000417f5a41305ddc99d18b5e176521b468b2a31b8600000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001448a552bd915d6371fc9a585875212cc5cc80e724000000000000000000000000',
-            //             callData:
-            //                 '0x51945447000000000000000000000000e4a1e73f367761224d10f801f7f0940dd97dcb090000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-            //             callGasLimit: '0x0b5658',
-            //             paymasterAndData:
-            //                 '0x4a0febaa503b3395c9bcf70230a957c3d8e80266000000000000000000000000000000000000000000000000000000006554b38300000000000000000000000000000000000000000000000000000000000000003a5a95fc82182463319d753220d6bfc492d6ca7d453134b5199018434f1f12eb0fcfc13edf34597d3dc4f2fe1ccc019221755ddc1e3cd7709fb7a443abc394911b',
-            //             signature:
-            //                 '0x7ef326ee2b5365499c45aa83d37481d352285f4394c7a4411c7783f846c4886129cac9a4e8e2491fc21a36c964a79b2353a75765116cb22fe5a22fe563bc1ba91c',
-            //             verificationGasLimit: '0x1c588d',
-            //             maxFeePerGas: '0x08583b00',
-            //             maxPriorityFeePerGas: '0x4c4b40',
-            //             preVerificationGas: '0x34da84',
-            //         },
-            //         '0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789',
-            //     ],
-            //     id: 53,
-            //     jsonrpc: '2.0',
-            // };
+            const body = {
+                method: 'eth_estimateUserOperationGas',
+                params: [
+                    {
+                        sender: '0xD15C6F010A6290F07B76d6EBF597131D718e31aC',
+                        nonce: '0xba45a2bfb8de3d24ca9d7f1b551e14dff5d690fd00000000000000000000',
+                        initCode:
+                            '0xf320ebd311c2650f574f98f3318a1cd204d873eeea6d13ac0000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001643c3b752b01ba45a2bfb8de3d24ca9d7f1b551e14dff5d690fd0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000012000000000000000000000000000000000000000000000000000000000000001400000000000000000000000000000000000000000000000000000000000000060ca20a775121ae8236c0a4cd3637af7c5fb073f3ac97535d4db4d00711863fcb20e37680ddba1c1bb281fe2663419ea7f3182bb36c12d9fb433897b63b522bdd1405c8b2b96fe7379aa174f8f045f46a7befe89bbc033d9a52e8e9d93aeb9942a0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+                        callData: '0x',
+                        signature:
+                            '0x00000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000000012000000000000000000000000000000000000000000000000000000000000000013bf49e4ae982ae78f678ef764aa2de1a0b0e39aa9e55ab3ac60d73ef3d855d37259c20f47b8ddcb8967bdd2dc12a18e5013458c80993c44d46b6824920085d050000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002549960de5880e8c687434170f6476605b8fe4aeb9a28632c7995cf3ba831d97631d0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000867b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a22505262336e6452335a3655455464582d4f79346e5775496e4265674e32585f6365336d5939513366366830222c226f726967696e223a22687474703a2f2f6c6f63616c686f73743a38303831222c2263726f73734f726967696e223a66616c73657d0000000000000000000000000000000000000000000000000000',
+                        paymasterAndData: '0x',
+                    },
+                    '0x0000000071727De22E5E9d8BAf0edAc6f37da032',
+                ],
+                id: 53,
+                jsonrpc: '2.0',
+            };
 
-            // const r = await rpcController.handleRpc(chainId, body);
-            // console.log('r', r);
+            const r = await rpcController.handleRpc(111557560, body);
+            console.log('r', r);
         }, 60000);
 
         it('Decode callData', async () => {
@@ -133,16 +203,32 @@ describe('RpcController', () => {
     });
 });
 
-async function createSimpleAccount(chainId: number): Promise<IContractAccount> {
+async function createSimpleAccountV06(chainId: number): Promise<IContractAccount> {
     const rpcUrl = getBundlerChainConfig(chainId).rpcUrl;
     const provider = new JsonRpcProvider(rpcUrl, null, { batchMaxCount: 1 });
 
     const owner: Wallet = new Wallet(Wallet.createRandom().privateKey, provider);
-    return new SimpleSmartAccount(owner);
+    return new SimpleSmartAccountV06(owner);
 }
 
-async function createFakeUserOp(chainId: number, simpleAccount: IContractAccount) {
-    const unsignedUserOp = await simpleAccount.createUnsignedUserOp([
+async function createSimpleAccountV07(chainId: number): Promise<IContractAccount> {
+    const rpcUrl = getBundlerChainConfig(chainId).rpcUrl;
+    const provider = new JsonRpcProvider(rpcUrl, null, { batchMaxCount: 1 });
+
+    const owner: Wallet = new Wallet(Wallet.createRandom().privateKey, provider);
+    return new SimpleSmartAccountV07(owner);
+}
+
+async function createCoinbaseAccountV06(chainId: number): Promise<IContractAccount> {
+    const rpcUrl = getBundlerChainConfig(chainId).rpcUrl;
+    const provider = new JsonRpcProvider(rpcUrl, null, { batchMaxCount: 1 });
+
+    const owner: Wallet = new Wallet(Wallet.createRandom().privateKey, provider);
+    return new CoinbaseSmartAccount(owner);
+}
+
+async function createFakeUserOp(chainId: number, smartAccount: IContractAccount) {
+    const unsignedUserOp = await smartAccount.createUnsignedUserOp([
         {
             to: Wallet.createRandom().address,
             value: toBeHex(0),
@@ -162,14 +248,10 @@ async function getSignature(accountApi: IContractAccount, userOp: any) {
     return signature;
 }
 
-async function estimateGas(chainId: number, userOp: any) {
-    delete userOp.callGasLimit;
-    delete userOp.verificationGasLimit;
-    delete userOp.preVerificationGas;
-
+async function estimateGasV06(chainId: number, userOp: any, entryPoint: string = ENTRY_POINT_ADDRESS_V06) {
     const bodyEstimate = {
         method: AA_METHODS.ESTIMATE_USER_OPERATION_GAS,
-        params: [userOp, ENTRY_POINT],
+        params: [userOp, entryPoint],
     };
 
     const rEstimate = await rpcController.handleRpc(chainId, bodyEstimate);
@@ -184,10 +266,26 @@ async function estimateGas(chainId: number, userOp: any) {
     return deepHexlify(userOp);
 }
 
-async function sendUserOp(chainId: number, userOp: any) {
+async function estimateGasV07(chainId: number, userOp: any, entryPoint: string = ENTRY_POINT_ADDRESS_V06) {
+    const bodyEstimate = {
+        method: AA_METHODS.ESTIMATE_USER_OPERATION_GAS,
+        params: [userOp, entryPoint],
+    };
+
+    const rEstimate = await rpcController.handleRpc(chainId, bodyEstimate);
+    console.log('rEstimate', rEstimate);
+
+    userOp.accountGasLimits = rEstimate.result.accountGasLimits;
+    userOp.gasFees = rEstimate.result.gasFees;
+    userOp.preVerificationGas = rEstimate.result.preVerificationGas;
+
+    return deepHexlify(userOp);
+}
+
+async function sendUserOp(chainId: number, userOp: any, entryPoint: string = ENTRY_POINT_ADDRESS_V06) {
     const bodySend = {
         method: AA_METHODS.SEND_USER_OPERATION,
-        params: [userOp, ENTRY_POINT],
+        params: [userOp, entryPoint],
     };
 
     let r3: any = await request(app.getHttpServer()).post('').query({ chainId }).auth('test_user', 'test_pass').send(bodySend);
@@ -224,7 +322,7 @@ async function sendUserOp(chainId: number, userOp: any) {
 async function sendUserOpBatch(chainId: number, userOps: any[]) {
     const bodySend = {
         method: AA_METHODS.SEND_USER_OPERATION_BATCH,
-        params: [userOps, ENTRY_POINT],
+        params: [userOps, ENTRY_POINT_ADDRESS_V06],
     };
 
     let r3: any = await request(app.getHttpServer()).post('').query({ chainId }).auth('test_user', 'test_pass').send(bodySend);

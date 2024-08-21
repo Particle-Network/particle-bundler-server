@@ -1,5 +1,5 @@
 import { Wallet } from 'ethers';
-import { UserOperationDocument } from '../modules/rpc/schemas/user-operation.schema';
+import { UserOperationEntity } from '../modules/rpc/entities/user-operation.entity';
 
 export const IS_DEVELOPMENT = process.env.ENVIRONMENT === 'dev' || !process.env.ENVIRONMENT;
 export const IS_DEBUG = process.env.ENVIRONMENT === 'debug';
@@ -92,11 +92,11 @@ export function keyCacheChainUserOpHashTxHash(userOpHash: string): string {
     return `chain_userophash_txHash:${userOpHash}`;
 }
 
-export function keyLockPendingTransaction(id: string) {
+export function keyLockPendingTransaction(id: any) {
     return `bundler:lock:pending_transaction:${id}`;
 }
 
-export function keyLockSendingTransaction(id: string) {
+export function keyLockSendingTransaction(id: number) {
     return `bundler:lock:sending_transaction:${id}`;
 }
 
@@ -134,6 +134,6 @@ export interface IPackedBundle {
 
 export interface IBundle {
     entryPoint: string;
-    userOperations: UserOperationDocument[];
+    userOperations: UserOperationEntity[];
     gasLimit: string;
 }

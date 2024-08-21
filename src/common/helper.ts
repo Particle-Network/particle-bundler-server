@@ -1,36 +1,10 @@
 import { AppException } from './app-exception';
-import { Connection } from 'mongoose';
 
 export class Helper {
     public static assertTrue(condition: any, failedExceptionCode: number, overrideMessage: any = '') {
         if (condition !== true) {
             throw new AppException(failedExceptionCode, overrideMessage);
         }
-    }
-
-    public static async startMongoTransaction(connection: Connection, callback: (session: any) => Promise<void>) {
-        if (process.env.USE_MONOGODB_TRANSACTION !== '1') {
-            await callback(null);
-            return;
-        }
-
-        const session = await connection.startSession();
-
-        try {
-            session.startTransaction();
-
-            await callback(session);
-
-            await session.commitTransaction();
-        } catch (error) {
-            await session.abortTransaction();
-
-            await session.endSession();
-
-            throw error;
-        }
-
-        await session.endSession();
     }
 
     public static converErrorToString(error: any): string {

@@ -7,21 +7,21 @@ export async function getUserOperationByHash(rpcService: RpcService, chainId: nu
     Helper.assertTrue(body.params.length === 1, -32602);
     Helper.assertTrue(typeof body.params[0] === 'string', -32602);
 
-    const userOperation = await rpcService.userOperationService.getUserOperationByHash(body.params[0]);
-    if (!userOperation || !userOperation.transactionId) {
+    const userOperationEntity = await rpcService.userOperationService.getUserOperationByHash(body.params[0]);
+    if (!userOperationEntity || !userOperationEntity.transactionId) {
         return null;
     }
 
-    const transaction = await rpcService.transactionService.getTransactionById(userOperation.transactionId);
+    const transaction = await rpcService.transactionService.getTransactionById(userOperationEntity.transactionId);
     if (!transaction) {
         return null;
     }
 
     return deepHexlify({
-        userOperation: userOperation.origin,
-        entryPoint: userOperation.entryPoint,
+        userOperation: userOperationEntity.origin,
+        entryPoint: userOperationEntity.entryPoint,
         transactionHash: transaction.txHashes[transaction.txHashes.length - 1],
-        blockHash: userOperation.blockHash ?? null,
-        blockNumber: userOperation.blockNumber ?? null,
+        blockHash: userOperationEntity.blockHash ?? null,
+        blockNumber: userOperationEntity.blockNumber ?? null,
     });
 }

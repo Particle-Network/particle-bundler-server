@@ -5,7 +5,7 @@ import { ENTRY_POINT_VERSION_MAP, PARTICLE_PAYMASTER_URL, getBundlerChainConfig 
 import { JsonRPCRequestDto, JsonRPCResponse } from './../dtos/json-rpc-request.dto';
 import { AppException } from '../../../common/app-exception';
 import * as AA from './../aa';
-import { getAddress, isAddress } from 'ethers';
+import { Contract, getAddress, isAddress } from 'ethers';
 import { AA_METHODS } from '../../../configs/bundler-common';
 import { Helper } from '../../../common/helper';
 import { LarkService } from '../../common/services/lark.service';
@@ -16,6 +16,7 @@ import { TransactionService } from './transaction.service';
 
 @Injectable()
 export class RpcService {
+    private readonly cachedContract: Map<string, Contract> = new Map();
     private readonly cachedValidPaymasters: Map<number, string> = new Map();
 
     public constructor(
@@ -90,7 +91,7 @@ export class RpcService {
         return JsonRPCResponse.createSuccessResponse(body, result);
     }
 
-    private getVersionByEntryPoint(entryPoint: string) {
+    public getVersionByEntryPoint(entryPoint: string) {
         entryPoint = getAddress(entryPoint);
 
         const supportedVersions = Object.keys(ENTRY_POINT_VERSION_MAP);
@@ -103,5 +104,13 @@ export class RpcService {
         }
 
         throw new AppException(-32603);
+    }
+
+    public getSetCachedContract(address: string, abi: any): Contract {
+        if (!this.cachedContract.has(address)) {
+            this.cachedContract.set(address, new Contract(address, abi));
+        }
+
+        return this.cachedContract.get(address);
     }
 }
