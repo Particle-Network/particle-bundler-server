@@ -7,6 +7,7 @@ export let PARTICLE_PAYMASTER_URL: string;
 export let PARTICLE_PUBLIC_RPC_URL: string;
 export let FORBIDDEN_PAYMASTER: string[] = [];
 export let PAYMASTER_CHECK: string[] = [];
+export let PROCESS_HANDLE_CHAINS: number[][] = [];
 export let onEmitUserOpEvent = (userOperationHash: string, event: any) => {};
 export let onCreateUserOpTxHash = (userOperationHash: string, txHash: string) => {};
 
@@ -22,6 +23,7 @@ export async function initializeBundlerConfig() {
     BUNDLER_CONFIG_MAP = bc.exportBundlerConfig();
     PARTICLE_PAYMASTER_URL = bc.PARTICLE_PAYMASTER_URL;
     PARTICLE_PUBLIC_RPC_URL = bc.PARTICLE_PUBLIC_RPC_URL;
+    PROCESS_HANDLE_CHAINS = bc.PROCESS_HANDLE_CHAINS;
 
     if (bc.FORBIDDEN_PAYMASTER) {
         FORBIDDEN_PAYMASTER = bc.FORBIDDEN_PAYMASTER;

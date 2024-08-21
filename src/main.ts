@@ -19,7 +19,7 @@ Axios.defaults.httpAgent = new http.Agent({ keepAlive: true });
 async function bootstrap() {
     await initializeBundlerConfig();
 
-    if (canRunCron() && !IS_DEVELOPMENT) {
+    if (canRunCron() && IS_PRODUCTION) {
         const app = await NestFactory.createApplicationContext(AppModule, {
             logger: !IS_PRODUCTION ? ['error', 'warn', 'log', 'debug', 'verbose'] : [],
         });

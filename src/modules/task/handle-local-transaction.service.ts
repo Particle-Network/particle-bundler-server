@@ -7,7 +7,7 @@ import { TransactionService } from '../rpc/services/transaction.service';
 import { UserOperationService } from '../rpc/services/user-operation.service';
 import { HandlePendingTransactionService } from './handle-pending-transaction.service';
 import { Cron } from '@nestjs/schedule';
-import { canRunCron, createTxGasData, createUniqId, deepHexlify, splitOriginNonce, tryParseSignedTx } from '../rpc/aa/utils';
+import { canRunCron, createTxGasData, createUniqId, deepHexlify, getSupportChainIdCurrentProcess, splitOriginNonce, tryParseSignedTx } from '../rpc/aa/utils';
 import { SignerService } from '../rpc/services/signer.service';
 import { ChainService } from '../rpc/services/chain.service';
 import { TypedTransaction } from '@ethereumjs/tx';
@@ -44,7 +44,7 @@ export class HandleLocalTransactionService {
         }
 
         try {
-            const localTransactions = await this.transactionService.getTransactionsByStatus(TRANSACTION_STATUS.LOCAL, 500);
+            const localTransactions = await this.transactionService.getTransactionsByStatus(getSupportChainIdCurrentProcess(), TRANSACTION_STATUS.LOCAL, 500);
             for (const localTransaction of localTransactions) {
                 this.handleLocalTransaction(localTransaction);
             }

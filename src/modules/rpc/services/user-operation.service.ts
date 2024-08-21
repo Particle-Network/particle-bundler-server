@@ -7,7 +7,7 @@ import { USER_OPERATION_STATUS, UserOperationEntity } from '../entities/user-ope
 import { In, Repository } from 'typeorm';
 import { TRANSACTION_STATUS, TransactionEntity } from '../entities/transaction.entity';
 import { UserOperationEventEntity } from '../entities/user-operation-event.entity';
-import { IS_DEVELOPMENT, IS_PRODUCTION } from '../../../common/common-types';
+import { IS_PRODUCTION } from '../../../common/common-types';
 
 @Injectable()
 export class UserOperationService {
@@ -163,9 +163,9 @@ export class UserOperationService {
     }
 
     // Warning: can cause user nonce is not continuous
-    public async getLocalUserOperations(limit: number = 1000): Promise<UserOperationEntity[]> {
+    public async getLocalUserOperations(chainIds: number[], limit: number = 1000): Promise<UserOperationEntity[]> {
         return await this.userOperationRepository.find({
-            where: { status: USER_OPERATION_STATUS.LOCAL },
+            where: { chainId: In(chainIds), status: USER_OPERATION_STATUS.LOCAL },
             take: limit,
         });
     }

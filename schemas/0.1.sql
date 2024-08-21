@@ -47,8 +47,8 @@ CREATE TABLE `transactions` (
     PRIMARY KEY (`id`),
     UNIQUE INDEX `uniq_chain_id_from_nonce` (`chain_id`, `from`, `nonce`),
     INDEX `idx_chain_id_status_from` (`chain_id`, `status`, `from`),
-    INDEX `idx_status_latest_sent_at_confirmations` (`status`, `latest_sent_at`, `confirmations`),
-    INDEX `idx_status_latest_sent_at_id` (`status`, `latest_sent_at`, `id`)
+    INDEX `idx_chain_id_status_latest_sent_at_confirmations` (`chain_id`, `status`, `latest_sent_at`, `confirmations`),
+    INDEX `idx_chain_id_status_latest_sent_at_id` (`chain_id`, `status`, `latest_sent_at`, `id`)
 ) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4;
 
 CREATE TABLE `user_operation_events` (

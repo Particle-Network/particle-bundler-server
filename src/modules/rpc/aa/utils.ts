@@ -8,6 +8,7 @@ import * as Os from 'os';
 import { RpcService } from '../services/rpc.service';
 import { entryPointAbis } from './abis/entry-point-abis';
 import l1GasPriceOracleAbi from './abis/l1-gas-price-oracle-abi';
+import { PROCESS_HANDLE_CHAINS } from '../../../configs/bundler-common';
 
 // TODO need to test
 export function calcUserOpTotalGasLimit(userOp: any, chainId: number): bigint {
@@ -260,10 +261,11 @@ export function canRunCron() {
     }
 
     if (IS_DEBUG) {
-        return process.env.NODE_APP_INSTANCE === '0';
+        return true;
     }
 
-    return process.env.NODE_APP_INSTANCE === '0' && Os.hostname() === PRODUCTION_HOSTNAME;
+    // IS_PRODUCTION
+    return Os.hostname() === PRODUCTION_HOSTNAME;
 }
 
 export function packAccountGasLimits(validationGasLimit: string | bigint | number, callGasLimit: string | bigint | number): string {
@@ -348,4 +350,12 @@ export function calcPreVerificationGasV07(userOp: any): number {
 
 export function createUniqId(): number {
     return Date.now() * 1000 + random(0, 9999);
+}
+
+export function getSupportChainIdCurrentProcess(): number[] {
+    if (IS_DEVELOPMENT) {
+        return PROCESS_HANDLE_CHAINS[0];
+    }
+
+    return PROCESS_HANDLE_CHAINS[Number(process.env.NODE_APP_INSTANCE)];
 }

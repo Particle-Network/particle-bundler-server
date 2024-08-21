@@ -11,7 +11,7 @@ import { TransactionService } from '../rpc/services/transaction.service';
 import { UserOperationService } from '../rpc/services/user-operation.service';
 import { getBundlerChainConfig, onEmitUserOpEvent } from '../../configs/bundler-common';
 import { Wallet, toBeHex } from 'ethers';
-import { canRunCron, createTxGasData, deepHexlify, tryParseSignedTx } from '../rpc/aa/utils';
+import { canRunCron, createTxGasData, deepHexlify, getSupportChainIdCurrentProcess, tryParseSignedTx } from '../rpc/aa/utils';
 import { Cron } from '@nestjs/schedule';
 import { FeeMarketEIP1559Transaction, LegacyTransaction } from '@ethereumjs/tx';
 import { SignerService } from '../rpc/services/signer.service';
@@ -42,10 +42,15 @@ export class HandlePendingTransactionService {
             return;
         }
 
-        let pendingTransactions = await this.transactionService.getRecentTransactionsByStatusSortConfirmations(TRANSACTION_STATUS.PENDING, 500);
+        let pendingTransactions = await this.transactionService.getRecentTransactionsByStatusSortConfirmations(
+            getSupportChainIdCurrentProcess(),
+            TRANSACTION_STATUS.PENDING,
+            500,
+        );
 
         if (new Date().getSeconds() % 5 === 0) {
             const longPendingTransactions = await this.transactionService.getLongAgoTransactionsByStatusSortConfirmations(
+                getSupportChainIdCurrentProcess(),
                 TRANSACTION_STATUS.PENDING,
                 500,
             );

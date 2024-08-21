@@ -8,6 +8,7 @@ import { $enum } from 'ts-enum-util';
 import { LRUCache } from 'lru-cache';
 import { IS_PRODUCTION } from '../../common/common-types';
 import { entryPointAbis } from '../rpc/aa/abis/entry-point-abis';
+import { getSupportChainIdCurrentProcess } from '../rpc/aa/utils';
 
 const WEBSOCKET_PING_INTERVAL = 5000;
 const WEBSOCKET_PONG_TIMEOUT = 3000;
@@ -28,7 +29,7 @@ export class ListenerService {
     public initialize(eventHandler: (event: any) => {}) {
         this.eventHandler = eventHandler;
 
-        const chains = $enum(EVM_CHAIN_ID).values();
+        const chains = getSupportChainIdCurrentProcess();
         for (const chainId of chains) {
             const bundlerConfig = getBundlerChainConfig(chainId);
             if (!!bundlerConfig.wsUrl) {

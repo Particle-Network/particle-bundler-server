@@ -21,21 +21,25 @@ export class TransactionService {
         @InjectRepository(TransactionEntity) private readonly transactionRepository: Repository<TransactionEntity>,
     ) {}
 
-    public async getTransactionsByStatus(status: TRANSACTION_STATUS, limit: number): Promise<TransactionEntity[]> {
+    public async getTransactionsByStatus(chainIds: number[], status: TRANSACTION_STATUS, limit: number): Promise<TransactionEntity[]> {
         return await this.transactionRepository.find({
-            where: { status },
+            where: { chainId: In(chainIds), status },
             order: { id: 'ASC' },
             take: limit,
         });
     }
 
-    public async getRecentTransactionsByStatusSortConfirmations(status: TRANSACTION_STATUS, limit: number): Promise<TransactionEntity[]> {
+    public async getRecentTransactionsByStatusSortConfirmations(
+        chainIds: number[],
+        status: TRANSACTION_STATUS,
+        limit: number,
+    ): Promise<TransactionEntity[]> {
         const recentData = new Date(Date.now() - 10000); // 10s ago
 
         // sort by confirmations
         if (random(0, 1) === 0) {
             return await this.transactionRepository.find({
-                where: { status, latestSentAt: MoreThanOrEqual(recentData) },
+                where: { chainId: In(chainIds), status, latestSentAt: MoreThanOrEqual(recentData) },
                 order: { confirmations: 'ASC' },
                 take: limit,
             });
@@ -43,25 +47,29 @@ export class TransactionService {
 
         // sort by id
         return await this.transactionRepository.find({
-            where: { status, latestSentAt: MoreThanOrEqual(recentData) },
+            where: { chainId: In(chainIds), status, latestSentAt: MoreThanOrEqual(recentData) },
             order: { id: 'ASC' },
             take: limit,
         });
     }
 
-    public async getLongAgoTransactionsByStatusSortConfirmations(status: TRANSACTION_STATUS, limit: number): Promise<TransactionEntity[]> {
+    public async getLongAgoTransactionsByStatusSortConfirmations(
+        chainIds: number[],
+        status: TRANSACTION_STATUS,
+        limit: number,
+    ): Promise<TransactionEntity[]> {
         const recentData = new Date(Date.now() - 10000); // 10s ago
 
         if (random(0, 1) === 0) {
             return await this.transactionRepository.find({
-                where: { status, latestSentAt: LessThan(recentData) },
+                where: { chainId: In(chainIds), status, latestSentAt: LessThan(recentData) },
                 order: { confirmations: 'ASC' },
                 take: limit,
             });
         }
 
         return await this.transactionRepository.find({
-            where: { status, latestSentAt: LessThan(recentData) },
+            where: { chainId: In(chainIds), status, latestSentAt: LessThan(recentData) },
             order: { id: 'ASC' },
             take: limit,
         });
