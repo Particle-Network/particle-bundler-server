@@ -1,5 +1,6 @@
 // npx ts-node scripts/deploy-aa.ts [privateKey] 11155111 false
 import { Wallet } from 'ethers';
+import * as minimist from 'minimist';
 import { deployDetermineDeployer } from './deploy-determine-deployer';
 import { deploySimpleAccountFactory as deploySimpleAccountFactoryV1 } from './deploy-simple-account-v1-factory';
 import { deploySimpleAccountFactory as deploySimpleAccountFactoryV2 } from './deploy-simple-account-v2-factory';
@@ -11,27 +12,32 @@ import { deployBTCAccountFactory as deployBTCAccountFactoryV1 } from './deploy-b
 import { deployBTCAccountFactory as deployBTCAccountFactoryV2 } from './deploy-btc-account-v2-factory';
 import { deployBTCAccountFactory as deployBTCAccountFactoryV2_1 } from './deploy-btc-account-v2.1-factory';
 import { deployPasskeyModule } from './deploy-passkey-module';
+import { deployCoinbaseFactory } from './deploy-coinbase-account-v1';
+import {deployUniversalModule} from './deploy-universal-module';
 
 const args = process.argv.slice(2);
-const privateKey = args[0];
-const chainId = args[1] ? parseInt(args[1]) : 5;
-const deployBTCAccountV1 = args[2] ? args[2] === 'true' : false;
-const deployBTCAccountV2 = args[3] ? args[3] === 'true' : false;
-const deployPasskey = args[4] ? args[4] === 'true' : false;
+const argsM = minimist(args);
+const privateKey = argsM['p'] || argsM['privateKey'];
+const chainId = argsM['c'] || argsM['chainId'];
+const deployBTCAccountV1 = argsM['b1'] || argsM['btc-v1'];
+const deployBTCAccountV2 = argsM['b2'] || argsM['btc-v2'];
+const deployPasskey = argsM['passkey'];
+const deployCoinbase = argsM['coinbase'];
+const deployUniversal = argsM['universal'];
 
 (async () => {
     const signer = new Wallet(privateKey);
 
     await initializeBundlerConfig();
     await deployDetermineDeployer(chainId, signer);
-    await deployEntryPoint(chainId, signer);
+    // await deployEntryPoint(chainId, signer);
 
-    await deploySimpleAccountFactoryV1(chainId, signer);
-    console.log('Deployed Simple Account V1 Factory');
-    await deploySimpleAccountFactoryV2(chainId, signer);
-    console.log('Deployed Simple Account V2 Factory');
-    await deploySimpleAccountFactoryV3(chainId, signer);
-    console.log('Deployed Simple Account V3 Factory');
+    // await deploySimpleAccountFactoryV1(chainId, signer);
+    // console.log('Deployed Simple Account V1 Factory');
+    // await deploySimpleAccountFactoryV2(chainId, signer);
+    // console.log('Deployed Simple Account V2 Factory');
+    // await deploySimpleAccountFactoryV3(chainId, signer);
+    // console.log('Deployed Simple Account V3 Factory');
 
     if (deployBTCAccountV1) {
         await deployBTCAccountFactoryV1(chainId, signer);
@@ -52,5 +58,15 @@ const deployPasskey = args[4] ? args[4] === 'true' : false;
     if (deployPasskey) {
         await deployPasskeyModule(chainId, signer);
         console.log('Deployed Passkey Module');
+    }
+
+    if (deployCoinbase) {
+        await deployCoinbaseFactory(chainId, signer);
+        console.log('Deployed Coinbase v1 Factory');
+    }
+
+    if (deployUniversal) {
+        await deployUniversalModule(chainId, signer);
+        console.log('Deployed Universal Module');
     }
 })();
