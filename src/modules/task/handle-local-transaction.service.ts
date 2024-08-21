@@ -62,11 +62,26 @@ export class HandleLocalTransactionService {
         this.lockedLocalTransactions.add(localTransactionEntity.id);
 
         try {
-            const receipt = await this.chainService.getTransactionReceipt(localTransactionEntity.chainId, localTransactionEntity.txHashes.at(-1));
+            const receipt = await this.chainService.getTransactionReceipt(
+                localTransactionEntity.chainId,
+                localTransactionEntity.txHashes.at(-1),
+            );
+
             if (!!receipt) {
                 await this.handlePendingTransactionService.handlePendingTransaction(localTransactionEntity, receipt);
             } else {
-                await this.handlePendingTransactionService.trySendAndUpdateTransactionStatus(localTransactionEntity, localTransactionEntity.txHashes.at(-1));
+                const signerDoneTransactionMaxNonce =
+                    this.handlePendingTransactionService.getSignerDoneTransactionMaxNonceFromCache(localTransactionEntity);
+
+                // the pending transaction is too old, force to finish it
+                if (!!signerDoneTransactionMaxNonce && signerDoneTransactionMaxNonce > localTransactionEntity.nonce) {
+                    await this.handlePendingTransactionService.handlePendingTransaction(localTransactionEntity, null);
+                } else {
+                    await this.handlePendingTransactionService.trySendAndUpdateTransactionStatus(
+                        localTransactionEntity,
+                        localTransactionEntity.txHashes.at(-1),
+                    );
+                }
             }
         } catch (error) {
             Logger.error(`Failed to handle local transaction: ${localTransactionEntity.id}`, error);

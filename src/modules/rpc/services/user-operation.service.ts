@@ -7,7 +7,7 @@ import { USER_OPERATION_STATUS, UserOperationEntity } from '../entities/user-ope
 import { In, Repository } from 'typeorm';
 import { TRANSACTION_STATUS, TransactionEntity } from '../entities/transaction.entity';
 import { UserOperationEventEntity } from '../entities/user-operation-event.entity';
-import { IS_DEVELOPMENT } from '../../../common/common-types';
+import { IS_DEVELOPMENT, IS_PRODUCTION } from '../../../common/common-types';
 
 @Injectable()
 export class UserOperationService {
@@ -106,7 +106,8 @@ export class UserOperationService {
     }
 
     private async checkCanBeReplaced(userOperationEntity: UserOperationEntity) {
-        if (!IS_DEVELOPMENT && userOperationEntity.updatedAt.getTime() > Date.now() - 1000 * 120) {
+        // TODO should conside failed status
+        if (!IS_PRODUCTION && userOperationEntity.updatedAt.getTime() > Date.now() - 1000 * 120) {
             return false;
         }
 

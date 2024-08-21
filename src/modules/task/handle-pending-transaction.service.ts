@@ -95,6 +95,9 @@ export class HandlePendingTransactionService {
             const start = Date.now();
             Logger.debug(`[SendRawTransaction] Start | Chain ${transactionEntity.chainId} | ${transactionEntity.id}`);
 
+            // async update signer nonce
+            this.chainService.getTransactionCountIfCache(transactionEntity.chainId, transactionEntity.from, true);
+
             await this.chainService.sendRawTransaction(transactionEntity.chainId, transactionEntity.signedTxs[txHash]);
 
             Logger.debug(
@@ -298,17 +301,7 @@ export class HandlePendingTransactionService {
 
     private async getReceiptAndHandlePendingTransactions(pendingTransactionEntity: TransactionEntity) {
         try {
-            // local cache nonce directly
-            const signerDoneTransactionMaxNonceFromP2PCache = this.chainService.getTransactionCountWithCache(
-                pendingTransactionEntity.chainId,
-                pendingTransactionEntity.from,
-            );
-            const signerDoneTransactionMaxNonceFromLocal = this.signerService.getSignerDoneTransactionMaxNonce(
-                pendingTransactionEntity.chainId,
-                pendingTransactionEntity.from,
-            );
-
-            const signerDoneTransactionMaxNonce = Math.max(signerDoneTransactionMaxNonceFromLocal, signerDoneTransactionMaxNonceFromP2PCache);
+            const signerDoneTransactionMaxNonce = this.getSignerDoneTransactionMaxNonceFromCache(pendingTransactionEntity);
 
             const start = Date.now();
             const receiptPromises = pendingTransactionEntity.txHashes.map((txHash) =>
@@ -560,5 +553,19 @@ export class HandlePendingTransactionService {
             gasLimit,
             ...createTxGasData(chainId, feeData),
         });
+    }
+
+    public getSignerDoneTransactionMaxNonceFromCache(transactionEntity: TransactionEntity): number {
+        // local cache nonce directly
+        const signerDoneTransactionMaxNonceFromP2PCache = this.chainService.getTransactionCountWithCache(
+            transactionEntity.chainId,
+            transactionEntity.from,
+        );
+        const signerDoneTransactionMaxNonceFromLocal = this.signerService.getSignerDoneTransactionMaxNonce(
+            transactionEntity.chainId,
+            transactionEntity.from,
+        );
+
+        return Math.max(signerDoneTransactionMaxNonceFromLocal, signerDoneTransactionMaxNonceFromP2PCache);
     }
 }
