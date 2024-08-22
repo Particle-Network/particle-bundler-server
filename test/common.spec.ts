@@ -42,12 +42,7 @@ describe('Common', () => {
         await initializeBundlerConfig();
 
         const app: TestingModule = await Test.createTestingModule({
-            imports: [
-                ConfigModule.forRoot(configConfig),
-                MongooseModule.forRootAsync(mongodbConfigAsync),
-                RpcModule,
-                TaskModule,
-            ],
+            imports: [ConfigModule.forRoot(configConfig), MongooseModule.forRootAsync(mongodbConfigAsync), RpcModule, TaskModule],
         }).compile();
 
         rpcController = app.get<RpcController>(RpcController);
