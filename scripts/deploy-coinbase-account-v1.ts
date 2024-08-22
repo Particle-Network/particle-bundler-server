@@ -51,7 +51,7 @@ export const deployCoinbaseFactory = async (chainId: number, signer: Wallet) => 
 
     const code = await provider.getCode(coinbaseFactoryAddress);
     if (code.length > 2) {
-        console.log('Coinbase module already deployed');
+        console.log('Coinbase Factory already deployed');
         return;
     }
     console.log(JSON.stringify(feeData));
