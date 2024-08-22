@@ -19,9 +19,16 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { UserOperationEntity } from '../rpc/entities/user-operation.entity';
 import { UserOperationEventEntity } from '../rpc/entities/user-operation-event.entity';
 import { TransactionEntity } from '../rpc/entities/transaction.entity';
+import { MongooseModule } from '@nestjs/mongoose';
+import { UserOperation, UserOperationSchema } from '../rpc/schemas/user-operation.schema';
+import { UserOperationEvent, UserOperationEventSchema } from '../rpc/schemas/user-operation-event.schema';
 
 @Module({
     imports: [
+        MongooseModule.forFeature([
+            { name: UserOperation.name, schema: UserOperationSchema },
+            { name: UserOperationEvent.name, schema: UserOperationEventSchema },
+        ]),
         TypeOrmModule.forFeature([UserOperationEntity, UserOperationEventEntity, TransactionEntity]),
         ScheduleModule.forRoot(),
         CommonModule,

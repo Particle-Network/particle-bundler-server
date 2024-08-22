@@ -4,7 +4,7 @@ import { RpcService } from '../src/modules/rpc/services/rpc.service';
 import { Wallet, JsonRpcProvider, resolveProperties, toBeHex } from 'ethers';
 import { AA_METHODS, ENTRY_POINT_ADDRESS_V06, getBundlerChainConfig, initializeBundlerConfig } from '../src/configs/bundler-common';
 import { deepHexlify } from '../src/modules/rpc/aa/utils';
-import {  gaslessSponsor } from './lib/common';
+import { gaslessSponsor } from './lib/common';
 import { SimpleSmartAccountV06 } from './lib/simple-smart-account-v06';
 import { EVM_CHAIN_ID } from '../src/common/chains';
 import { AppModule } from '../src/app.module';
