@@ -16,6 +16,7 @@ import { deployUniversalModule } from './deploy-universal-module';
 
 const args = process.argv.slice(2);
 const argsM = minimist(args);
+const entrypointVerion = argsM['e'] || argsM['entrypoint'];
 const privateKey = argsM['p'] || argsM['privateKey'];
 const chainId = argsM['c'] || argsM['chainId'];
 const deployBTCAccountV1 = argsM['b1'] || argsM['btc-v1'];
@@ -29,14 +30,21 @@ const deployUniversal = argsM['universal'];
 
     await initializeBundlerConfig();
     await deployDetermineDeployer(chainId, signer);
-    await deployEntryPoint(chainId, signer);
 
+    // Entrypoint version 0.7
+    if (entrypointVerion === '0.7') {
+        await deploySimpleAccountFactoryV3(chainId, signer);
+        console.log('Deployed Simple Account V3 Factory: 0.7');
+
+        return;
+    }
+
+    // Entrypoint version 0.6
+    await deployEntryPoint(chainId, signer);
     await deploySimpleAccountFactoryV1(chainId, signer);
     console.log('Deployed Simple Account V1 Factory');
     await deploySimpleAccountFactoryV2(chainId, signer);
     console.log('Deployed Simple Account V2 Factory');
-    await deploySimpleAccountFactoryV3(chainId, signer);
-    console.log('Deployed Simple Account V3 Factory');
 
     if (deployBTCAccountV1) {
         await deployBTCAccountFactoryV1(chainId, signer);
