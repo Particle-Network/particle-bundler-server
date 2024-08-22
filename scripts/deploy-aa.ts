@@ -8,12 +8,11 @@ import { deploySimpleAccountFactory as deploySimpleAccountFactoryV3 } from './de
 import { deployEntryPoint } from './deploy-entry-point';
 import { initializeBundlerConfig } from '../src/configs/bundler-common';
 import { deployBTCAccountFactory as deployBTCAccountFactoryV1 } from './deploy-btc-account-v1-factory';
-// import { deployBTCAccountFactory as deployBTCAccountFactoryV1_1 } from './deploy-btc-account-v1.1-factory';
 import { deployBTCAccountFactory as deployBTCAccountFactoryV2 } from './deploy-btc-account-v2-factory';
 import { deployBTCAccountFactory as deployBTCAccountFactoryV2_1 } from './deploy-btc-account-v2.1-factory';
 import { deployPasskeyModule } from './deploy-passkey-module';
 import { deployCoinbaseFactory } from './deploy-coinbase-account-v1';
-import {deployUniversalModule} from './deploy-universal-module';
+import { deployUniversalModule } from './deploy-universal-module';
 
 const args = process.argv.slice(2);
 const argsM = minimist(args);
@@ -42,10 +41,6 @@ const deployUniversal = argsM['universal'];
     if (deployBTCAccountV1) {
         await deployBTCAccountFactoryV1(chainId, signer);
         console.log('Deployed BTC Account V1 Factory');
-
-        // no use
-        // await deployBTCAccountFactoryV1_1(chainId, signer);
-        // console.log('Deployed BTC Account V1.1 Factory');
     }
     if (deployBTCAccountV2) {
         await deployBTCAccountFactoryV2(chainId, signer);
