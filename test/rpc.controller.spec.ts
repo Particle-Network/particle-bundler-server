@@ -104,7 +104,7 @@ describe('RpcController', () => {
             console.log('unsignedUserOp', deepHexlify(userOp));
 
             const SignatureWrapperStruct = '(uint256 ownerIndex, bytes signatureData)';
-            
+
             const iface = new Interface([`function encode(${SignatureWrapperStruct} calldata) external`]);
             let data = iface.encodeFunctionData('encode', [
                 {
@@ -127,7 +127,7 @@ describe('RpcController', () => {
                     signatureData: signature,
                 },
             ]);
-            
+
             userOp.signature = `0x${data.slice(10)}`;
             console.log('signedOp', deepHexlify(userOp));
 
