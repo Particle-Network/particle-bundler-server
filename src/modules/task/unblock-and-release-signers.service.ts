@@ -7,7 +7,7 @@ import { getBundlerChainConfig } from '../../configs/bundler-common';
 import { TransactionService } from '../rpc/services/transaction.service';
 import { HandleLocalTransactionService } from './handle-local-transaction.service';
 import { SignerService } from '../rpc/services/signer.service';
-import { canRunCron} from '../rpc/aa/utils';
+import { canRunCron } from '../rpc/aa/utils';
 import { ChainService } from '../rpc/services/chain.service';
 import { TRANSACTION_STATUS } from '../rpc/entities/transaction.entity';
 
