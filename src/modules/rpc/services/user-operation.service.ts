@@ -71,7 +71,7 @@ export class UserOperationService {
         try {
             return await this.userOperationRepository.save(newUserOperation);
         } catch (error) {
-            if (error?.message?.includes('duplicate key')) {
+            if (error?.message?.includes('Duplicate entry')) {
                 throw new AppException(-32607);
             }
 
@@ -128,7 +128,7 @@ export class UserOperationService {
         try {
             return await Promise.all(userOperationEntities.map((userOperationEntity) => this.userOperationRepository.save(userOperationEntity)));
         } catch (error) {
-            if (error?.message?.includes('duplicate key')) {
+            if (error?.message?.includes('Duplicate entry')) {
                 throw new AppException(-32607);
             }
 
