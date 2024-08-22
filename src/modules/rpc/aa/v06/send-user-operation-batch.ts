@@ -2,7 +2,7 @@ import { getAddress } from 'ethers';
 import { JsonRPCRequestDto } from '../../dtos/json-rpc-request.dto';
 import { RpcService } from '../../services/rpc.service';
 import { Helper } from '../../../../common/helper';
-import { isUserOpValid } from '../utils';
+import { isUserOpValidV06 } from '../utils';
 import { isArray } from 'lodash';
 import { beforeSendUserOperation } from './send-user-operation';
 
@@ -11,14 +11,14 @@ export async function sendUserOperationBatch(rpcService: RpcService, chainId: nu
     const userOps: any[] = body.params[0];
     const entryPoint = getAddress(body.params[1]);
     for (const userOp of userOps) {
-        Helper.assertTrue(isUserOpValid(userOp), -32602, 'Invalid userOp');
+        Helper.assertTrue(isUserOpValidV06(userOp), -32602, 'Invalid userOp');
     }
 
     const resultItems = await Promise.all(
         userOps.map((userOp) => beforeSendUserOperation(rpcService, chainId, userOp, entryPoint, body.isAuth, body.skipCheck)),
     );
     for (const resultItem of resultItems) {
-        Helper.assertTrue(!resultItem.userOperationDocument, -32611);
+        Helper.assertTrue(!resultItem.userOperationEntity, -32611);
     }
 
     const userOpHashes = resultItems.map((i) => i.userOpHash);

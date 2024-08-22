@@ -44,7 +44,7 @@ yarn
 ```
 
 ### 🧷 Setup the environment
-Set your configuration in **.env**. We require the **mongodb** and **redis**. 
+Set your configuration in **.env**. We require the **mysql**
 You need to transfer some native token to the Bundler Signer.
 Register the particle project at [https://dashboard.particle.network/](https://dashboard.particle.network/).
 

@@ -5,4 +5,5 @@ export interface IContractAccount {
     encodeExecute(target: string, value: BigNumberish, data: string): Promise<string>;
     getUserOpHash(userOp: any): any;
     signUserOpHash(userOp: any): any;
+    getAccountAddress(index?: number): Promise<string>;
 }

@@ -4,3 +4,4 @@ export * from './get-user-operation-receipt';
 export * from './supported-entry-points';
 export * from './pending-userop-count';
 export * as v06 from './v06';
+export * as v07 from './v07';

@@ -3,12 +3,19 @@ import { RpcController } from '../src/modules/rpc/rpc.controller';
 import { RpcService } from '../src/modules/rpc/services/rpc.service';
 import { RpcModule } from '../src/modules/rpc/rpc.module';
 import { MongooseModule } from '@nestjs/mongoose';
-import { USER_OPERATION_STATUS, UserOperation, UserOperationSchema } from '../src/modules/rpc/schemas/user-operation.schema';
 import { mongodbConfigAsync } from '../src/configs/mongodb.config';
 import { configConfig } from '../src/configs/config.config';
 import { ConfigModule } from '@nestjs/config';
 import { BUNDLER_CONFIG_MAP, getBundlerChainConfig, initializeBundlerConfig } from '../src/configs/bundler-common';
-import { getDocumentId, getUserOpHash, splitOriginNonce, waitSeconds } from '../src/modules/rpc/aa/utils';
+import {
+    getDocumentId,
+    getUserOpHashV06,
+    getUserOpHashV07,
+    packAccountGasLimits,
+    splitOriginNonce,
+    unpackAccountGasLimits,
+    waitSeconds,
+} from '../src/modules/rpc/aa/utils';
 import { EVM_CHAIN_ID } from '../src/common/chains';
 import { ChainService } from '../src/modules/rpc/services/chain.service';
 import P2PCache from '../src/common/p2p-cache';
@@ -40,7 +47,6 @@ describe('Common', () => {
                 MongooseModule.forRootAsync(mongodbConfigAsync),
                 RpcModule,
                 TaskModule,
-                MongooseModule.forFeature([{ name: UserOperation.name, schema: UserOperationSchema }]),
             ],
         }).compile();
 
@@ -182,9 +188,17 @@ describe('Common', () => {
         expect(r4.unusedUserOperations[0].userOpHash).toBe(userOperationDocument2.userOpHash);
     }, 60000);
 
-    it('ttttt', async () => {
-        const r = await chainService.getTransactionCount(11155111, '0x7DDd4989abb3cDa01BA31ac283c194852E42e1a8');
-        console.log('r', r);
+    it('packAccountGasLimits', async () => {
+        const a = 123n;
+        const b = 888n;
+
+        expect(packAccountGasLimits(a, b)).toBe('0x0000000000000000000000000000007b00000000000000000000000000000378');
+        const { verificationGasLimit, callGasLimit } = unpackAccountGasLimits(
+            '0x0000000000000000000000000000007b00000000000000000000000000000378',
+        );
+
+        expect(verificationGasLimit).toBe(123n);
+        expect(callGasLimit).toBe(888n);
     }, 60000);
 });
 
@@ -212,7 +226,7 @@ function createFakeUserOperationDocument(options: any = {}) {
     };
 
     const entryPoint = '0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789';
-    const userOpHash = getUserOpHash(chainId, fakeUserOp, entryPoint);
+    const userOpHash = getUserOpHashV06(chainId, fakeUserOp, entryPoint);
 
     return new userOperationService.userOperationModel({
         userOpHash: userOpHash,
