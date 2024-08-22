@@ -30,14 +30,14 @@ const deployUniversal = argsM['universal'];
 
     await initializeBundlerConfig();
     await deployDetermineDeployer(chainId, signer);
-    // await deployEntryPoint(chainId, signer);
+    await deployEntryPoint(chainId, signer);
 
-    // await deploySimpleAccountFactoryV1(chainId, signer);
-    // console.log('Deployed Simple Account V1 Factory');
-    // await deploySimpleAccountFactoryV2(chainId, signer);
-    // console.log('Deployed Simple Account V2 Factory');
-    // await deploySimpleAccountFactoryV3(chainId, signer);
-    // console.log('Deployed Simple Account V3 Factory');
+    await deploySimpleAccountFactoryV1(chainId, signer);
+    console.log('Deployed Simple Account V1 Factory');
+    await deploySimpleAccountFactoryV2(chainId, signer);
+    console.log('Deployed Simple Account V2 Factory');
+    await deploySimpleAccountFactoryV3(chainId, signer);
+    console.log('Deployed Simple Account V3 Factory');
 
     if (deployBTCAccountV1) {
         await deployBTCAccountFactoryV1(chainId, signer);
