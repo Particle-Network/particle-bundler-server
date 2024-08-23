@@ -1,19 +1,21 @@
 const os = require('os');
+const { PRODUCTION_HOSTNAME } = require('./dist/common/common-types');
+const { PROCESS_HANDLE_CHAINS } = require('./dist/configs/bundler-config-particle');
 const hostname = os.hostname();
 
 let instances = 0;
 if (process.env.ENVIRONMENT === 'production') {
-    if (hostname === 'particle-bundler-server-handler') {
-        instances = 1;
+    if (hostname === PRODUCTION_HOSTNAME) {
+        instances = PROCESS_HANDLE_CHAINS.length;
     } else {
         instances = 0;
     }
 } else {
-    instances = 2;
+    instances = PROCESS_HANDLE_CHAINS.length;;
 }
 
 let max_memory_restart = '2048M';
-if (hostname === 'particle-bundler-server-handler') {
+if (hostname === PRODUCTION_HOSTNAME) {
     max_memory_restart = '7000M';
 }
 

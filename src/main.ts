@@ -7,7 +7,6 @@ import { IS_DEVELOPMENT, IS_PRODUCTION } from './common/common-types';
 import { initializeBundlerConfig } from './configs/bundler-common';
 import { LarkService } from './modules/common/services/lark.service';
 import { Helper } from './common/helper';
-import Mongoose from 'mongoose';
 import { INestApplication, INestApplicationContext } from '@nestjs/common';
 import { canRunCron } from './modules/rpc/aa/utils';
 import Axios from 'axios';
@@ -20,7 +19,7 @@ Axios.defaults.httpAgent = new http.Agent({ keepAlive: true });
 async function bootstrap() {
     await initializeBundlerConfig();
 
-    if (canRunCron() && !IS_DEVELOPMENT) {
+    if (canRunCron() && IS_PRODUCTION) {
         const app = await NestFactory.createApplicationContext(AppModule, {
             logger: !IS_PRODUCTION ? ['error', 'warn', 'log', 'debug', 'verbose'] : [],
         });
@@ -83,7 +82,6 @@ async function bootstrap() {
 }
 
 function initApp(app: INestApplication | INestApplicationContext, isAPI: boolean) {
-    Mongoose.set('debug', process.env.ENABLE_MONGO_DEBUG === '1');
     const larkService = app.get(LarkService);
     larkService.setLarkTitle(isAPI ? 'Particle Bundler Server API' : 'Particle Bundler Server Cron');
 

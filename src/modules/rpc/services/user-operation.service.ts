@@ -1,20 +1,26 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
-import { USER_OPERATION_STATUS, UserOperation, UserOperationDocument } from '../schemas/user-operation.schema';
-import { UserOperationEvent, UserOperationEventDocument } from '../schemas/user-operation-event.schema';
-import { Transaction, TransactionDocument } from '../schemas/transaction.schema';
 import { Helper } from '../../../common/helper';
 import { splitOriginNonce } from '../aa/utils';
-import { IUserOperationEventObject } from '../../../common/common-types';
 import { AppException } from '../../../common/app-exception';
+import { InjectRepository } from '@nestjs/typeorm';
+import { USER_OPERATION_STATUS, UserOperationEntity } from '../entities/user-operation.entity';
+import { In, Repository } from 'typeorm';
+import { TRANSACTION_STATUS, TransactionEntity } from '../entities/transaction.entity';
+import { UserOperationEventEntity } from '../entities/user-operation-event.entity';
+import { IS_PRODUCTION } from '../../../common/common-types';
+import { InjectModel } from '@nestjs/mongoose';
+import { UserOperation, UserOperationDocument } from '../schemas/user-operation.schema';
+import { UserOperationEvent, UserOperationEventDocument } from '../schemas/user-operation-event.schema';
+import { Model } from 'mongoose';
 
 @Injectable()
 export class UserOperationService {
     public constructor(
+        @InjectRepository(UserOperationEntity) private readonly userOperationRepository: Repository<UserOperationEntity>,
+        @InjectRepository(UserOperationEventEntity) private readonly userOperationEventRepository: Repository<UserOperationEventEntity>,
+        @InjectRepository(TransactionEntity) private readonly transactionRepository: Repository<TransactionEntity>,
         @InjectModel(UserOperation.name) public readonly userOperationModel: Model<UserOperationDocument>,
         @InjectModel(UserOperationEvent.name) public readonly userOperationEventModel: Model<UserOperationEventDocument>,
-        @InjectModel(Transaction.name) public readonly transactionModel: Model<TransactionDocument>,
     ) {}
 
     public async createOrUpdateUserOperation(
@@ -22,38 +28,50 @@ export class UserOperationService {
         userOp: any,
         userOpHash: string,
         entryPoint: string,
-        userOpDoc: UserOperationDocument,
-    ): Promise<UserOperationDocument> {
+        userOperationEntity: UserOperationEntity,
+    ): Promise<UserOperationEntity> {
         Logger.debug(`[createOrUpdateUserOperation] chainId: ${chainId} | userOpHash: ${userOpHash}`);
 
         const { nonceKey, nonceValue } = splitOriginNonce(userOp.nonce);
+        Helper.assertTrue(BigInt(nonceValue) < BigInt(Number.MAX_SAFE_INTEGER), -32608);
 
-        const nonceValueString = BigInt(nonceValue).toString();
-        Helper.assertTrue(nonceValueString.length <= 30, -32608); // ensure nonce is less than Decimals(128)
-
-        if (userOpDoc) {
+        if (userOperationEntity) {
             // not support random nonce replaced
             Helper.assertTrue(BigInt(nonceKey) === 0n, -32607);
-            Helper.assertTrue(await this.checkCanBeReplaced(userOpDoc), -32607);
+            Helper.assertTrue(await this.checkCanBeReplaced(userOperationEntity), -32607);
 
-            return await this.resetToLocal(userOpDoc, userOpHash, entryPoint, userOp);
+            return await this.resetToLocal(userOperationEntity, userOpHash, entryPoint, userOp);
         }
 
+        // FAKE
         const userOperation = new this.userOperationModel({
             userOpHash,
             userOpSender: userOp.sender,
             userOpNonceKey: nonceKey,
-            userOpNonce: nonceValueString,
+            userOpNonce: BigInt(nonceValue).toString(),
             chainId,
             entryPoint,
+            origin: userOp,
+            status: USER_OPERATION_STATUS.PENDING,
+        });
+
+        userOperation.save();
+
+        const newUserOperation = new UserOperationEntity({
+            chainId,
+            entryPoint,
+            userOpHash,
+            userOpSender: userOp.sender,
+            userOpNonceKey: BigInt(nonceKey).toString(),
+            userOpNonce: Number(BigInt(nonceValue)),
             origin: userOp,
             status: USER_OPERATION_STATUS.LOCAL,
         });
 
         try {
-            return await userOperation.save();
+            return await this.userOperationRepository.save(newUserOperation);
         } catch (error) {
-            if (error?.message?.includes('duplicate key')) {
+            if (error?.message?.includes('Duplicate entry')) {
                 throw new AppException(-32607);
             }
 
@@ -66,40 +84,51 @@ export class UserOperationService {
         userOps: any[],
         userOpHashes: string[],
         entryPoint: string,
-    ): Promise<UserOperationDocument[]> {
-        const userOperations: UserOperationDocument[] = [];
+    ): Promise<UserOperationEntity[]> {
+        const userOperationEntities: UserOperationEntity[] = [];
         for (let index = 0; index < userOps.length; index++) {
             Logger.debug(`[createOrUpdateUserOperation] chainId: ${chainId} | userOpHash: ${userOpHashes[index]}`);
 
             const userOp = userOps[index];
             const { nonceKey, nonceValue } = splitOriginNonce(userOp.nonce);
 
-            const nonceValueString = BigInt(nonceValue).toString();
-            Helper.assertTrue(nonceValueString.length <= 30, -32608); // ensure nonce is less than Decimals(128)
-
+            // FAKE
             const userOperation = new this.userOperationModel({
                 userOpHash: userOpHashes[index],
                 userOpSender: userOp.sender,
                 userOpNonceKey: nonceKey,
-                userOpNonce: nonceValueString,
+                userOpNonce: BigInt(nonceValue).toString(),
                 chainId,
                 entryPoint,
+                origin: userOp,
+                status: USER_OPERATION_STATUS.PENDING,
+            });
+
+            userOperation.save();
+
+            const userOperationEntity = new UserOperationEntity({
+                chainId,
+                entryPoint,
+                userOpHash: userOpHashes[index],
+                userOpSender: userOp.sender,
+                userOpNonceKey: BigInt(nonceKey).toString(),
+                userOpNonce: Number(BigInt(nonceValue)),
                 origin: userOp,
                 status: index === 0 ? USER_OPERATION_STATUS.LOCAL : USER_OPERATION_STATUS.ASSOCIATED,
             });
 
-            userOperations.push(userOperation);
+            userOperationEntities.push(userOperationEntity);
         }
 
-        userOperations[0].associatedUserOps = [];
-        for (const otherUserOperation of userOperations.slice(1)) {
-            userOperations[0].associatedUserOps.push(otherUserOperation.toJSON());
+        userOperationEntities[0].associatedUserOps = [];
+        for (const otherUserOperation of userOperationEntities.slice(1)) {
+            userOperationEntities[0].associatedUserOps.push(otherUserOperation);
         }
 
         try {
-            return await Promise.all(userOperations.map((userOperation) => userOperation.save()));
+            return await Promise.all(userOperationEntities.map((userOperationEntity) => this.userOperationRepository.save(userOperationEntity)));
         } catch (error) {
-            if (error?.message?.includes('duplicate key')) {
+            if (error?.message?.includes('Duplicate entry')) {
                 throw new AppException(-32607);
             }
 
@@ -107,126 +136,156 @@ export class UserOperationService {
         }
     }
 
-    private async checkCanBeReplaced(userOpDoc: UserOperationDocument) {
-        if (userOpDoc.updatedAt.getTime() > Date.now() - 1000 * 120) {
+    private async checkCanBeReplaced(userOperationEntity: UserOperationEntity) {
+        // TODO should conside failed status
+        if (!IS_PRODUCTION && userOperationEntity.updatedAt.getTime() > Date.now() - 1000 * 120) {
             return false;
         }
 
-        if (userOpDoc.status === USER_OPERATION_STATUS.DONE) {
+        if (userOperationEntity.status === USER_OPERATION_STATUS.DONE) {
             return true;
         }
 
-        if (!userOpDoc.transactionId) {
+        if (!userOperationEntity.transactionId) {
             return true;
         }
 
-        const transaction = await this.transactionModel.findById(userOpDoc.transactionId);
+        const transaction = await this.transactionRepository.findOneBy({ id: userOperationEntity.transactionId });
         if (!transaction) {
             return true;
         }
 
-        if (transaction.status === USER_OPERATION_STATUS.DONE) {
+        if (transaction.status === TRANSACTION_STATUS.DONE) {
             return true;
         }
 
         return false;
     }
 
-    public async deleteUserOperationsByIds(ids: string[]) {
+    public async deleteUserOperationsByIds(ids: number[]) {
         if (ids.length === 0) {
             return;
         }
 
-        return await this.userOperationModel.deleteMany({ _id: { $in: ids } });
+        await this.userOperationRepository.delete({ id: In(ids) });
     }
 
     public async getPendingUserOperationCount(chainId: number): Promise<number> {
-        return await this.userOperationModel.countDocuments({
-            status: { $in: [USER_OPERATION_STATUS.LOCAL, USER_OPERATION_STATUS.PENDING] },
-            chainId,
+        return await this.userOperationRepository.count({
+            where: { chainId, status: In([USER_OPERATION_STATUS.LOCAL, USER_OPERATION_STATUS.PENDING]) },
         });
     }
 
     public async deleteUserOperationByUserOpHash(userOpHash: string) {
-        return await this.userOperationModel.deleteMany({ userOpHash });
+        await this.userOperationRepository.delete({ userOpHash });
     }
 
     public async getUserOperationByAddressNonce(
         chainId: number,
         userOpSender: string,
         userOpNonceKey: string,
-        userOpNonce: string,
-    ): Promise<UserOperationDocument> {
-        return await this.userOperationModel.findOne({ chainId, userOpSender, userOpNonceKey, userOpNonce });
+        userOpNonce: number,
+    ): Promise<UserOperationEntity> {
+        return await this.userOperationRepository.findOneBy({ chainId, userOpSender, userOpNonceKey, userOpNonce });
     }
 
-    public async getUserOperationByHash(userOpHash: string): Promise<UserOperationDocument> {
-        return await this.userOperationModel.findOne({ userOpHash });
+    public async getUserOperationByHash(userOpHash: string): Promise<UserOperationEntity> {
+        return await this.userOperationRepository.findOneBy({ userOpHash });
     }
 
     // Warning: can cause user nonce is not continuous
-    public async getLocalUserOperations(limit: number = 1000): Promise<UserOperationDocument[]> {
-        return await this.userOperationModel.aggregate([{ $match: { status: USER_OPERATION_STATUS.LOCAL } }, { $sample: { size: limit } }]);
+    public async getLocalUserOperations(chainIds: number[], limit: number = 1000): Promise<UserOperationEntity[]> {
+        return await this.userOperationRepository.find({
+            where: { chainId: In(chainIds), status: USER_OPERATION_STATUS.LOCAL },
+            take: limit,
+        });
     }
 
-    public async setLocalUserOperationsAsPending(userOpHashes: string[], transactionObjectId: Types.ObjectId, session?: any) {
+    public async setLocalUserOperationsAsPending(userOpHashes: string[], transactionId: number) {
         const start = Date.now();
 
-        const r = await this.userOperationModel.updateMany(
-            { userOpHash: { $in: userOpHashes }, status: { $in: [USER_OPERATION_STATUS.LOCAL, USER_OPERATION_STATUS.ASSOCIATED] } },
-            { $set: { status: USER_OPERATION_STATUS.PENDING, transactionId: transactionObjectId.toString() } },
-            { session },
-        );
+        await this.userOperationRepository
+            .createQueryBuilder()
+            .update(UserOperationEntity)
+            .set({ status: USER_OPERATION_STATUS.PENDING, transactionId })
+            .where('user_op_hash IN (:...userOpHashes) AND status IN (:...status)', {
+                userOpHashes,
+                status: [USER_OPERATION_STATUS.LOCAL, USER_OPERATION_STATUS.ASSOCIATED],
+            })
+            .execute();
 
-        Logger.debug(`[SetLocalUserOperationsAsPending] ${transactionObjectId}, Cost: ${Date.now() - start} ms`);
-
-        return r;
-    }
-
-    public async setPendingUserOperationsToLocal(transactionId: string, session: any) {
-        return await this.userOperationModel.updateMany(
-            { transactionId, status: USER_OPERATION_STATUS.PENDING },
-            { $set: { status: USER_OPERATION_STATUS.LOCAL, transactionId: null } },
-            { session },
-        );
+        Logger.debug(`[SetLocalUserOperationsAsPending] ${transactionId}, Cost: ${Date.now() - start} ms`);
     }
 
     public async setUserOperationsAsDone(userOpHashes: string[], txHash: string, blockNumber: number, blockHash: string) {
-        return await this.userOperationModel.updateMany(
-            { userOpHash: { $in: userOpHashes }, status: USER_OPERATION_STATUS.PENDING },
-            { $set: { status: USER_OPERATION_STATUS.DONE, txHash, blockNumber, blockHash } },
-        );
+        await this.userOperationRepository
+            .createQueryBuilder()
+            .update(UserOperationEntity)
+            .set({ status: USER_OPERATION_STATUS.DONE, txHash, blockNumber, blockHash })
+            .where('user_op_hash IN (:...userOpHashes) AND status = :status', {
+                userOpHashes,
+                status: USER_OPERATION_STATUS.PENDING,
+            })
+            .execute();
     }
 
-    public async getUserOperationEvent(userOperationHash: string): Promise<UserOperationEventDocument> {
-        return await this.userOperationEventModel.findOne({ userOperationHash });
+    public async getUserOperationEvent(userOpHash: string): Promise<UserOperationEventEntity> {
+        return await this.userOperationEventRepository.findOneBy({ userOpHash });
     }
 
     public async getLocalUserOperationsCountByChainId(chainId: number): Promise<number> {
-        return await this.userOperationModel.countDocuments({ status: USER_OPERATION_STATUS.LOCAL, chainId });
+        return await this.userOperationRepository.count({
+            where: { chainId, status: USER_OPERATION_STATUS.LOCAL },
+        });
     }
 
-    public async createUserOperationEvents(userOperationEventObjects: IUserOperationEventObject[]) {
-        if (userOperationEventObjects.length <= 0) {
+    public async createUserOperationEvents(userOperationEventEntities: UserOperationEventEntity[]) {
+        if (userOperationEventEntities.length <= 0) {
             return;
         }
 
-        try {
-            await this.userOperationEventModel.insertMany(userOperationEventObjects, {
-                ordered: false,
+        let userOpEventDocs: UserOperationEventDocument[] = [];
+        for (const userOperationEventEntity of userOperationEventEntities) {
+            const userOpEventDoc = new this.userOperationEventModel({
+                chainId: userOperationEventEntity.chainId,
+                blockHash: userOperationEventEntity.blockHash,
+                blockNumber: userOperationEventEntity.blockNumber,
+                contractAddress: userOperationEventEntity.entryPoint,
+                userOperationHash: userOperationEventEntity.userOpHash,
+                txHash: userOperationEventEntity.txHash,
+                topic: userOperationEventEntity.topic,
+                args: userOperationEventEntity.args,
             });
-        } catch (error) {
-            // nothing
+
+            userOpEventDocs.push(userOpEventDoc);
         }
+
+        // FAKE
+        await this.userOperationEventModel.insertMany(userOpEventDocs, {
+            ordered: false,
+        });
+
+        await this.userOperationRepository.manager
+            .createQueryBuilder()
+            .insert()
+            .into(UserOperationEventEntity)
+            .values(userOperationEventEntities)
+            .orIgnore()
+            .execute();
     }
 
-    public async resetToLocal(userOperationDocument: UserOperationDocument, userOpHash: string, entryPoint: string, userOp: any) {
-        userOperationDocument.userOpHash = userOpHash;
-        userOperationDocument.entryPoint = entryPoint;
-        userOperationDocument.origin = userOp;
-        userOperationDocument.status = USER_OPERATION_STATUS.LOCAL;
-        userOperationDocument.createdAt = new Date();
-        userOperationDocument.transactionId = undefined;
-        return await userOperationDocument.save();
+    public async resetToLocal(
+        userOperationEntity: UserOperationEntity,
+        userOpHash: string,
+        entryPoint: string,
+        userOp: any,
+    ): Promise<UserOperationEntity> {
+        userOperationEntity.userOpHash = userOpHash;
+        userOperationEntity.entryPoint = entryPoint;
+        userOperationEntity.origin = userOp;
+        userOperationEntity.status = USER_OPERATION_STATUS.LOCAL;
+        userOperationEntity.createdAt = new Date();
+        userOperationEntity.transactionId = undefined;
+        return await this.userOperationRepository.save(userOperationEntity);
     }
 }

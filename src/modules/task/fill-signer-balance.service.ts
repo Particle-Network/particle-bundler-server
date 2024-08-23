@@ -27,6 +27,10 @@ export class FillSignerBalanceService {
             return;
         }
 
+        if (process.env.NODE_APP_INSTANCE !== '0') {
+            return;
+        }
+
         if (IS_DEVELOPMENT) {
             return;
         }

@@ -1,28 +1,37 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Types } from 'mongoose';
-import { Contract, parseEther, Wallet } from 'ethers';
-import { UserOperationDocument } from '../rpc/schemas/user-operation.schema';
+import { Wallet } from 'ethers';
 import { LarkService } from '../common/services/lark.service';
 import { Helper } from '../../common/helper';
 import { EVM_CHAIN_ID, NEED_TO_ESTIMATE_GAS_BEFORE_SEND } from '../../common/chains';
-import entryPointAbi from '../rpc/aa/abis/entry-point-abi';
-import { Transaction, TRANSACTION_STATUS, TransactionDocument } from '../rpc/schemas/transaction.schema';
 import { TransactionService } from '../rpc/services/transaction.service';
 import { UserOperationService } from '../rpc/services/user-operation.service';
 import { HandlePendingTransactionService } from './handle-pending-transaction.service';
 import { Cron } from '@nestjs/schedule';
-import { canRunCron, createTxGasData, deepHexlify, getDocumentId, splitOriginNonce, tryParseSignedTx } from '../rpc/aa/utils';
+import {
+    canRunCron,
+    createTxGasData,
+    createUniqId,
+    deepHexlify,
+    getSupportChainIdCurrentProcess,
+    splitOriginNonce,
+    tryParseSignedTx,
+} from '../rpc/aa/utils';
 import { SignerService } from '../rpc/services/signer.service';
 import { ChainService } from '../rpc/services/chain.service';
 import { TypedTransaction } from '@ethereumjs/tx';
 import { onCreateUserOpTxHash, onEmitUserOpEvent } from '../../configs/bundler-common';
 import { ListenerService } from './listener.service';
+import { RpcService } from '../rpc/services/rpc.service';
+import { entryPointAbis } from '../rpc/aa/abis/entry-point-abis';
+import { UserOperationEntity } from '../rpc/entities/user-operation.entity';
+import { TRANSACTION_STATUS, TransactionEntity } from '../rpc/entities/transaction.entity';
 
 @Injectable()
 export class HandleLocalTransactionService {
-    private readonly lockedLocalTransactions: Set<string> = new Set();
+    private readonly lockedLocalTransactions: Set<number> = new Set();
 
     public constructor(
+        private readonly rpcService: RpcService,
         private readonly chainService: ChainService,
         private readonly larkService: LarkService,
         private readonly transactionService: TransactionService,
@@ -43,7 +52,11 @@ export class HandleLocalTransactionService {
         }
 
         try {
-            const localTransactions = await this.transactionService.getTransactionsByStatus(TRANSACTION_STATUS.LOCAL, 500);
+            const localTransactions = await this.transactionService.getTransactionsByStatus(
+                getSupportChainIdCurrentProcess(),
+                TRANSACTION_STATUS.LOCAL,
+                500,
+            );
             for (const localTransaction of localTransactions) {
                 this.handleLocalTransaction(localTransaction);
             }
@@ -53,45 +66,61 @@ export class HandleLocalTransactionService {
         }
     }
 
-    public async handleLocalTransaction(localTransaction: Transaction) {
-        if (this.lockedLocalTransactions.has(getDocumentId(localTransaction))) {
+    public async handleLocalTransaction(localTransactionEntity: TransactionEntity) {
+        if (this.lockedLocalTransactions.has(localTransactionEntity.id)) {
             return;
         }
 
-        this.lockedLocalTransactions.add(getDocumentId(localTransaction));
+        this.lockedLocalTransactions.add(localTransactionEntity.id);
 
         try {
-            const receipt = await this.chainService.getTransactionReceipt(localTransaction.chainId, localTransaction.txHashes.at(-1));
+            const receipt = await this.chainService.getTransactionReceipt(
+                localTransactionEntity.chainId,
+                localTransactionEntity.txHashes.at(-1),
+            );
+
             if (!!receipt) {
-                await this.handlePendingTransactionService.handlePendingTransaction(localTransaction, receipt);
+                await this.handlePendingTransactionService.handlePendingTransaction(localTransactionEntity, receipt);
             } else {
-                await this.handlePendingTransactionService.trySendAndUpdateTransactionStatus(localTransaction, localTransaction.txHashes.at(-1));
+                const signerDoneTransactionMaxNonce =
+                    this.handlePendingTransactionService.getSignerDoneTransactionMaxNonceFromCache(localTransactionEntity);
+
+                // the pending transaction is too old, force to finish it
+                if (!!signerDoneTransactionMaxNonce && signerDoneTransactionMaxNonce > localTransactionEntity.nonce) {
+                    await this.handlePendingTransactionService.handlePendingTransaction(localTransactionEntity, null);
+                } else {
+                    await this.handlePendingTransactionService.trySendAndUpdateTransactionStatus(
+                        localTransactionEntity,
+                        localTransactionEntity.txHashes.at(-1),
+                    );
+                }
             }
         } catch (error) {
-            Logger.error(`Failed to handle local transaction: ${getDocumentId(localTransaction)}`, error);
+            Logger.error(`Failed to handle local transaction: ${localTransactionEntity.id}`, error);
             this.larkService.sendMessage(
-                `Failed to handle local transaction: ${getDocumentId(localTransaction)}: ${Helper.converErrorToString(error)}`,
+                `Failed to handle local transaction: ${localTransactionEntity.id}: ${Helper.converErrorToString(error)}`,
             );
         }
 
-        this.lockedLocalTransactions.delete(getDocumentId(localTransaction));
+        this.lockedLocalTransactions.delete(localTransactionEntity.id);
     }
 
     public async createBundleTransaction(
         chainId: number,
         entryPoint: string,
-        userOperationDocuments: UserOperationDocument[],
+        userOperationEntities: UserOperationEntity[],
         bundleGasLimit: string,
         signer: Wallet,
         nonce: number,
         feeData: any,
     ) {
-        Logger.debug(`[createBundleTransaction] signer: ${signer.address} | nonce: ${nonce} | userOpDocCount: ${userOperationDocuments.length}`);
+        Logger.debug(`[createBundleTransaction] signer: ${signer.address} | nonce: ${nonce} | userOpDocCount: ${userOperationEntities.length}`);
 
         const beneficiary = signer.address;
-        const entryPointContract = new Contract(entryPoint, entryPointAbi, null);
-        const allUserOperationDocuments = this.flatAllUserOperationDocuments(userOperationDocuments);
-        const userOps = allUserOperationDocuments.map((o) => o.origin);
+        const entryPointVersion = this.rpcService.getVersionByEntryPoint(entryPoint);
+        const entryPointContract = this.rpcService.getSetCachedContract(entryPoint, entryPointAbis[entryPointVersion]);
+        const allUserOperationEntities = this.flatAllUserOperationDocuments(userOperationEntities);
+        const userOps = allUserOperationEntities.map((o) => o.origin);
 
         // may userops contain folded userop, so we need to sort again
         userOps.sort((a, b) => {
@@ -114,18 +143,18 @@ export class HandleLocalTransactionService {
         finalizedTx.gasLimit = gasLimit;
         finalizedTx.chainId = BigInt(chainId);
         const signedTx = await signer.signTransaction(finalizedTx);
-        const userOpHashes = allUserOperationDocuments.map((o) => o.userOpHash);
+        const userOpHashes = allUserOperationEntities.map((o) => o.userOpHash);
 
-        const transactionObjectId = new Types.ObjectId();
         this.onCreateUserOpTxHash(signedTx, userOpHashes);
 
-        await this.userOperationService.setLocalUserOperationsAsPending(userOpHashes, transactionObjectId);
-        const localTransaction = await this.transactionService.createTransaction(transactionObjectId, chainId, signedTx, userOpHashes);
-        
+        const transactionId = createUniqId();
+        await this.userOperationService.setLocalUserOperationsAsPending(userOpHashes, transactionId);
+        const localTransactionEntity = await this.transactionService.createTransaction(transactionId, chainId, signedTx, userOpHashes);
+
         this.signerService.incrChainSignerPendingTxCount(chainId, signer.address);
         // there is lock, so no need to await
         this.listenerService.appendUserOpHashPendingTransactionMap(chainId, userOpHashes);
-        this.handlePendingTransactionService.trySendAndUpdateTransactionStatus(localTransaction, localTransaction.txHashes.at(-1));
+        this.handlePendingTransactionService.trySendAndUpdateTransactionStatus(localTransactionEntity, localTransactionEntity.txHashes.at(-1));
     }
 
     public async calculateGasLimitByBundleGasLimit(chainId: number, bundleGasLimit: bigint, handleOpsTx: any): Promise<bigint> {
@@ -152,8 +181,8 @@ export class HandleLocalTransactionService {
         return gasLimit;
     }
 
-    public flatAllUserOperationDocuments(userOperationDocuments: UserOperationDocument[]): UserOperationDocument[] {
-        return userOperationDocuments
+    public flatAllUserOperationDocuments(userOperationEntities: UserOperationEntity[]): UserOperationEntity[] {
+        return userOperationEntities
             .map((userOperationDocument) => {
                 let items = [userOperationDocument];
                 if (!!userOperationDocument.associatedUserOps && userOperationDocument.associatedUserOps.length > 0) {
@@ -173,7 +202,7 @@ export class HandleLocalTransactionService {
 
     public handlePendingTransactionByEvent(chainId: number, event: any) {
         Logger.debug(`[Receive UserOpEvent From Ws] chainId: ${chainId} | UserOpHash: ${event[7].args[0]}`);
-        const userOpEvent = { args: deepHexlify(event[7].args), txHash: event[7].log.transactionHash };
+        const userOpEvent = { args: deepHexlify(event[7].args), txHash: event[7].log.transactionHash, entryPoint: event[7].log.address };
         onEmitUserOpEvent(event[7].args[0], userOpEvent);
     }
 }
