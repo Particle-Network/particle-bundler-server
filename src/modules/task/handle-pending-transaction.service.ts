@@ -4,6 +4,7 @@ import { Helper } from '../../common/helper';
 import {
     BLOCK_SIGNER_REASON,
     EVENT_ENTRY_POINT_USER_OPERATION,
+    IS_PRODUCTION,
     keyLockPendingTransaction,
     keyLockSendingTransaction,
 } from '../../common/common-types';
@@ -478,6 +479,10 @@ export class HandlePendingTransactionService {
             if (error?.message?.toLowerCase()?.includes('already known')) {
                 // already send ?? can skip return
             } else {
+                if (!IS_PRODUCTION) {
+                    console.error(error);
+                }
+
                 Logger.error(`Replace Transaction ${transactionEntity.id} error on chain ${transactionEntity.chainId}`);
                 this.larkService.sendMessage(
                     `ReplaceTransaction Error On Chain ${transactionEntity.chainId} For ${transactionEntity.from}: ${Helper.converErrorToString(

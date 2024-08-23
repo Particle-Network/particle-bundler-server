@@ -33,23 +33,23 @@ export class TransactionEntity extends BaseEntity<TransactionEntity> {
     @Column({ name: 'user_operation_hashes', readonly: true, type: 'json' })
     public readonly userOperationHashes: any;
 
-    @Column({ name: 'signed_txs', readonly: true, type: 'json' })
-    public readonly signedTxs: any;
+    @Column({ name: 'signed_txs', type: 'json' })
+    public signedTxs: any;
 
-    @Column({ name: 'inners', readonly: true, type: 'json' })
-    public readonly inners: any;
+    @Column({ name: 'inners', type: 'json' })
+    public inners: any;
 
     @Column({ name: 'status', type: 'tinyint' })
     public status: TRANSACTION_STATUS;
 
-    @Column({ name: 'tx_hashes', readonly: true, type: 'json' })
-    public readonly txHashes: any;
+    @Column({ name: 'tx_hashes', type: 'json' })
+    public txHashes: any;
 
-    @Column({ name: 'confirmations', readonly: true, type: 'bigint' })
-    public readonly confirmations: number;
+    @Column({ name: 'confirmations', type: 'bigint' })
+    public confirmations: number;
 
-    @Column({ name: 'incr_retry', readonly: true, type: 'tinyint' })
-    public readonly incrRetry: number;
+    @Column({ name: 'incr_retry', type: 'tinyint' })
+    public incrRetry: number;
 
     @Column({ name: 'receipts', type: 'json' })
     public receipts: any;
@@ -57,8 +57,8 @@ export class TransactionEntity extends BaseEntity<TransactionEntity> {
     @Column({ name: 'user_operation_hash_map_tx_hash', type: 'json' })
     public userOperationHashMapTxHash: any;
 
-    @Column({ name: 'latest_sent_at', readonly: true, type: 'datetime' })
-    public readonly latestSentAt: Date;
+    @Column({ name: 'latest_sent_at', type: 'datetime' })
+    public latestSentAt: Date;
 
     public constructor(partial: Partial<TransactionEntity>) {
         super(partial);
