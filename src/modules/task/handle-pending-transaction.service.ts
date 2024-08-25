@@ -10,8 +10,8 @@ import {
 } from '../../common/common-types';
 import { TransactionService } from '../rpc/services/transaction.service';
 import { UserOperationService } from '../rpc/services/user-operation.service';
-import { getBundlerChainConfig, onEmitUserOpEvent } from '../../configs/bundler-common';
-import { Wallet, toBeHex } from 'ethers';
+import { ALL_SUPPORTED_ENTRY_POINTS, getBundlerChainConfig, onEmitUserOpEvent } from '../../configs/bundler-common';
+import { Wallet, getAddress, toBeHex } from 'ethers';
 import { canRunCron, createTxGasData, deepHexlify, getSupportChainIdCurrentProcess, tryParseSignedTx } from '../rpc/aa/utils';
 import { Cron } from '@nestjs/schedule';
 import { FeeMarketEIP1559Transaction, LegacyTransaction } from '@ethereumjs/tx';
@@ -22,6 +22,7 @@ import { RpcService } from '../rpc/services/rpc.service';
 import { entryPointAbis } from '../rpc/aa/abis/entry-point-abis';
 import { TRANSACTION_STATUS, TransactionEntity } from '../rpc/entities/transaction.entity';
 import { UserOperationEventEntity } from '../rpc/entities/user-operation-event.entity';
+import { supportedEntryPoints } from '../rpc/aa';
 
 @Injectable()
 export class HandlePendingTransactionService {
@@ -496,6 +497,11 @@ export class HandlePendingTransactionService {
     }
 
     private handleUserOpEvents(chainId: number, receipt: any, userOpHashes: string[]) {
+        // receipt may be self tx, so we should skip        
+        if (!receipt || !ALL_SUPPORTED_ENTRY_POINTS.includes(getAddress(receipt.to))) {
+            return;
+        }
+
         const userOperationEventEntities: UserOperationEventEntity[] = [];
         const txHash = receipt.transactionHash;
         const blockHash = receipt.blockHash;
