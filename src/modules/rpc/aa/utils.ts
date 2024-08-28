@@ -349,7 +349,11 @@ export function calcPreVerificationGasV07(userOp: any): number {
 }
 
 export function createUniqId(): number {
-    return Date.now() * 1000 + random(0, 9999);
+    if (IS_DEVELOPMENT) {
+        return Date.now() * 1000 + random(0, 999);
+    }
+
+    return Date.now() * 1000 + Number(process.env.NODE_APP_INSTANCE) * 100 + random(0, 99);
 }
 
 export function getSupportChainIdCurrentProcess(): number[] {
