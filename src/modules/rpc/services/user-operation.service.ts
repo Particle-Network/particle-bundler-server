@@ -273,9 +273,13 @@ export class UserOperationService {
         }
 
         // FAKE
-        await this.userOperationEventModel.insertMany(userOpEventDocs, {
-            ordered: false,
-        });
+        try {
+            await this.userOperationEventModel.insertMany(userOpEventDocs, {
+                ordered: false,
+            });
+        } catch (error) {
+            // nothing
+        }
 
         await this.userOperationRepository.manager
             .createQueryBuilder()
