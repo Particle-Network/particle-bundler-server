@@ -7,7 +7,7 @@ import { USER_OPERATION_STATUS, UserOperationEntity } from '../entities/user-ope
 import { In, Repository } from 'typeorm';
 import { TRANSACTION_STATUS, TransactionEntity } from '../entities/transaction.entity';
 import { UserOperationEventEntity } from '../entities/user-operation-event.entity';
-import { IS_PRODUCTION } from '../../../common/common-types';
+import { IS_DEVELOPMENT, IS_PRODUCTION } from '../../../common/common-types';
 import { InjectModel } from '@nestjs/mongoose';
 import { UserOperation, UserOperationDocument } from '../schemas/user-operation.schema';
 import { UserOperationEvent, UserOperationEventDocument } from '../schemas/user-operation-event.schema';
@@ -44,18 +44,24 @@ export class UserOperationService {
         }
 
         // FAKE
-        const userOperation = new this.userOperationModel({
-            userOpHash,
-            userOpSender: userOp.sender,
-            userOpNonceKey: nonceKey,
-            userOpNonce: BigInt(nonceValue).toString(),
-            chainId,
-            entryPoint,
-            origin: userOp,
-            status: USER_OPERATION_STATUS.PENDING,
-        });
+        if (!IS_DEVELOPMENT) {
+            try {
+                const userOperation = new this.userOperationModel({
+                    userOpHash,
+                    userOpSender: userOp.sender,
+                    userOpNonceKey: nonceKey,
+                    userOpNonce: BigInt(nonceValue).toString(),
+                    chainId,
+                    entryPoint,
+                    origin: userOp,
+                    status: USER_OPERATION_STATUS.PENDING,
+                });
 
-        userOperation.save();
+                await userOperation.save();
+            } catch (error) {
+                // nothing
+            }
+        }
 
         const newUserOperation = new UserOperationEntity({
             chainId,
@@ -93,18 +99,24 @@ export class UserOperationService {
             const { nonceKey, nonceValue } = splitOriginNonce(userOp.nonce);
 
             // FAKE
-            const userOperation = new this.userOperationModel({
-                userOpHash: userOpHashes[index],
-                userOpSender: userOp.sender,
-                userOpNonceKey: nonceKey,
-                userOpNonce: BigInt(nonceValue).toString(),
-                chainId,
-                entryPoint,
-                origin: userOp,
-                status: USER_OPERATION_STATUS.PENDING,
-            });
+            if (!IS_DEVELOPMENT) {
+                try {
+                    const userOperation = new this.userOperationModel({
+                        userOpHash: userOpHashes[index],
+                        userOpSender: userOp.sender,
+                        userOpNonceKey: nonceKey,
+                        userOpNonce: BigInt(nonceValue).toString(),
+                        chainId,
+                        entryPoint,
+                        origin: userOp,
+                        status: USER_OPERATION_STATUS.PENDING,
+                    });
 
-            userOperation.save();
+                    await userOperation.save();
+                } catch (error) {
+                    // nothing
+                }
+            }
 
             const userOperationEntity = new UserOperationEntity({
                 chainId,
