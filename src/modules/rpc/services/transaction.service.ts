@@ -159,6 +159,7 @@ export class TransactionService {
     }
 
     public async updateTransaction(transactionEntity: TransactionEntity, updates: any) {
+        updates.updatedAt = new Date();
         Object.assign(transactionEntity, updates);
 
         await this.transactionRepository
@@ -211,6 +212,7 @@ export class TransactionService {
             signedTxs: newSignedTxs,
             inners: newInner,
             latestSentAt: new Date(),
+            updatedAt: new Date(),
         };
 
         Object.assign(transactionEntity, updates);

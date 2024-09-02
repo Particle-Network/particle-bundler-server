@@ -219,7 +219,7 @@ export class UserOperationService {
         await this.userOperationRepository
             .createQueryBuilder()
             .update(UserOperationEntity)
-            .set({ status: USER_OPERATION_STATUS.PENDING, transactionId })
+            .set({ status: USER_OPERATION_STATUS.PENDING, transactionId, updatedAt: new Date() })
             .where('user_op_hash IN (:...userOpHashes) AND status IN (:...status)', {
                 userOpHashes,
                 status: [USER_OPERATION_STATUS.LOCAL, USER_OPERATION_STATUS.ASSOCIATED],
@@ -233,7 +233,7 @@ export class UserOperationService {
         await this.userOperationRepository
             .createQueryBuilder()
             .update(UserOperationEntity)
-            .set({ status: USER_OPERATION_STATUS.DONE, txHash, blockNumber, blockHash })
+            .set({ status: USER_OPERATION_STATUS.DONE, txHash, blockNumber, blockHash, updatedAt: new Date() })
             .where('user_op_hash IN (:...userOpHashes) AND status = :status', {
                 userOpHashes,
                 status: USER_OPERATION_STATUS.PENDING,
