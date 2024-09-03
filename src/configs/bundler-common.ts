@@ -46,8 +46,13 @@ export async function initializeBundlerConfig() {
 export function getBundlerChainConfig(chainId: number): IBundlerChainConfig {
     const config = cloneDeep(BUNDLER_CONFIG_MAP.default);
     if (BUNDLER_CONFIG_MAP[chainId]) {
+        const localNodeConfig: any = {};
         const rpcUrls = getChainRpcUrls(chainId);
-        merge(config, BUNDLER_CONFIG_MAP[chainId], { rpcUrl: rpcUrls[0] });
+        if (rpcUrls.length > 0) {
+            localNodeConfig.rpcUrl = rpcUrls[0];
+            localNodeConfig.methodSendRawTransaction = 'eth_sendRawTransaction';
+        }
+        merge(config, BUNDLER_CONFIG_MAP[chainId], localNodeConfig);
     }
 
     return config;
