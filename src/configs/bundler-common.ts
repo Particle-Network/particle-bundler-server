@@ -1,6 +1,7 @@
 import { BundlerConfig, IBundlerChainConfig } from '../common/common-types';
-import { cloneDeep } from 'lodash';
+import { cloneDeep, merge } from 'lodash';
 import * as Fs from 'fs';
+import { getChainRpcUrls } from './nodes.config';
 
 export let BUNDLER_CONFIG_MAP: BundlerConfig;
 export let PARTICLE_PAYMASTER_URL: string;
@@ -45,7 +46,8 @@ export async function initializeBundlerConfig() {
 export function getBundlerChainConfig(chainId: number): IBundlerChainConfig {
     const config = cloneDeep(BUNDLER_CONFIG_MAP.default);
     if (BUNDLER_CONFIG_MAP[chainId]) {
-        Object.assign(config, BUNDLER_CONFIG_MAP[chainId]);
+        const rpcUrls = getChainRpcUrls(chainId);
+        merge(config, BUNDLER_CONFIG_MAP[chainId], { rpcUrl: rpcUrls[0] });
     }
 
     return config;
