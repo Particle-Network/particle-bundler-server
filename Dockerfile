@@ -17,6 +17,7 @@ COPY yarn.lock /data/code/particle-bundler-server/yarn.lock
 RUN yarn install --production=true
 
 COPY .env.debug /data/code/particle-bundler-server/.env.debug
+COPY .env.nodes /data/code/particle-bundler-server/.env.nodes
 COPY dist /data/code/particle-bundler-server/dist
 
 CMD pm2-runtime ecosystem.config.js --env=$ENVIRONMENT
