@@ -21,7 +21,7 @@ export class JsonRPCRequestDto {
 
     @IsOptional()
     @IsBoolean()
-    public readonly skipCheck: boolean = false;
+    public readonly skipVerification: boolean = false;
 
     public static async fromPlainAndCheck(body: any): Promise<JsonRPCRequestDto> {
         const jsonRPCRequestDto: any = plainToInstance(JsonRPCRequestDto, body);

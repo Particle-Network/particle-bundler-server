@@ -40,7 +40,7 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
         userOp,
         entryPoint,
         body.isAuth,
-        body.skipCheck,
+        body.skipVerification,
     );
 
     return await createOrUpdateUserOperation(rpcService.userOperationService, chainId, userOp, userOpHash, entryPoint, userOperationEntity);
@@ -52,7 +52,7 @@ export async function beforeSendUserOperation(
     userOp: any,
     entryPoint: string,
     isAuth: boolean,
-    skipCheck: boolean,
+    skipVerification: boolean,
 ) {
     const { verificationGasLimit, callGasLimit } = unpackAccountGasLimits(userOp.accountGasLimits);
     if (BigInt(userOp.preVerificationGas) === 0n || verificationGasLimit === 0n || callGasLimit === 0n) {
@@ -76,7 +76,7 @@ export async function beforeSendUserOperation(
     const { nonceKey, nonceValue } = splitOriginNonce(userOp.nonce);
 
     let userOperationEntity: UserOperationEntity;
-    if (isAuth && skipCheck) {
+    if (isAuth && skipVerification) {
         userOperationEntity = await rpcService.userOperationService.getUserOperationByAddressNonce(
             chainId,
             userOpSender,

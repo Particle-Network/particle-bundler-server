@@ -35,7 +35,7 @@ export async function sendUserOperation(rpcService: RpcService, chainId: number,
         userOp,
         entryPoint,
         body.isAuth,
-        body.skipCheck,
+        body.skipVerification,
     );
 
     return await createOrUpdateUserOperation(rpcService.userOperationService, chainId, userOp, userOpHash, entryPoint, userOperationEntity);
@@ -47,7 +47,7 @@ export async function beforeSendUserOperation(
     userOp: any,
     entryPoint: string,
     isAuth: boolean,
-    skipCheck: boolean,
+    skipVerification: boolean,
 ) {
     Helper.assertTrue(BigInt(userOp.verificationGasLimit) >= 10000n, -32602, 'Invalid params: verificationGasLimit must be at least 10000');
 
@@ -58,12 +58,6 @@ export async function beforeSendUserOperation(
     const bundlerConfig = getBundlerChainConfig(chainId);
     const gasLimit = calcUserOpTotalGasLimit(userOp, chainId);
     Helper.assertTrue(gasLimit < bundlerConfig.maxBundleGas, -32602, 'GasLimit is too large');
-
-    Helper.assertTrue(
-        BigInt(userOp.preVerificationGas) >= BigInt(calcPreVerificationGas(userOp) - 1000),
-        -32602,
-        'preVerificationGas is too low',
-    );
 
     const userOpHash = getUserOpHashV06(chainId, userOp, entryPoint);
     const userOpSender = getAddress(userOp.sender);
@@ -83,7 +77,7 @@ export async function beforeSendUserOperation(
     }
 
     let userOperationEntity: UserOperationEntity;
-    if (isAuth && skipCheck) {
+    if (isAuth && skipVerification) {
         userOperationEntity = await rpcService.userOperationService.getUserOperationByAddressNonce(
             chainId,
             userOpSender,
@@ -91,6 +85,12 @@ export async function beforeSendUserOperation(
             Number(BigInt(nonceValue)),
         );
     } else {
+        Helper.assertTrue(
+            BigInt(userOp.preVerificationGas) >= BigInt(calcPreVerificationGas(userOp) - 1000),
+            -32602,
+            'preVerificationGas is too low',
+        );
+
         const [rSimulation, extraFee, signerFeeData, userOpEntity, localUserOperationsCount] = await Promise.all([
             simulateHandleOpAndGetGasCost(rpcService, chainId, userOp, entryPoint),
             getL2ExtraFee(rpcService, chainId, userOp, entryPoint),

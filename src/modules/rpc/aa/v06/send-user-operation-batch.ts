@@ -15,7 +15,7 @@ export async function sendUserOperationBatch(rpcService: RpcService, chainId: nu
     }
 
     const resultItems = await Promise.all(
-        userOps.map((userOp) => beforeSendUserOperation(rpcService, chainId, userOp, entryPoint, body.isAuth, body.skipCheck)),
+        userOps.map((userOp) => beforeSendUserOperation(rpcService, chainId, userOp, entryPoint, body.isAuth, body.skipVerification)),
     );
     for (const resultItem of resultItems) {
         Helper.assertTrue(!resultItem.userOperationEntity, -32611);
