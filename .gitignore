@@ -30,6 +30,7 @@ test6.ts
 .env.dev
 .env.debug
 .env.production
+.env.nodes
 out
 bundler-config-particle.ts
 bundler-config-production.ts
