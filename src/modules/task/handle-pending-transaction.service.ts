@@ -23,6 +23,7 @@ import { entryPointAbis } from '../rpc/aa/abis/entry-point-abis';
 import { TRANSACTION_STATUS, TransactionEntity } from '../rpc/entities/transaction.entity';
 import { UserOperationEventEntity } from '../rpc/entities/user-operation-event.entity';
 import { supportedEntryPoints } from '../rpc/aa';
+import { isEmpty } from 'lodash';
 
 @Injectable()
 export class HandlePendingTransactionService {
@@ -205,6 +206,9 @@ export class HandlePendingTransactionService {
 
             const results = await this.checkAndHandleFailedReceipt(transactionEntity, receipt);
             for (const { receipt, userOpHashes } of results) {
+                if (isEmpty(userOpHashes)) {
+                    continue;
+                }
                 this.handleUserOpEvents(chainId, receipt, userOpHashes);
 
                 const txHash = receipt.transactionHash;
