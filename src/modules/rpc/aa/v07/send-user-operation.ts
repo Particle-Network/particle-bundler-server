@@ -25,6 +25,7 @@ import { AppException } from '../../../../common/app-exception';
 import { getBundlerChainConfig } from '../../../../configs/bundler-common';
 import { UserOperationService } from '../../services/user-operation.service';
 import { UserOperationEntity } from '../../entities/user-operation.entity';
+import { tryMockExecUserOp } from '../mock_exec_user_op';
 
 const simulateEntryPointInterface = new Interface(entryPointSimulationV07Abi);
 
@@ -115,37 +116,8 @@ export async function beforeSendUserOperation(
 }
 
 async function checkUserOpCanExecutedSucceed(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string) {
-    const contractEntryPoint = rpcService.getSetCachedContract(entryPoint, entryPointAbis.v07);
-    const signer = rpcService.signerService.getChainSigners(chainId)[0];
-
-    const callTx = await contractEntryPoint.handleOps.populateTransaction([userOp], signer.address, { from: signer.address });
-    const promises = [rpcService.chainService.staticCall(chainId, callTx, true)];
-    const { nonceValue } = splitOriginNonce(userOp.nonce);
-
-    // check account exists to replace check nonce??
-    if (BigInt(nonceValue) >= 1n) {
-        // check account call is success because entry point will catch the error
-        promises.push(
-            rpcService.chainService.estimateGas(chainId, {
-                from: entryPoint,
-                to: userOp.sender,
-                data: userOp.callData,
-            }),
-        );
-    }
-
     try {
-        const [rhandleOps] = await Promise.all(promises);
-
-        if (!!rhandleOps?.error) {
-            let errorMessage = '';
-            if (!!rhandleOps.error?.data && isHexString(rhandleOps.error.data)) {
-                const errorDescription = contractEntryPoint.interface.parseError(rhandleOps.error.data);
-                errorMessage = `${errorDescription.name}: ${JSON.stringify(deepHexlify(errorDescription.args))}`;
-            }
-
-            throw new Error(errorMessage);
-        }
+        await tryMockExecUserOp(rpcService, chainId, userOp, entryPoint);
     } catch (error) {
         if (!IS_PRODUCTION) {
             console.error(error);

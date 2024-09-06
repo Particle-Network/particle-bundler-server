@@ -194,6 +194,45 @@ describe('RpcController', () => {
             console.log('r', r);
         }, 60000);
 
+        it('Mock exec userOp', async () => {
+            const customChainId = process.argv.find((arg) => arg.includes('--chainId='));
+            const chainId = Number(customChainId ? customChainId.split('=')[1] : EVM_CHAIN_ID.ETHEREUM_SEPOLIA_TESTNET);
+            console.log('Test chainId', chainId);
+
+            const simpleAccount = await createSimpleAccountV06(chainId);
+            let userOp = await createFakeUserOp(chainId, simpleAccount);
+
+            console.log('unsignedUserOp', deepHexlify(userOp));
+
+            userOp = await estimateGasV06(chainId, userOp);
+            console.log('estimateGas', JSON.stringify(deepHexlify(userOp)));
+
+            userOp = await gaslessSponsor(chainId, userOp, ENTRY_POINT_ADDRESS_V06);
+            console.log('sponsoredOp', deepHexlify(userOp));
+
+            userOp.signature = await getSignature(simpleAccount, userOp);
+            console.log('signedOp', deepHexlify(userOp));
+
+            const body = {
+                method: 'eth_mockExecUserOp',
+                params: [
+                    userOp,
+                    ENTRY_POINT_ADDRESS_V06,
+                ],
+                id: 53,
+                jsonrpc: '2.0',
+            };
+
+            const r = await rpcController.handleRpc(chainId, body);
+            console.log('r', r);
+            expect(r.result.isSuccess).toBeTruthy();
+
+            userOp.signature = '0x';
+            const r2 = await rpcController.handleRpc(chainId, body);
+            console.log('r2', r2);
+            expect(r2.result.isSuccess).not.toBeTruthy();
+        }, 60000);
+
         it('Decode callData', async () => {
             const txs = deserializeUserOpCalldata(
                 '0xb61d27f600000000000000000000000028ad6b7dfd79153659cb44c2155cf7c0e1ceeccc00000000000000000000000000000000000000000000000002dfc714caeaf00000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000084c3685f4900000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000022314c57665a4a3653756e784748376353625a6f51364a655477456776593241435a6100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
