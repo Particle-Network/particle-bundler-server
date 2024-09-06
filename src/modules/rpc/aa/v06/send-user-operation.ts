@@ -7,7 +7,6 @@ import { AppException } from '../../../../common/app-exception';
 import {
     calcUserOpGasPrice,
     calcUserOpTotalGasLimit,
-    deepHexlify,
     getL2ExtraFee,
     getUserOpHashV06,
     isUserOpValidV06,
@@ -22,7 +21,7 @@ import { EVM_CHAIN_ID, NEED_TO_ESTIMATE_GAS_BEFORE_SEND, SUPPORT_EIP_1559, SUPPO
 import { UserOperationService } from '../../services/user-operation.service';
 import { entryPointAbis } from '../abis/entry-point-abis';
 import { UserOperationEntity } from '../../entities/user-operation.entity';
-import { tryMockExecUserOp } from '../mock_exec_user_op';
+import { tryPreExecuteUserOp } from '../pre-execute-user-op';
 
 export async function sendUserOperation(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
     Helper.assertTrue(typeof body.params[0] === 'object', -32602, 'Invalid params: userop must be an object');
@@ -258,7 +257,7 @@ function checkUserOpGasPriceIsSatisfied(chainId: number, userOp: any, gasCost: b
 
 async function checkUserOpCanExecutedSucceed(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string) {
     try {
-        await tryMockExecUserOp(rpcService, chainId, userOp, entryPoint)
+        await tryPreExecuteUserOp(rpcService, chainId, userOp, entryPoint)
     } catch (error) {
         if (!IS_PRODUCTION) {
             console.error(error);

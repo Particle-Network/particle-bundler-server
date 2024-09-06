@@ -5,30 +5,29 @@ import { entryPointAbis } from './abis/entry-point-abis';
 import { JsonRPCRequestDto } from '../dtos/json-rpc-request.dto';
 import { Helper } from '../../../common/helper';
 
-export async function mockExecUserOp(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
+export async function preExecuteUserOp(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
     Helper.assertTrue(typeof body.params[0] === 'object', -32602, 'Invalid params: userop must be an object');
 
     const userOp = body.params[0];
     const entryPoint = getAddress(body.params[1]);
     try {
-        await tryMockExecUserOp(rpcService, chainId, userOp, entryPoint);
-    }catch (error) {
+        await tryPreExecuteUserOp(rpcService, chainId, userOp, entryPoint);
+    } catch (error) {
         return {
             isSuccess: false,
             errMsg: error.message,
-        }
+        };
     }
     return {
         isSuccess: true,
     };
-    
 }
 
-export async function tryMockExecUserOp(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string):Promise<void> {
+export async function tryPreExecuteUserOp(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string): Promise<void> {
     const version = rpcService.getVersionByEntryPoint(entryPoint);
     const contractEntryPoint = rpcService.getSetCachedContract(entryPoint, entryPointAbis[version]);
     const signer = rpcService.signerService.getChainSigners(chainId)[0];
- 
+
     const callTx = await contractEntryPoint.handleOps.populateTransaction([userOp], signer.address, { from: signer.address });
     const promises = [rpcService.chainService.staticCall(chainId, callTx, true)];
     const { nonceValue } = splitOriginNonce(userOp.nonce);
@@ -51,7 +50,7 @@ export async function tryMockExecUserOp(rpcService: RpcService, chainId: number,
         if (!!rhandleOps?.error) {
             let errorMessage = '';
             if (!!rhandleOps.error?.data && isHexString(rhandleOps.error.data)) {
-                const errorDescription = contractEntryPoint.interface.parseError(rhandleOps.error.data);
+                const errorDescription: any = contractEntryPoint.interface.parseError(rhandleOps.error.data);
                 errorMessage = `${errorDescription.name}: ${JSON.stringify(deepHexlify(errorDescription.args))}`;
             }
 
@@ -65,5 +64,4 @@ export async function tryMockExecUserOp(rpcService: RpcService, chainId: number,
             error?.message;
         throw new Error(msg);
     }
-    
 }

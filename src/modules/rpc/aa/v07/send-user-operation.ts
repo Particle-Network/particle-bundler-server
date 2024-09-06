@@ -1,4 +1,4 @@
-import { getAddress, Interface, isHexString, toBeHex, ZeroAddress } from 'ethers';
+import { getAddress, Interface, toBeHex, ZeroAddress } from 'ethers';
 import { JsonRPCRequestDto } from '../../dtos/json-rpc-request.dto';
 import { RpcService } from '../../services/rpc.service';
 import { Helper } from '../../../../common/helper';
@@ -6,7 +6,6 @@ import {
     calcPreVerificationGasV07,
     calcUserOpGasPrice,
     calcUserOpTotalGasLimit,
-    deepHexlify,
     getL2ExtraFee,
     getUserOpHashV07,
     isUserOpValidV07,
@@ -25,7 +24,7 @@ import { AppException } from '../../../../common/app-exception';
 import { getBundlerChainConfig } from '../../../../configs/bundler-common';
 import { UserOperationService } from '../../services/user-operation.service';
 import { UserOperationEntity } from '../../entities/user-operation.entity';
-import { tryMockExecUserOp } from '../mock_exec_user_op';
+import { tryPreExecuteUserOp } from '../pre-execute-user-op';
 
 const simulateEntryPointInterface = new Interface(entryPointSimulationV07Abi);
 
@@ -117,7 +116,7 @@ export async function beforeSendUserOperation(
 
 async function checkUserOpCanExecutedSucceed(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string) {
     try {
-        await tryMockExecUserOp(rpcService, chainId, userOp, entryPoint);
+        await tryPreExecuteUserOp(rpcService, chainId, userOp, entryPoint);
     } catch (error) {
         if (!IS_PRODUCTION) {
             console.error(error);

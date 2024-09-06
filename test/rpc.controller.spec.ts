@@ -194,7 +194,7 @@ describe('RpcController', () => {
             console.log('r', r);
         }, 60000);
 
-        it('Mock exec userOp', async () => {
+        it('Pre exec userOp', async () => {
             const customChainId = process.argv.find((arg) => arg.includes('--chainId='));
             const chainId = Number(customChainId ? customChainId.split('=')[1] : EVM_CHAIN_ID.ETHEREUM_SEPOLIA_TESTNET);
             console.log('Test chainId', chainId);
@@ -214,11 +214,8 @@ describe('RpcController', () => {
             console.log('signedOp', deepHexlify(userOp));
 
             const body = {
-                method: 'eth_mockExecUserOp',
-                params: [
-                    userOp,
-                    ENTRY_POINT_ADDRESS_V06,
-                ],
+                method: AA_METHODS.PRE_EXEC_USEROP,
+                params: [userOp, ENTRY_POINT_ADDRESS_V06],
                 id: 53,
                 jsonrpc: '2.0',
             };
