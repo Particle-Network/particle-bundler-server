@@ -38,6 +38,7 @@ module.exports = {
                 ENVIRONMENT: 'debug',
                 TZ: 'UTC',
                 PARTICLE: '1',
+                USE_LOCAL_NODE: '1',
             },
             env_production: {
                 ENVIRONMENT: 'production',
