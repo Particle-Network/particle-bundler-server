@@ -44,6 +44,7 @@ module.exports = {
                 ENVIRONMENT: 'production',
                 TZ: 'UTC',
                 PARTICLE: '1',
+                USE_LOCAL_NODE: '1',
             },
         },
     ],
