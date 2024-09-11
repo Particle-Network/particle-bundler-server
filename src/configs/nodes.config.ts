@@ -9,7 +9,7 @@ if (process.env.USE_LOCAL_NODE) {
         for (const key in nodeConfig.parsed) {
             if (key.startsWith('EVM_CHAIN_RPC_URL_')) {
                 const chainId = Number(key.replace('EVM_CHAIN_RPC_URL_', ''));
-                nodes[chainId] = nodeConfig.parsed[key].split(',').filter((x) => !!x);
+                nodes[chainId] = nodeConfig.parsed[key].split(',').filter((x) => !!x && x.indexOf('chainbase') === -1);
             }
         }
     }

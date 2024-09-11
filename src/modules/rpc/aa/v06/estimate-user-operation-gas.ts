@@ -7,7 +7,7 @@ import { Helper } from '../../../../common/helper';
 import { calcUserOpGasPrice, getL2ExtraFee, isUserOpValidV06, toBeHexTrimZero } from '../utils';
 import { AppException } from '../../../../common/app-exception';
 import { JsonRPCRequestDto } from '../../dtos/json-rpc-request.dto';
-import { DUMMY_SIGNATURE, IS_PRODUCTION } from '../../../../common/common-types';
+import { DUMMY_SIGNATURE } from '../../../../common/common-types';
 import { simulateHandleOpAndGetGasCost } from './send-user-operation';
 import { EVM_CHAIN_ID, L2_GAS_ORACLE, NEED_TO_ESTIMATE_GAS_BEFORE_SEND, SUPPORT_EIP_1559 } from '../../../../common/chains';
 import { deserializeUserOpCalldata } from '../deserialize-user-op';
@@ -109,18 +109,6 @@ export async function estimateGasLimit(rpcService: RpcService, chainId: number, 
             const factory = userOp.initCode.slice(0, 42);
             const factoryInitCode = `0x${userOp.initCode.slice(42)}`;
 
-            if (!IS_PRODUCTION) {
-                console.log(
-                    'Estimate Call: [2]',
-                    `chainId: ${chainId}`,
-                    JSON.stringify({
-                        from: entryPoint,
-                        to: factory,
-                        data: factoryInitCode,
-                    }),
-                );
-            }
-
             initGas = BigInt(
                 await rpcService.chainService.estimateGas(
                     chainId,
@@ -133,18 +121,6 @@ export async function estimateGasLimit(rpcService: RpcService, chainId: number, 
                 ),
             );
         } else {
-            if (!IS_PRODUCTION) {
-                console.log(
-                    'Estimate Call: [3]',
-                    `chainId: ${chainId}`,
-                    JSON.stringify({
-                        from: entryPoint,
-                        to: userOp.sender,
-                        data: userOp.callData,
-                    }),
-                );
-            }
-
             callGasLimit = BigInt(
                 await rpcService.chainService.estimateGas(
                     chainId,
@@ -193,19 +169,6 @@ export async function tryEstimateGasForFirstAccount(rpcService: RpcService, chai
 
         await Promise.all(
             txs.map((tx) => {
-                if (!IS_PRODUCTION) {
-                    console.log(
-                        'Estimate Call: [1]',
-                        `chainId: ${chainId}`,
-                        JSON.stringify({
-                            from: userOp.sender,
-                            to: tx.to,
-                            data: tx.data,
-                            value: toBeHexTrimZero(tx.value),
-                        }),
-                    );
-                }
-
                 return rpcService.chainService.estimateGas(
                     chainId,
                     {

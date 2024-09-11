@@ -1,4 +1,4 @@
-import { Contract, ZeroAddress, getAddress, isAddress, isHexString, toBeHex } from 'ethers';
+import { Contract, ZeroAddress, getAddress, isAddress, toBeHex } from 'ethers';
 import { JsonRPCRequestDto } from '../../dtos/json-rpc-request.dto';
 import { RpcService } from '../../services/rpc.service';
 import { Helper } from '../../../../common/helper';
@@ -157,18 +157,6 @@ export async function simulateHandleOpAndGetGasCost(
         from: signers[0].address,
     });
 
-    if (!IS_PRODUCTION) {
-        console.log(
-            'Estimate Call: [4]',
-            `chainId: ${chainId}`,
-            JSON.stringify({
-                chainId,
-                txSimulateHandleOp,
-                stateOverride,
-            }),
-        );
-    }
-
     let [resultCallSimulateHandleOp, gasCostWholeTransaction] = await Promise.all([
         rpcService.chainService.staticCall(chainId, txSimulateHandleOp, true, stateOverride),
         tryGetGasCostWholeTransaction(chainId, rpcService, contractEntryPoint, entryPoint, userOp),
@@ -257,7 +245,7 @@ function checkUserOpGasPriceIsSatisfied(chainId: number, userOp: any, gasCost: b
 
 async function checkUserOpCanExecutedSucceed(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string) {
     try {
-        await tryPreExecuteUserOp(rpcService, chainId, userOp, entryPoint)
+        await tryPreExecuteUserOp(rpcService, chainId, userOp, entryPoint);
     } catch (error) {
         if (!IS_PRODUCTION) {
             console.error(error);
