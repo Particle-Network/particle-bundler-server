@@ -6,6 +6,7 @@ import { IS_PRODUCTION } from '../../../common/common-types';
 import { entryPointAbis } from './abis/entry-point-abis';
 import { USER_OPERATION_STATUS, UserOperationEntity } from '../entities/user-operation.entity';
 import { TRANSACTION_STATUS } from '../entities/transaction.entity';
+import { EVM_CHAIN_ID } from '../../../common/chains';
 
 export async function getUserOperationReceipt(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
     Helper.assertTrue(body.params.length === 1, -32602);
@@ -32,9 +33,14 @@ export async function getUserOperationReceipt(rpcService: RpcService, chainId: n
         return null;
     }
 
-    const receipt = transaction.receipts[transaction.userOperationHashMapTxHash[userOperationEntity.userOpHash]];
+    let receipt = transaction.receipts[transaction.userOperationHashMapTxHash[userOperationEntity.userOpHash]];
     if (!receipt) {
         return null;
+    }
+
+    // these chains may reorg, so the receipt cache my not the final version, so here re request
+    if ([EVM_CHAIN_ID.BERACHAIN_TESTNET_BARTIO].includes(transaction.chainId) && !!receipt?.transactionHash) {
+        receipt = await rpcService.chainService.getTransactionReceipt(transaction.chainId, receipt.transactionHash);
     }
 
     return formatReceipt(rpcService, userOperationEntity, receipt);
