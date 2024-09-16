@@ -22,7 +22,6 @@ import { RpcService } from '../rpc/services/rpc.service';
 import { entryPointAbis } from '../rpc/aa/abis/entry-point-abis';
 import { TRANSACTION_STATUS, TransactionEntity } from '../rpc/entities/transaction.entity';
 import { UserOperationEventEntity } from '../rpc/entities/user-operation-event.entity';
-import { supportedEntryPoints } from '../rpc/aa';
 import { isEmpty } from 'lodash';
 
 @Injectable()
@@ -196,7 +195,7 @@ export class HandlePendingTransactionService {
                 await this.transactionService.updateTransaction(transactionEntity, { status: TRANSACTION_STATUS.DONE });
 
                 const txHash = transactionEntity.txHashes[transactionEntity.txHashes.length - 1];
-                const fakeUserOpEvent = { args: ['', '', '', '', false, '', ''], txHash };
+                const fakeUserOpEvent = { blockNumber: 0, args: ['', '', '', '', false, '', ''], txHash };
                 userOpHashes.map((userOpHash: string) => onEmitUserOpEvent(userOpHash, fakeUserOpEvent));
 
                 this.afterDoneTransaction(transactionEntity);
@@ -501,7 +500,7 @@ export class HandlePendingTransactionService {
     }
 
     private handleUserOpEvents(chainId: number, receipt: any, userOpHashes: string[]) {
-        // receipt may be self tx, so we should skip        
+        // receipt may be self tx, so we should skip
         if (!receipt || !ALL_SUPPORTED_ENTRY_POINTS.includes(getAddress(receipt.to))) {
             return;
         }
@@ -544,7 +543,7 @@ export class HandlePendingTransactionService {
             this.userOperationService.createUserOperationEvents(userOperationEventEntities);
             userOperationEventEntities.map((o) => onEmitUserOpEvent(o.userOpHash, o));
         } else {
-            const fakeUserOpEvent = { args: ['', '', '', '', false, '', ''], txHash };
+            const fakeUserOpEvent = { blockNumber: 0, args: ['', '', '', '', false, '', ''], txHash };
             userOpHashes.map((userOpHash: string) => onEmitUserOpEvent(userOpHash, fakeUserOpEvent));
         }
     }

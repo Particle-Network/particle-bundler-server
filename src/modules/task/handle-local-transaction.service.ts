@@ -202,7 +202,14 @@ export class HandleLocalTransactionService {
 
     public handlePendingTransactionByEvent(chainId: number, event: any) {
         Logger.debug(`[Receive UserOpEvent From Ws] chainId: ${chainId} | UserOpHash: ${event[7].args[0]}`);
-        const userOpEvent = { args: deepHexlify(event[7].args), txHash: event[7].log.transactionHash, entryPoint: event[7].log.address };
+
+        const userOpEvent = {
+            args: deepHexlify(event[7].args),
+            txHash: event[7].log.transactionHash,
+            entryPoint: event[7].log.address,
+            blockNumber: event[7].log.blockNumber,
+        };
+
         onEmitUserOpEvent(event[7].args[0], userOpEvent);
     }
 }
