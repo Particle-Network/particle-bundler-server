@@ -56,6 +56,7 @@ export class HandleLocalTransactionService {
                 getSupportChainIdCurrentProcess(),
                 TRANSACTION_STATUS.LOCAL,
                 500,
+                {signedTxs: false, inners: false}
             );
             for (const localTransaction of localTransactions) {
                 this.handleLocalTransaction(localTransaction);

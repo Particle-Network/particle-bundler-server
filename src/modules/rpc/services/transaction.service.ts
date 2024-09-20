@@ -6,7 +6,7 @@ import { random } from 'lodash';
 import { LRUCache } from 'lru-cache';
 import { TRANSACTION_STATUS, TransactionEntity } from '../entities/transaction.entity';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, LessThan, MoreThanOrEqual, Repository } from 'typeorm';
+import { DataSource, FindOptionsSelect, FindOptionsSelectByString, In, LessThan, MoreThanOrEqual, Repository } from 'typeorm';
 import { USER_OPERATION_STATUS, UserOperationEntity } from '../entities/user-operation.entity';
 
 @Injectable()
@@ -21,11 +21,17 @@ export class TransactionService {
         @InjectRepository(TransactionEntity) private readonly transactionRepository: Repository<TransactionEntity>,
     ) {}
 
-    public async getTransactionsByStatus(chainIds: number[], status: TRANSACTION_STATUS, limit: number): Promise<TransactionEntity[]> {
+    public async getTransactionsByStatus(
+        chainIds: number[],
+        status: TRANSACTION_STATUS,
+        limit: number,
+        select?: FindOptionsSelect<TransactionEntity>,
+    ): Promise<TransactionEntity[]> {
         return await this.transactionRepository.find({
             where: { chainId: In(chainIds), status },
             order: { id: 'ASC' },
             take: limit,
+            select: select,
         });
     }
 
