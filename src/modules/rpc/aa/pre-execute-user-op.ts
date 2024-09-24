@@ -11,7 +11,7 @@ export async function preExecuteUserOp(rpcService: RpcService, chainId: number, 
     const userOp = body.params[0];
     const entryPoint = getAddress(body.params[1]);
     try {
-        await tryPreExecuteUserOp(rpcService, chainId, userOp, entryPoint);
+        await tryPreExecuteUserOp(rpcService, chainId, userOp, entryPoint, body.accountIsDeployed);
     } catch (error) {
         return {
             isSuccess: false,
@@ -23,7 +23,13 @@ export async function preExecuteUserOp(rpcService: RpcService, chainId: number, 
     };
 }
 
-export async function tryPreExecuteUserOp(rpcService: RpcService, chainId: number, userOp: any, entryPoint: string): Promise<void> {
+export async function tryPreExecuteUserOp(
+    rpcService: RpcService,
+    chainId: number,
+    userOp: any,
+    entryPoint: string,
+    accountIsDeployed: boolean = false,
+): Promise<void> {
     const version = rpcService.getVersionByEntryPoint(entryPoint);
     const contractEntryPoint = rpcService.getSetCachedContract(entryPoint, entryPointAbis[version]);
     const signer = rpcService.signerService.getChainSigners(chainId)[0];
@@ -33,7 +39,7 @@ export async function tryPreExecuteUserOp(rpcService: RpcService, chainId: numbe
     const { nonceValue } = splitOriginNonce(userOp.nonce);
 
     // check account exists to replace check nonce??
-    if (BigInt(nonceValue) >= 1n) {
+    if (BigInt(nonceValue) >= 1n || accountIsDeployed) {
         // check account call is success because entry point will catch the error
         promises.push(
             rpcService.chainService.estimateGas(chainId, {
