@@ -6,7 +6,7 @@ import { random } from 'lodash';
 import { LRUCache } from 'lru-cache';
 import { TRANSACTION_STATUS, TransactionEntity } from '../entities/transaction.entity';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, FindOptionsSelect, FindOptionsSelectByString, In, LessThan, MoreThanOrEqual, Repository } from 'typeorm';
+import { DataSource, FindOptionsSelect, In, LessThan, MoreThanOrEqual, Repository } from 'typeorm';
 import { USER_OPERATION_STATUS, UserOperationEntity } from '../entities/user-operation.entity';
 
 @Injectable()
@@ -31,7 +31,7 @@ export class TransactionService {
             where: { chainId: In(chainIds), status },
             order: { id: 'ASC' },
             take: limit,
-            select: select,
+            select,
         });
     }
 
@@ -39,6 +39,7 @@ export class TransactionService {
         chainIds: number[],
         status: TRANSACTION_STATUS,
         limit: number,
+        select?: FindOptionsSelect<TransactionEntity>,
     ): Promise<TransactionEntity[]> {
         const recentData = new Date(Date.now() - 10000); // 10s ago
 
@@ -48,6 +49,7 @@ export class TransactionService {
                 where: { chainId: In(chainIds), status, latestSentAt: MoreThanOrEqual(recentData) },
                 order: { confirmations: 'ASC' },
                 take: limit,
+                select,
             });
         }
 
@@ -56,6 +58,7 @@ export class TransactionService {
             where: { chainId: In(chainIds), status, latestSentAt: MoreThanOrEqual(recentData) },
             order: { id: 'ASC' },
             take: limit,
+            select,
         });
     }
 
@@ -63,6 +66,7 @@ export class TransactionService {
         chainIds: number[],
         status: TRANSACTION_STATUS,
         limit: number,
+        select?: FindOptionsSelect<TransactionEntity>,
     ): Promise<TransactionEntity[]> {
         const recentData = new Date(Date.now() - 10000); // 10s ago
 
@@ -71,6 +75,7 @@ export class TransactionService {
                 where: { chainId: In(chainIds), status, latestSentAt: LessThan(recentData) },
                 order: { confirmations: 'ASC' },
                 take: limit,
+                select,
             });
         }
 
@@ -78,6 +83,7 @@ export class TransactionService {
             where: { chainId: In(chainIds), status, latestSentAt: LessThan(recentData) },
             order: { id: 'ASC' },
             take: limit,
+            select,
         });
     }
 

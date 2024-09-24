@@ -48,6 +48,7 @@ export class HandlePendingTransactionService {
             getSupportChainIdCurrentProcess(),
             TRANSACTION_STATUS.PENDING,
             500,
+            { signedTxs: false, inners: false },
         );
 
         if (new Date().getSeconds() % 5 === 0) {
@@ -55,6 +56,7 @@ export class HandlePendingTransactionService {
                 getSupportChainIdCurrentProcess(),
                 TRANSACTION_STATUS.PENDING,
                 500,
+                { signedTxs: false, inners: false },
             );
 
             pendingTransactions = pendingTransactions.concat(longPendingTransactions);
@@ -314,7 +316,7 @@ export class HandlePendingTransactionService {
             const signerDoneTransactionMaxNonce = this.getSignerDoneTransactionMaxNonceFromCache(pendingTransactionEntity);
 
             const start = Date.now();
-            const receiptPromises = pendingTransactionEntity.txHashes.map((txHash) =>
+            const receiptPromises = pendingTransactionEntity.txHashes.map((txHash: string) =>
                 this.chainService.getTransactionReceipt(pendingTransactionEntity.chainId, txHash),
             );
             const receipts = await Promise.all(receiptPromises);
