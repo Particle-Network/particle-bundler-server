@@ -23,10 +23,6 @@ export class JsonRPCRequestDto {
     @IsBoolean()
     public readonly skipVerification: boolean = false;
 
-    @IsOptional()
-    @IsBoolean()
-    public readonly accountIsDeployed: boolean = false;
-
     public static async fromPlainAndCheck(body: any): Promise<JsonRPCRequestDto> {
         const jsonRPCRequestDto: any = plainToInstance(JsonRPCRequestDto, body);
         const validationErrors = await validate(jsonRPCRequestDto);
