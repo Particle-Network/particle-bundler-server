@@ -33,7 +33,8 @@ export async function tryPreExecuteUserOp(rpcService: RpcService, chainId: numbe
     const { nonceValue } = splitOriginNonce(userOp.nonce);
 
     // check account exists to replace check nonce??
-    if (BigInt(nonceValue) >= 1n || userOp.initCode.length <= 2) {
+    // userOp.initCode.length <= 2
+    if (BigInt(nonceValue) >= 1n) {
         // check account call is success because entry point will catch the error
         promises.push(
             rpcService.chainService.estimateGas(chainId, {
