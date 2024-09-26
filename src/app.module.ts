@@ -6,8 +6,6 @@ import { ConfigModule } from '@nestjs/config';
 import { TaskModule } from './modules/task/task.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { createTypeOrmConfigAsync } from './configs/typeorm.config';
-import { MongooseModule } from '@nestjs/mongoose';
-import { mongodbConfigAsync } from './configs/mongodb.config';
 
 @Module({
     imports: [
@@ -15,7 +13,6 @@ import { mongodbConfigAsync } from './configs/mongodb.config';
         CommonModule,
         RpcModule,
         TaskModule,
-        MongooseModule.forRootAsync(mongodbConfigAsync),
         TypeOrmModule.forRootAsync(createTypeOrmConfigAsync()),
     ],
 })

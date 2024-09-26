@@ -7,11 +7,7 @@ import { USER_OPERATION_STATUS, UserOperationEntity } from '../entities/user-ope
 import { In, Repository } from 'typeorm';
 import { TRANSACTION_STATUS, TransactionEntity } from '../entities/transaction.entity';
 import { UserOperationEventEntity } from '../entities/user-operation-event.entity';
-import { IS_DEVELOPMENT, IS_PRODUCTION } from '../../../common/common-types';
-import { InjectModel } from '@nestjs/mongoose';
-import { UserOperation, UserOperationDocument } from '../schemas/user-operation.schema';
-import { UserOperationEvent, UserOperationEventDocument } from '../schemas/user-operation-event.schema';
-import { Model } from 'mongoose';
+import { IS_PRODUCTION } from '../../../common/common-types';
 
 @Injectable()
 export class UserOperationService {
@@ -19,8 +15,6 @@ export class UserOperationService {
         @InjectRepository(UserOperationEntity) private readonly userOperationRepository: Repository<UserOperationEntity>,
         @InjectRepository(UserOperationEventEntity) private readonly userOperationEventRepository: Repository<UserOperationEventEntity>,
         @InjectRepository(TransactionEntity) private readonly transactionRepository: Repository<TransactionEntity>,
-        @InjectModel(UserOperation.name) public readonly userOperationModel: Model<UserOperationDocument>,
-        @InjectModel(UserOperationEvent.name) public readonly userOperationEventModel: Model<UserOperationEventDocument>,
     ) {}
 
     public async createOrUpdateUserOperation(
@@ -41,26 +35,6 @@ export class UserOperationService {
             Helper.assertTrue(await this.checkCanBeReplaced(userOperationEntity), -32607);
 
             return await this.resetToLocal(userOperationEntity, userOpHash, entryPoint, userOp);
-        }
-
-        // FAKE
-        if (!IS_DEVELOPMENT) {
-            try {
-                const userOperation = new this.userOperationModel({
-                    userOpHash,
-                    userOpSender: userOp.sender,
-                    userOpNonceKey: nonceKey,
-                    userOpNonce: BigInt(nonceValue).toString(),
-                    chainId,
-                    entryPoint,
-                    origin: userOp,
-                    status: USER_OPERATION_STATUS.PENDING,
-                });
-
-                await userOperation.save();
-            } catch (error) {
-                // nothing
-            }
         }
 
         const newUserOperation = new UserOperationEntity({
@@ -97,26 +71,6 @@ export class UserOperationService {
 
             const userOp = userOps[index];
             const { nonceKey, nonceValue } = splitOriginNonce(userOp.nonce);
-
-            // FAKE
-            if (!IS_DEVELOPMENT) {
-                try {
-                    const userOperation = new this.userOperationModel({
-                        userOpHash: userOpHashes[index],
-                        userOpSender: userOp.sender,
-                        userOpNonceKey: nonceKey,
-                        userOpNonce: BigInt(nonceValue).toString(),
-                        chainId,
-                        entryPoint,
-                        origin: userOp,
-                        status: USER_OPERATION_STATUS.PENDING,
-                    });
-
-                    await userOperation.save();
-                } catch (error) {
-                    // nothing
-                }
-            }
 
             const userOperationEntity = new UserOperationEntity({
                 chainId,
@@ -254,31 +208,6 @@ export class UserOperationService {
     public async createUserOperationEvents(userOperationEventEntities: UserOperationEventEntity[]) {
         if (userOperationEventEntities.length <= 0) {
             return;
-        }
-
-        let userOpEventDocs: UserOperationEventDocument[] = [];
-        for (const userOperationEventEntity of userOperationEventEntities) {
-            const userOpEventDoc = new this.userOperationEventModel({
-                chainId: userOperationEventEntity.chainId,
-                blockHash: userOperationEventEntity.blockHash,
-                blockNumber: userOperationEventEntity.blockNumber,
-                contractAddress: userOperationEventEntity.entryPoint,
-                userOperationHash: userOperationEventEntity.userOpHash,
-                txHash: userOperationEventEntity.txHash,
-                topic: userOperationEventEntity.topic,
-                args: userOperationEventEntity.args,
-            });
-
-            userOpEventDocs.push(userOpEventDoc);
-        }
-
-        // FAKE
-        try {
-            await this.userOperationEventModel.insertMany(userOpEventDocs, {
-                ordered: false,
-            });
-        } catch (error) {
-            // nothing
         }
 
         await this.userOperationRepository.manager

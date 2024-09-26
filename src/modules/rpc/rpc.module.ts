@@ -11,16 +11,9 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { UserOperationEntity } from './entities/user-operation.entity';
 import { UserOperationEventEntity } from './entities/user-operation-event.entity';
 import { TransactionEntity } from './entities/transaction.entity';
-import { MongooseModule } from '@nestjs/mongoose';
-import { UserOperation, UserOperationSchema } from './schemas/user-operation.schema';
-import { UserOperationEvent, UserOperationEventSchema } from './schemas/user-operation-event.schema';
 
 @Module({
     imports: [
-        MongooseModule.forFeature([
-            { name: UserOperation.name, schema: UserOperationSchema },
-            { name: UserOperationEvent.name, schema: UserOperationEventSchema },
-        ]),
         TypeOrmModule.forFeature([UserOperationEntity, UserOperationEventEntity, TransactionEntity]),
         CommonModule,
     ],

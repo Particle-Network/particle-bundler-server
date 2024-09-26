@@ -2,13 +2,10 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { RpcController } from '../src/modules/rpc/rpc.controller';
 import { RpcService } from '../src/modules/rpc/services/rpc.service';
 import { RpcModule } from '../src/modules/rpc/rpc.module';
-import { MongooseModule } from '@nestjs/mongoose';
-import { mongodbConfigAsync } from '../src/configs/mongodb.config';
 import { configConfig } from '../src/configs/config.config';
 import { ConfigModule } from '@nestjs/config';
 import { BUNDLER_CONFIG_MAP, getBundlerChainConfig, initializeBundlerConfig } from '../src/configs/bundler-common';
 import {
-    getDocumentId,
     getUserOpHashV06,
     getUserOpHashV07,
     packAccountGasLimits,
@@ -42,7 +39,7 @@ describe('Common', () => {
         await initializeBundlerConfig();
 
         const app: TestingModule = await Test.createTestingModule({
-            imports: [ConfigModule.forRoot(configConfig), MongooseModule.forRootAsync(mongodbConfigAsync), RpcModule, TaskModule],
+            imports: [ConfigModule.forRoot(configConfig), RpcModule, TaskModule],
         }).compile();
 
         rpcController = app.get<RpcController>(RpcController);
@@ -72,20 +69,6 @@ describe('Common', () => {
 
         const cacheKey = chainService.keyCacheChainFeeData(EVM_CHAIN_ID.TAIKO_MAINNET);
         expect(P2PCache.has(cacheKey)).toBeTruthy();
-    }, 60000);
-
-    it('tryLockUserOperationsAndGetUnuseds', async () => {
-        const userOperationDocument = createFakeUserOperationDocument();
-        let unusedUserOperations = handleLocalUserOperationService.tryLockUserOperationsAndGetUnuseds([userOperationDocument]);
-        expect(unusedUserOperations.length).toBe(1);
-        expect(getDocumentId(unusedUserOperations[0])).toBe(getDocumentId(userOperationDocument));
-
-        unusedUserOperations = handleLocalUserOperationService.tryLockUserOperationsAndGetUnuseds([userOperationDocument]);
-        expect(unusedUserOperations.length).toBe(0);
-
-        handleLocalUserOperationService.unlockUserOperations([userOperationDocument]);
-        unusedUserOperations = handleLocalUserOperationService.tryLockUserOperationsAndGetUnuseds([userOperationDocument]);
-        expect(unusedUserOperations.length).toBe(1);
     }, 60000);
 
     it('groupByUserOperationsByChainId', async () => {
@@ -223,14 +206,16 @@ function createFakeUserOperationDocument(options: any = {}) {
     const entryPoint = '0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789';
     const userOpHash = getUserOpHashV06(chainId, fakeUserOp, entryPoint);
 
-    return new userOperationService.userOperationModel({
-        userOpHash: userOpHash,
-        userOpSender: fakeUserOp.sender,
-        userOpNonceKey: nonceKey,
-        userOpNonce: nonceValueString,
-        chainId,
-        entryPoint,
-        origin: fakeUserOp,
-        status: USER_OPERATION_STATUS.LOCAL,
-    });
+    return null;
+
+    // return new userOperationService.userOperationModel({
+    //     userOpHash: userOpHash,
+    //     userOpSender: fakeUserOp.sender,
+    //     userOpNonceKey: nonceKey,
+    //     userOpNonce: nonceValueString,
+    //     chainId,
+    //     entryPoint,
+    //     origin: fakeUserOp,
+    //     status: USER_OPERATION_STATUS.LOCAL,
+    // });
 }
