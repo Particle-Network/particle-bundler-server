@@ -4,6 +4,7 @@ import { deepHexlify, splitOriginNonce } from './utils';
 import { entryPointAbis } from './abis/entry-point-abis';
 import { JsonRPCRequestDto } from '../dtos/json-rpc-request.dto';
 import { Helper } from '../../../common/helper';
+import { IS_PRODUCTION } from '../../../common/common-types';
 
 export async function preExecuteUserOp(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
     Helper.assertTrue(typeof body.params[0] === 'object', -32602, 'Invalid params: userop must be an object');
@@ -48,6 +49,9 @@ export async function tryPreExecuteUserOp(rpcService: RpcService, chainId: numbe
         const [rhandleOps] = await Promise.all(promises);
 
         if (!!rhandleOps?.error) {
+            if (!IS_PRODUCTION) {
+                console.error(rhandleOps.error);
+            }
             let errorMessage = '';
             if (!!rhandleOps.error?.data && isHexString(rhandleOps.error.data)) {
                 const errorDescription: any = contractEntryPoint.interface.parseError(rhandleOps.error.data);
