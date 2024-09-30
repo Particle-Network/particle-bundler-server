@@ -8,7 +8,7 @@ export enum USER_OPERATION_STATUS {
     ASSOCIATED,
 }
 
-@Entity('user_operations')
+@Entity('user_operations_20240930')
 @Unique(['userOpHash'])
 @Unique(['chainId', 'userOpSender', 'userOpNonceKey', 'userOpNonce'])
 @Index(['chainId', 'status', 'id'])

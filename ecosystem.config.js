@@ -22,7 +22,7 @@ if (hostname === PRODUCTION_HOSTNAME) {
 module.exports = {
     apps: [
         {
-            name: 'particle-bundler-server',
+            name: 'particle-bundler-server-20240930',
             script: './dist/main.js',
             time: true,
             instances,

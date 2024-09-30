@@ -1,7 +1,7 @@
 import { Entity, Column, Unique } from 'typeorm';
 import { BaseEntity } from './base.entity';
 
-@Entity('user_operation_events')
+@Entity('user_operation_events_20240930')
 @Unique(['userOpHash'])
 export class UserOperationEventEntity extends BaseEntity<UserOperationEventEntity> {
     @Column({ name: 'chain_id', readonly: true, type: 'bigint' })

@@ -12,7 +12,7 @@ export enum TRANSACTION_STATUS {
     DONE,
 }
 
-@Entity('transactions')
+@Entity('transactions_20240930')
 @Unique(['chainId', 'from', 'nonce'])
 @Index(['chainId', 'status', 'from'])
 @Index(['status', 'latestSentAt', 'confirmations'])
