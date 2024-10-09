@@ -168,15 +168,25 @@ export class UserOperationService {
     }
 
     public async setLocalUserOperationsAsPending(userOpHashes: string[], transactionId: number) {
+        const fromStatuses = [USER_OPERATION_STATUS.LOCAL, USER_OPERATION_STATUS.ASSOCIATED];
+        const userOperations = await this.userOperationRepository.find({
+            where: { userOpHash: In(userOpHashes), status: In(fromStatuses) },
+            select: ['id'],
+        });
+
+        if (userOperations.length <= 0) {
+            return;
+        }
+
         const start = Date.now();
 
         await this.userOperationRepository
             .createQueryBuilder()
             .update(UserOperationEntity)
             .set({ status: USER_OPERATION_STATUS.PENDING, transactionId, updatedAt: new Date() })
-            .where('user_op_hash IN (:...userOpHashes) AND status IN (:...status)', {
-                userOpHashes,
-                status: [USER_OPERATION_STATUS.LOCAL, USER_OPERATION_STATUS.ASSOCIATED],
+            .where('id IN (:...ids) AND status IN (:...status)', {
+                ids: userOperations.map((userOperation) => userOperation.id),
+                status: fromStatuses,
             })
             .execute();
 
@@ -184,12 +194,21 @@ export class UserOperationService {
     }
 
     public async setUserOperationsAsDone(userOpHashes: string[], txHash: string, blockNumber: number, blockHash: string) {
+        const userOperations = await this.userOperationRepository.find({
+            where: { userOpHash: In(userOpHashes), status: USER_OPERATION_STATUS.PENDING },
+            select: ['id'],
+        });
+
+        if (userOperations.length <= 0) {
+            return;
+        }
+
         await this.userOperationRepository
             .createQueryBuilder()
             .update(UserOperationEntity)
             .set({ status: USER_OPERATION_STATUS.DONE, txHash, blockNumber, blockHash, updatedAt: new Date() })
-            .where('user_op_hash IN (:...userOpHashes) AND status = :status', {
-                userOpHashes,
+            .where('id IN (:...ids) AND status = :status', {
+                ids: userOperations.map((userOperation) => userOperation.id),
                 status: USER_OPERATION_STATUS.PENDING,
             })
             .execute();
