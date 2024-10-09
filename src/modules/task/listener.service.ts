@@ -3,8 +3,6 @@ import { Contract, Network, WebSocketProvider } from 'ethers';
 import { Helper } from '../../common/helper';
 import { LarkService } from '../common/services/lark.service';
 import { ENTRY_POINT_ADDRESS_V06, ENTRY_POINT_ADDRESS_V07, getBundlerChainConfig } from '../../configs/bundler-common';
-import { EVM_CHAIN_ID } from '../../common/chains';
-import { $enum } from 'ts-enum-util';
 import { LRUCache } from 'lru-cache';
 import { IS_PRODUCTION } from '../../common/common-types';
 import { entryPointAbis } from '../rpc/aa/abis/entry-point-abis';
