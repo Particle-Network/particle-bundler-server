@@ -174,6 +174,10 @@ export class UserOperationService {
             select: ['id'],
         });
 
+        if (userOperations.length <= 0) {
+            return;
+        }
+
         const start = Date.now();
 
         await this.userOperationRepository
@@ -194,6 +198,10 @@ export class UserOperationService {
             where: { userOpHash: In(userOpHashes), status: USER_OPERATION_STATUS.PENDING },
             select: ['id'],
         });
+
+        if (userOperations.length <= 0) {
+            return;
+        }
 
         await this.userOperationRepository
             .createQueryBuilder()
