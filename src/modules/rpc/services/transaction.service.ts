@@ -210,6 +210,10 @@ export class TransactionService {
     public async replaceTransactionTxHash(transactionEntity: TransactionEntity, newSignedTx: string, currentStatus: TRANSACTION_STATUS) {
         const tx: TypedTransaction = tryParseSignedTx(newSignedTx);
         const newTxHash = `0x${Buffer.from(tx.hash()).toString('hex')}`;
+        if (transactionEntity.txHashes.includes(newTxHash)) {
+            return;
+        }
+
         const newTxData = tx.toJSON();
 
         const newSignedTxs = transactionEntity.signedTxs;
