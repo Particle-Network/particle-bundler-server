@@ -13,10 +13,7 @@ import { UserOperationEventEntity } from './entities/user-operation-event.entity
 import { TransactionEntity } from './entities/transaction.entity';
 
 @Module({
-    imports: [
-        TypeOrmModule.forFeature([UserOperationEntity, UserOperationEventEntity, TransactionEntity]),
-        CommonModule,
-    ],
+    imports: [TypeOrmModule.forFeature([UserOperationEntity, UserOperationEventEntity, TransactionEntity]), CommonModule],
     controllers: [RpcController],
     providers: [RpcService, UserOperationService, TransactionService, LarkService, SignerService, ChainService],
 })

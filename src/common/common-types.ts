@@ -34,7 +34,7 @@ export interface IBundlerChainConfig {
     canIncrGasPriceRetry?: boolean;
     canIncrGasPriceRetryMaxCount?: number;
     userOperationLocalPoolMaxCount?: number;
-    sendRawTransactionRpcUrl?: string;
+    sendRawTransactionRpcUrls?: string[];
     callGasLimitBase?: bigint;
     verificationGasLimitBase?: bigint;
     maxPickSignerOnceCount?: number;
