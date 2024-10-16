@@ -8,12 +8,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { createTypeOrmConfigAsync } from './configs/typeorm.config';
 
 @Module({
-    imports: [
-        ConfigModule.forRoot(configConfig),
-        CommonModule,
-        RpcModule,
-        TaskModule,
-        TypeOrmModule.forRootAsync(createTypeOrmConfigAsync()),
-    ],
+    imports: [ConfigModule.forRoot(configConfig), CommonModule, RpcModule, TaskModule, TypeOrmModule.forRootAsync(createTypeOrmConfigAsync())],
 })
 export class AppModule {}

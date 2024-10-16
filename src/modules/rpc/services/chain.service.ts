@@ -2,7 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { FetchRequest, JsonRpcProvider, Network } from 'ethers';
 import { UserOperationService } from './user-operation.service';
 import { TransactionService } from './transaction.service';
-import { CACHE_GAS_FEE_TIMEOUT, CACHE_TRANSACTION_COUNT_TIMEOUT, GAS_FEE_LEVEL, PROVIDER_FETCH_TIMEOUT } from '../../../common/common-types';
+import {
+    CACHE_GAS_FEE_TIMEOUT,
+    CACHE_TRANSACTION_COUNT_TIMEOUT,
+    GAS_FEE_LEVEL,
+    IS_PRODUCTION,
+    PROVIDER_FETCH_TIMEOUT,
+} from '../../../common/common-types';
 import { ConfigService } from '@nestjs/config';
 import { LarkService } from '../../common/services/lark.service';
 import P2PCache from '../../../common/p2p-cache';
@@ -117,23 +123,40 @@ export class ChainService {
 
     public async sendRawTransaction(chainId: number, rawTransaction: string) {
         const bundlerChainConfig = getBundlerChainConfig(chainId);
-        const rpcUrl = bundlerChainConfig.sendRawTransactionRpcUrl ?? bundlerChainConfig.rpcUrl;
-        const response = await Axios.post(
-            rpcUrl,
-            {
-                jsonrpc: '2.0',
-                id: Date.now(),
-                method: bundlerChainConfig.methodSendRawTransaction,
-                params: [rawTransaction],
-            },
-            { timeout: 12000 },
+        const rpcUrls = bundlerChainConfig.sendRawTransactionRpcUrls ?? [bundlerChainConfig.rpcUrl];
+        // Try to send raw transaction to multiple rpc urls
+        const responses = await Promise.all(
+            rpcUrls.map(async (rpcUrl) => {
+                try {
+                    return await Axios.post(
+                        rpcUrl,
+                        {
+                            jsonrpc: '2.0',
+                            id: Date.now(),
+                            method: bundlerChainConfig.methodSendRawTransaction,
+                            params: [rawTransaction],
+                        },
+                        { timeout: 12000 },
+                    );
+                } catch (error) {
+                    if (!IS_PRODUCTION) {
+                        console.log('eth_sendRawTransaction', error, rpcUrl);
+                    }
+                    return null;
+                }
+            }),
         );
 
-        if (!response.data?.result) {
-            throw new Error(`Failed to send raw transaction: ${Helper.converErrorToString(response.data)}`);
+        const validResponse = responses.find((res) => !!res?.data?.result);
+        if (!validResponse) {
+            throw new Error(`Failed to send raw transaction: ${Helper.converErrorToString(responses[0])}`);
         }
 
-        return response.data?.result;
+        if (!IS_PRODUCTION) {
+            console.log('eth_sendRawTransaction', validResponse.data);
+        }
+
+        return validResponse.data?.result;
     }
 
     public async particleSuggestedGasFees(chainId: number) {
