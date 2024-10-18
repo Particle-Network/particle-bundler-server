@@ -11,8 +11,6 @@ import { deployBTCAccountFactory as deployBTCAccountFactoryV1 } from './deploy-b
 import { deployBTCAccountFactory as deployBTCAccountFactoryV2 } from './deploy-btc-account-v2-factory';
 import { deployBTCAccountFactory as deployBTCAccountFactoryV2_1 } from './deploy-btc-account-v2.1-factory';
 import { deployCoinbaseFactory } from './deploy-coinbase-account-v1';
-import { deployPasskeyModule } from './deploy-passkey-module';
-import { deployUniversalModule } from './deploy-universal-module';
 
 const args = process.argv.slice(2);
 const argsM = minimist(args);
@@ -61,15 +59,5 @@ const deployUniversal = argsM['universal'];
     if (deployCoinbase) {
         await deployCoinbaseFactory(chainId, signer);
         console.log('Deployed Coinbase v1 Factory');
-    }
-
-    if (deployPasskey) {
-        await deployPasskeyModule(chainId, signer);
-        console.log('Deployed Passkey Module');
-    }
-
-    if (deployUniversal) {
-        await deployUniversalModule(chainId, signer);
-        console.log('Deployed Universal Module');
     }
 })();
