@@ -13,20 +13,19 @@ export class Helper {
         }
 
         if (typeof error === 'object') {
-            let cache = [];
-            let str = JSON.stringify(error, function (key, value) {
-                if (typeof value === 'object' && value !== null) {
-                    if (cache.indexOf(value) !== -1) {
-                        // Circular reference found, discard key
-                        return;
-                    }
-                    // Store value in our collection
-                    cache.push(value);
+            try {
+                if (typeof error?.message === 'string') {
+                    return error.message;
                 }
-                return value;
-            });
-            cache = null; // reset the cache
-            return str;
+
+                if (!!error?.data) {
+                    return JSON.stringify(error.data);
+                }
+
+                return JSON.stringify(error);
+            } catch (e) {
+                return '';
+            }
         }
 
         if (error?.toString) {

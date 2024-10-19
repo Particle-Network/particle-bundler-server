@@ -364,6 +364,7 @@ export class HandlePendingTransactionService {
                     );
                 } catch (error) {
                     if (
+                        error?.message?.toLowerCase()?.includes('nonce too low') ||
                         error?.message?.toLowerCase()?.includes('already known') ||
                         error?.message?.toLowerCase()?.includes('known transaction')
                     ) {
