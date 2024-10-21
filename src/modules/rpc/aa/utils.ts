@@ -363,3 +363,7 @@ export function getSupportChainIdCurrentProcess(): number[] {
 
     return PROCESS_HANDLE_CHAINS[Number(process.env.NODE_APP_INSTANCE)];
 }
+
+export function isSolanaChain(chainId: number) {
+    return [101, 102, 103].includes(chainId);
+}
