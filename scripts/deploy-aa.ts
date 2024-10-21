@@ -19,9 +19,7 @@ const privateKey = argsM['p'] || argsM['privateKey'];
 const chainId = argsM['c'] || argsM['chainId'];
 const deployBTCAccountV1 = argsM['b1'] || argsM['btc-v1'];
 const deployBTCAccountV2 = argsM['b2'] || argsM['btc-v2'];
-const deployPasskey = argsM['passkey'];
 const deployCoinbase = argsM['coinbase'];
-const deployUniversal = argsM['universal'];
 
 (async () => {
     const signer = new Wallet(privateKey);
