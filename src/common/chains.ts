@@ -143,6 +143,10 @@ export enum EVM_CHAIN_ID {
     MOVEMENT_DEVNET = 30732,
     // Internal
     PARTICLE_MAINNET_V3 = 2013,
+
+    SOLANA_MAINNET = 101,
+    SOLANA_TESTNET = 102,
+    SOLANA_DEVNET = 103,
 }
 
 export const DISABLE_DEPOSIT_CHAINS = [

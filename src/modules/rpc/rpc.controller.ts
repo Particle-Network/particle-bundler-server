@@ -101,9 +101,12 @@ export class RpcController {
                     // ignore
                     // may be the client close the connection
                 } else {
-                    this.larkService.sendMessage(
-                        `Bundler RPC Error\nChainId: ${chainId}\nBody:${JSON.stringify(body)}\n${Helper.converErrorToString(error)}`,
-                    );
+                    const errorMessage = Helper.converErrorToString(error);
+                    if (errorMessage.includes('socket hang up')) {
+                        // ignore
+                    } else {
+                        this.larkService.sendMessage(`Bundler RPC Error\nChainId: ${chainId}\nBody:${JSON.stringify(body)}\n${errorMessage}`);
+                    }
                 }
             }
 

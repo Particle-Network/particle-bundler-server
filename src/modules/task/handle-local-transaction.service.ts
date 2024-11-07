@@ -12,7 +12,7 @@ import {
     createTxGasData,
     createUniqId,
     deepHexlify,
-    getSupportChainIdCurrentProcess,
+    getSupportEvmChainIdCurrentProcess,
     splitOriginNonce,
     tryParseSignedTx,
 } from '../rpc/aa/utils';
@@ -53,7 +53,7 @@ export class HandleLocalTransactionService {
 
         try {
             const localTransactions = await this.transactionService.getTransactionsByStatus(
-                getSupportChainIdCurrentProcess(),
+                getSupportEvmChainIdCurrentProcess(),
                 TRANSACTION_STATUS.LOCAL,
                 500,
                 { signedTxs: false, inners: false },

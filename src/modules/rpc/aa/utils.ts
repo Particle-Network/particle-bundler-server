@@ -356,14 +356,28 @@ export function createUniqId(): number {
     return Date.now() * 1000 + Number(process.env.NODE_APP_INSTANCE) * 100 + random(0, 99);
 }
 
-export function getSupportChainIdCurrentProcess(): number[] {
+export function getSupportEvmChainIdCurrentProcess(): number[] {
+    let chainIds: number[] = [];
     if (IS_DEVELOPMENT) {
-        return PROCESS_HANDLE_CHAINS[0];
+        chainIds = PROCESS_HANDLE_CHAINS[0];
+    } else {
+        chainIds = PROCESS_HANDLE_CHAINS[Number(process.env.NODE_APP_INSTANCE)];
     }
 
-    return PROCESS_HANDLE_CHAINS[Number(process.env.NODE_APP_INSTANCE)];
+    return chainIds.filter((chainId) => !isSolanaChain(chainId));
+}
+
+export function getSupportSolanaChainIdCurrentProcess(): number[] {
+    let chainIds: number[] = [];
+    if (IS_DEVELOPMENT) {
+        chainIds = PROCESS_HANDLE_CHAINS[0];
+    } else {
+        chainIds = PROCESS_HANDLE_CHAINS[Number(process.env.NODE_APP_INSTANCE)];
+    }
+
+    return chainIds.filter((chainId) => isSolanaChain(chainId));
 }
 
 export function isSolanaChain(chainId: number) {
-    return [101, 102, 103].includes(chainId);
+    return [EVM_CHAIN_ID.SOLANA_MAINNET, EVM_CHAIN_ID.SOLANA_DEVNET, EVM_CHAIN_ID.SOLANA_TESTNET].includes(chainId);
 }

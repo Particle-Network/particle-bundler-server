@@ -11,6 +11,11 @@ if (process.env.USE_LOCAL_NODE) {
                 const chainId = Number(key.replace('EVM_CHAIN_RPC_URL_', ''));
                 nodes[chainId] = nodeConfig.parsed[key].split(',').filter((x) => !!x && x.indexOf('chainbase') === -1);
             }
+
+            if (key.startsWith('SOLANA_RPC_URL_')) {
+                const chainId = Number(key.replace('SOLANA_RPC_URL_', ''));
+                nodes[chainId] = nodeConfig.parsed[key].split(',').filter((x) => !!x);
+            }
         }
     }
 }

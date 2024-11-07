@@ -29,6 +29,7 @@
         "@nestjs/platform-fastify": "^10.1.2",
         "@nestjs/schedule": "^2.1.0",
         "@nestjs/typeorm": "^10.0.2",
+        "@solana/web3.js": "^1.95.4",
         "axios": "^1.4.0",
         "bn.js": "^5.2.1",
         "class-transformer": "^0.5.1",

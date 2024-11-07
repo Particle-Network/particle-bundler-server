@@ -41,6 +41,8 @@ export class AppExceptionMessages {
         [-32609, 'The user operation pool is full, Please try again later'],
         [-32610, 'Invalid account nonce, please try again later'],
         [-32611, 'UserOp already known'],
+        [-32612, 'Serialized transaction is not valid'],
+        [-32613, 'This method must be authenticated'],
     ]);
 
     public static get(errorCode: number) {

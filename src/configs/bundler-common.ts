@@ -69,6 +69,7 @@ export const ENTRY_POINT_VERSION_MAP = {
 export const ALL_SUPPORTED_ENTRY_POINTS = Object.values(ENTRY_POINT_VERSION_MAP).flat();
 
 export enum AA_METHODS {
+    SOLANA_SEND_TRANSACTION = 'solana_sendTransaction',
     SEND_USER_OPERATION = 'eth_sendUserOperation',
     SEND_USER_OPERATION_BATCH = 'eth_sendUserOperationBatch',
     GET_USER_OPERATION_BY_HASH = 'eth_getUserOperationByHash',
