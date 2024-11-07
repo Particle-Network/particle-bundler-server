@@ -19,10 +19,13 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { UserOperationEntity } from '../rpc/entities/user-operation.entity';
 import { UserOperationEventEntity } from '../rpc/entities/user-operation-event.entity';
 import { TransactionEntity } from '../rpc/entities/transaction.entity';
+import { SolanaTransactionService } from '../rpc/services/solana-transaction.service';
+import { SolanaTransactionEntity } from '../rpc/entities/solana-transaction.entity';
+import { HandlePendingSolanaTransactionService } from './handle-pending-solana-transaction.service';
 
 @Module({
     imports: [
-        TypeOrmModule.forFeature([UserOperationEntity, UserOperationEventEntity, TransactionEntity]),
+        TypeOrmModule.forFeature([UserOperationEntity, UserOperationEventEntity, TransactionEntity, SolanaTransactionEntity]),
         ScheduleModule.forRoot(),
         CommonModule,
         RpcModule,
@@ -33,10 +36,12 @@ import { TransactionEntity } from '../rpc/entities/transaction.entity';
         HandlePendingUserOperationService,
         HandleLocalTransactionService,
         HandlePendingTransactionService,
+        HandlePendingSolanaTransactionService,
         ListenerService,
         FillSignerBalanceService,
         UserOperationService,
         TransactionService,
+        SolanaTransactionService,
         RpcService,
         LarkService,
         ChainService,

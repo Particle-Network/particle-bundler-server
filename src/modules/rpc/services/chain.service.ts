@@ -140,7 +140,7 @@ export class ChainService {
                     );
                 } catch (error) {
                     if (!IS_PRODUCTION) {
-                        console.log('eth_sendRawTransaction', error, rpcUrl);
+                        console.error('eth_sendRawTransaction', error, rpcUrl);
                     }
                     return null;
                 }
@@ -302,5 +302,67 @@ export class ChainService {
 
     private keyCacheChainSignerTransactionCount(chainId: number, address: string): string {
         return `chain_signer_transaction_count:${chainId}:${address.toLowerCase()}`;
+    }
+
+    public async solanaSendTransaction(chainId: number, serializedTransaction: string, options?: any) {
+        const bundlerChainConfig = getBundlerChainConfig(chainId);
+        const rpcUrls = bundlerChainConfig.sendRawTransactionRpcUrls ?? [bundlerChainConfig.rpcUrl];
+        // Try to send raw transaction to multiple rpc urls
+        const responses = await Promise.all(
+            rpcUrls.map(async (rpcUrl) => {
+                try {
+                    const response = await Axios.post(
+                        rpcUrl,
+                        {
+                            jsonrpc: '2.0',
+                            id: Date.now(),
+                            method: 'sendTransaction',
+                            params: [serializedTransaction, options],
+                        },
+                        { timeout: 12000 },
+                    );
+
+                    if (!response.data?.result) {
+                        throw new Error(`Failed to send solana transaction: ${Helper.converErrorToString(response.data)}`);
+                    }
+
+                    return response.data;
+                } catch (error) {
+                    if (!IS_PRODUCTION) {
+                        console.error('solana_sendTransaction', error, rpcUrl);
+                    }
+
+                    return { error: error.message };
+                }
+            }),
+        );
+
+        const res = responses.find((res) => !!res?.result);
+        if (!!res) {
+            return res;
+        }
+
+        return responses[0];
+    }
+
+    public async solanaGetTransaction(chainId: number, txSignature: string, options?: any) {
+        const bundlerChainConfig = getBundlerChainConfig(chainId);
+
+        const response = await Axios.post(
+            bundlerChainConfig.rpcUrl,
+            {
+                jsonrpc: '2.0',
+                id: Date.now(),
+                method: 'getTransaction',
+                params: [txSignature, options],
+            },
+            { timeout: 12000 },
+        );
+
+        if (!response.data?.result && !!response.data?.error) {
+            throw new Error(`Failed solanaGetTransaction: ${Helper.converErrorToString(response.data)}`);
+        }
+
+        return response.data?.result;
     }
 }

@@ -6,7 +6,7 @@ import { ENTRY_POINT_ADDRESS_V06, ENTRY_POINT_ADDRESS_V07, getBundlerChainConfig
 import { LRUCache } from 'lru-cache';
 import { IS_PRODUCTION } from '../../common/common-types';
 import { entryPointAbis } from '../rpc/aa/abis/entry-point-abis';
-import { getSupportChainIdCurrentProcess } from '../rpc/aa/utils';
+import { getSupportEvmChainIdCurrentProcess } from '../rpc/aa/utils';
 
 const WEBSOCKET_PING_INTERVAL = 5000;
 const WEBSOCKET_PONG_TIMEOUT = 3000;
@@ -27,7 +27,7 @@ export class ListenerService {
     public initialize(eventHandler: (event: any) => {}) {
         this.eventHandler = eventHandler;
 
-        const chains = getSupportChainIdCurrentProcess();
+        const chains = getSupportEvmChainIdCurrentProcess();
         for (const chainId of chains) {
             const bundlerConfig = getBundlerChainConfig(chainId);
             if (!!bundlerConfig.wsUrl) {

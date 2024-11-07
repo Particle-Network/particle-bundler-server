@@ -11,10 +11,12 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { UserOperationEntity } from './entities/user-operation.entity';
 import { UserOperationEventEntity } from './entities/user-operation-event.entity';
 import { TransactionEntity } from './entities/transaction.entity';
+import { SolanaTransactionEntity } from './entities/solana-transaction.entity';
+import { SolanaTransactionService } from './services/solana-transaction.service';
 
 @Module({
-    imports: [TypeOrmModule.forFeature([UserOperationEntity, UserOperationEventEntity, TransactionEntity]), CommonModule],
+    imports: [TypeOrmModule.forFeature([UserOperationEntity, UserOperationEventEntity, TransactionEntity, SolanaTransactionEntity]), CommonModule],
     controllers: [RpcController],
-    providers: [RpcService, UserOperationService, TransactionService, LarkService, SignerService, ChainService],
+    providers: [RpcService, UserOperationService, TransactionService, SolanaTransactionService, LarkService, SignerService, ChainService],
 })
 export class RpcModule {}

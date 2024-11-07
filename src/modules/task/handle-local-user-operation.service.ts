@@ -6,7 +6,7 @@ import { Cron } from '@nestjs/schedule';
 import { getBundlerChainConfig } from '../../configs/bundler-common';
 import { toBeHex } from 'ethers';
 import { LarkService } from '../common/services/lark.service';
-import { calcUserOpTotalGasLimit, canRunCron, getSupportChainIdCurrentProcess, waitSeconds } from '../rpc/aa/utils';
+import { calcUserOpTotalGasLimit, canRunCron, getSupportEvmChainIdCurrentProcess, waitSeconds } from '../rpc/aa/utils';
 import { HandlePendingUserOperationService } from './handle-pending-user-operation.service';
 import { SignerService } from '../rpc/services/signer.service';
 import { UserOperationEntity } from '../rpc/entities/user-operation.entity';
@@ -30,7 +30,7 @@ export class HandleLocalUserOperationService {
         }
 
         try {
-            let userOperations = await this.userOperationService.getLocalUserOperations(getSupportChainIdCurrentProcess(), 1000);
+            let userOperations = await this.userOperationService.getLocalUserOperations(getSupportEvmChainIdCurrentProcess(), 1000);
             userOperations = this.tryLockUserOperationsAndGetUnuseds(userOperations);
             if (userOperations.length <= 0) {
                 return;
