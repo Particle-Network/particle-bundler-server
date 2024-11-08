@@ -7,7 +7,7 @@ import { Cron } from '@nestjs/schedule';
 import { $enum } from 'ts-enum-util';
 import { DISABLE_DEPOSIT_CHAINS, EVM_CHAIN_ID } from '../../common/chains';
 import { getBundlerChainConfig } from '../../configs/bundler-common';
-import { canRunCron } from '../rpc/aa/utils';
+import { canRunCron, isSolanaChain } from '../rpc/aa/utils';
 import { SignerService } from '../rpc/services/signer.service';
 import { ChainService } from '../rpc/services/chain.service';
 
@@ -43,6 +43,10 @@ export class FillSignerBalanceService {
         const chains = $enum(EVM_CHAIN_ID).values();
         for (const chainId of chains) {
             currentChainId = Number(chainId);
+            if (isSolanaChain(currentChainId)) {
+                continue;
+            }
+
             const bundlerConfig = getBundlerChainConfig(Number(chainId));
             if (!bundlerConfig.minSignerBalance) {
                 continue;
