@@ -159,11 +159,15 @@ export class UserOperationService {
         return await this.userOperationRepository.findOneBy({ userOpHash });
     }
 
-    // Warning: can cause user nonce is not continuous
     public async getLocalUserOperations(chainIds: number[], limit: number = 1000): Promise<UserOperationEntity[]> {
+        if (chainIds.length === 0) {
+            return [];
+        }
+
         return await this.userOperationRepository.find({
             where: { chainId: In(chainIds), status: USER_OPERATION_STATUS.LOCAL },
             take: limit,
+            order: { id: 'ASC' },
         });
     }
 

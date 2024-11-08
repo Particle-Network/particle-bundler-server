@@ -50,7 +50,7 @@ export class UnblockAndReleaseSignersService {
                 if (balance >= minEtherBalance) {
                     this.signerService.UnblockedSigner(blockedSigner.chainId, blockedSigner.signerAddress);
                     this.larkService.sendMessage(`Balance is enough, unblock signer ${blockedSigner.signerAddress}`);
-                    const transaction = await this.transactionService.getTransactionById(blockedSigner.info.transactionId);
+                    const transaction = await this.transactionService.getTransactionById(blockedSigner.info.transactionId, true);
                     if (transaction.status !== TRANSACTION_STATUS.LOCAL) {
                         this.larkService.sendMessage(`Unblock signer error: transaction is not local, ${transaction.id}`);
                         continue;

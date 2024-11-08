@@ -27,6 +27,10 @@ export class TransactionService {
         limit: number,
         select?: FindOptionsSelect<TransactionEntity>,
     ): Promise<TransactionEntity[]> {
+        if (chainIds.length === 0) {
+            return [];
+        }
+
         return await this.transactionRepository.find({
             where: { chainId: In(chainIds), status },
             order: { id: 'ASC' },
@@ -41,6 +45,10 @@ export class TransactionService {
         limit: number,
         select?: FindOptionsSelect<TransactionEntity>,
     ): Promise<TransactionEntity[]> {
+        if (chainIds.length === 0) {
+            return [];
+        }
+
         const recentData = new Date(Date.now() - 10000); // 10s ago
 
         // sort by confirmations
@@ -68,6 +76,10 @@ export class TransactionService {
         limit: number,
         select?: FindOptionsSelect<TransactionEntity>,
     ): Promise<TransactionEntity[]> {
+        if (chainIds.length === 0) {
+            return [];
+        }
+
         const recentData = new Date(Date.now() - 10000); // 10s ago
 
         if (random(0, 1) === 0) {
@@ -94,9 +106,9 @@ export class TransactionService {
         });
     }
 
-    public async getTransactionById(id: number): Promise<TransactionEntity> {
+    public async getTransactionById(id: number, disableCache: boolean = false): Promise<TransactionEntity> {
         let transactionEntity = this.getGlobalCacheTransaction(id);
-        if (!!transactionEntity) {
+        if (!!transactionEntity && !disableCache) {
             if (transactionEntity.status === TRANSACTION_STATUS.DONE) {
                 this.delGlobalCacheTransaction(id);
             }

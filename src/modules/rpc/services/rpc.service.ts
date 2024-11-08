@@ -5,6 +5,7 @@ import { ENTRY_POINT_VERSION_MAP, PARTICLE_PAYMASTER_URL, getBundlerChainConfig 
 import { JsonRPCRequestDto, JsonRPCResponse } from './../dtos/json-rpc-request.dto';
 import { AppException } from '../../../common/app-exception';
 import * as AA from './../aa';
+import * as SOLANA from './../solana';
 import { Contract, getAddress, isAddress } from 'ethers';
 import { AA_METHODS } from '../../../configs/bundler-common';
 import { Helper } from '../../../common/helper';
@@ -13,6 +14,7 @@ import { SignerService } from './signer.service';
 import { ChainService } from './chain.service';
 import { UserOperationService } from './user-operation.service';
 import { TransactionService } from './transaction.service';
+import { SolanaTransactionService } from './solana-transaction.service';
 
 @Injectable()
 export class RpcService {
@@ -25,6 +27,7 @@ export class RpcService {
         public readonly chainService: ChainService,
         public readonly userOperationService: UserOperationService,
         public readonly transactionService: TransactionService,
+        public readonly solanaTransactionService: SolanaTransactionService,
     ) {}
 
     public async getValidPaymasterAddress(chainId: number) {
@@ -70,6 +73,10 @@ export class RpcService {
             method = body.method.slice(8);
         }
 
+        if (body.method.startsWith('solana_')) {
+            method = body.method.slice(7);
+        }
+
         let result: any;
         if (
             [AA_METHODS.ESTIMATE_USER_OPERATION_GAS, AA_METHODS.SEND_USER_OPERATION, AA_METHODS.SEND_USER_OPERATION_BATCH].includes(
@@ -84,6 +91,8 @@ export class RpcService {
 
             const version: string = this.getVersionByEntryPoint(body.params[1]);
             result = await AA[version][method](this, chainId, body);
+        } else if (body.method.startsWith('solana_')) {
+            result = await SOLANA[method](this, chainId, body);
         } else {
             result = await AA[method](this, chainId, body);
         }

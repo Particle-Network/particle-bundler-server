@@ -12,7 +12,7 @@ import { TransactionService } from '../rpc/services/transaction.service';
 import { UserOperationService } from '../rpc/services/user-operation.service';
 import { ALL_SUPPORTED_ENTRY_POINTS, getBundlerChainConfig, onEmitUserOpEvent } from '../../configs/bundler-common';
 import { Wallet, getAddress, toBeHex } from 'ethers';
-import { canRunCron, createTxGasData, deepHexlify, getSupportChainIdCurrentProcess, tryParseSignedTx } from '../rpc/aa/utils';
+import { canRunCron, createTxGasData, deepHexlify, getSupportEvmChainIdCurrentProcess, tryParseSignedTx } from '../rpc/aa/utils';
 import { Cron } from '@nestjs/schedule';
 import { FeeMarketEIP1559Transaction, LegacyTransaction } from '@ethereumjs/tx';
 import { SignerService } from '../rpc/services/signer.service';
@@ -45,7 +45,7 @@ export class HandlePendingTransactionService {
         }
 
         let pendingTransactions = await this.transactionService.getRecentTransactionsByStatusSortConfirmations(
-            getSupportChainIdCurrentProcess(),
+            getSupportEvmChainIdCurrentProcess(),
             TRANSACTION_STATUS.PENDING,
             500,
             { signedTxs: false, inners: false },
@@ -53,7 +53,7 @@ export class HandlePendingTransactionService {
 
         if (new Date().getSeconds() % 5 === 0) {
             const longPendingTransactions = await this.transactionService.getLongAgoTransactionsByStatusSortConfirmations(
-                getSupportChainIdCurrentProcess(),
+                getSupportEvmChainIdCurrentProcess(),
                 TRANSACTION_STATUS.PENDING,
                 500,
                 { signedTxs: false, inners: false },
@@ -113,6 +113,10 @@ export class HandlePendingTransactionService {
                 `[SendRawTransaction] End | Chain ${transactionEntity.chainId} | ${transactionEntity.id} | Cost ${Date.now() - start} ms`,
             );
         } catch (error) {
+            if (transactionEntity.chainId === 202105 && transactionEntity.id === 1729488320029008) {
+                console.error(error);
+            }
+
             if (error?.message?.toLowerCase()?.includes('already known')) {
                 // already send ?? can skip
             } else {
