@@ -113,11 +113,10 @@ export class HandlePendingTransactionService {
                 `[SendRawTransaction] End | Chain ${transactionEntity.chainId} | ${transactionEntity.id} | Cost ${Date.now() - start} ms`,
             );
         } catch (error) {
-            if (transactionEntity.chainId === 202105 && transactionEntity.id === 1729488320029008) {
-                console.error(error);
-            }
-
-            if (error?.message?.toLowerCase()?.includes('already known')) {
+            if (
+                error?.message?.toLowerCase()?.includes('already known') ||
+                error?.message?.toLowerCase()?.includes('tx already exists in cache')
+            ) {
                 // already send ?? can skip
             } else {
                 // insufficient funds for intrinsic transaction cost
@@ -143,7 +142,8 @@ export class HandlePendingTransactionService {
                     await this.transactionService.deleteTransactionAndResetUserOperations(transactionEntity.id);
                 } else if (
                     error?.message?.toLowerCase()?.includes('reverted transaction') ||
-                    error?.message?.toLowerCase()?.includes('intrinsic gas too low')
+                    error?.message?.toLowerCase()?.includes('intrinsic gas too low') ||
+                    error?.message?.toLowerCase()?.includes('internal server error')
                 ) {
                     // send a empty traction to custom the nonce (for after nonce can send correctly).
                     const signers = this.signerService.getChainSigners(transactionEntity.chainId);
@@ -370,7 +370,8 @@ export class HandlePendingTransactionService {
                     if (
                         error?.message?.toLowerCase()?.includes('nonce too low') ||
                         error?.message?.toLowerCase()?.includes('already known') ||
-                        error?.message?.toLowerCase()?.includes('known transaction')
+                        error?.message?.toLowerCase()?.includes('known transaction') ||
+                        error?.message?.toLowerCase()?.includes('tx already exists in cache')
                     ) {
                         // already send ?? can skip return
                     } else {
