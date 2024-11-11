@@ -25,13 +25,22 @@ export function calcUserOpTotalGasLimit(userOp: any, chainId: number): bigint {
         return 21000n + verificationGasLimit + callGasLimit + BigInt(userOp.preVerificationGas) + packedPaymasterGasLimit + postOpGasLimit;
     }
 
-    const mul = 3n;
+    let mul = 3n;
+    // HACK
+    if (chainId === EVM_CHAIN_ID.SEI_MAINNET) {
+        mul = 2n;
+    }
+
     const g1 = BigInt(userOp.callGasLimit) + BigInt(userOp.verificationGasLimit) * mul + BigInt(userOp.preVerificationGas) + 5000n;
 
     let magicExtraGas = 1000000n;
     // HACK
     if (chainId === EVM_CHAIN_ID.MERLIN_CHAIN_MAINNET || chainId === EVM_CHAIN_ID.MERLIN_CHAIN_TESTNET) {
         magicExtraGas = 200000n;
+    }
+    // HACK
+    if (chainId === EVM_CHAIN_ID.SEI_MAINNET) {
+        magicExtraGas = 100000n;
     }
     const g2 = BigInt(userOp.callGasLimit) + BigInt(userOp.verificationGasLimit) + BigInt(userOp.preVerificationGas) + magicExtraGas;
 
