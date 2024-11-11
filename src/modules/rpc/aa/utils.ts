@@ -28,7 +28,7 @@ export function calcUserOpTotalGasLimit(userOp: any, chainId: number): bigint {
     let mul = 3n;
     // HACK
     if (chainId === EVM_CHAIN_ID.SEI_MAINNET) {
-        mul = 2n;
+        mul = 1n;
     }
 
     const g1 = BigInt(userOp.callGasLimit) + BigInt(userOp.verificationGasLimit) * mul + BigInt(userOp.preVerificationGas) + 5000n;
@@ -40,7 +40,7 @@ export function calcUserOpTotalGasLimit(userOp: any, chainId: number): bigint {
     }
     // HACK
     if (chainId === EVM_CHAIN_ID.SEI_MAINNET) {
-        magicExtraGas = 100000n;
+        magicExtraGas = 0n;
     }
     const g2 = BigInt(userOp.callGasLimit) + BigInt(userOp.verificationGasLimit) + BigInt(userOp.preVerificationGas) + magicExtraGas;
 
