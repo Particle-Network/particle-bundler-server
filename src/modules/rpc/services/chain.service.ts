@@ -14,7 +14,7 @@ import { LarkService } from '../../common/services/lark.service';
 import P2PCache from '../../../common/p2p-cache';
 import { PARTICLE_PUBLIC_RPC_URL, getBundlerChainConfig } from '../../../configs/bundler-common';
 import { EVM_CHAIN_ID } from '../../../common/chains';
-import Axios from 'axios';
+import Axios, { AxiosError } from 'axios';
 import { Helper } from '../../../common/helper';
 
 export enum TRANSACTION_EXTRA_STATUS {
@@ -142,7 +142,12 @@ export class ChainService {
                     if (!IS_PRODUCTION) {
                         console.error('eth_sendRawTransaction', error, rpcUrl);
                     }
-                    return null;
+
+                    if (error instanceof AxiosError) {
+                        return { data: { error: Helper.converErrorToString(error.response.data) } };
+                    }
+
+                    return { data: { error: Helper.converErrorToString(error) } };
                 }
             }),
         );
