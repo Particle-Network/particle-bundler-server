@@ -135,6 +135,22 @@ export class HandleLocalTransactionService {
             return BigInt(aNonceValue) > BigInt(bNonceValue) ? 1 : -1;
         });
 
+        // HACK: Solve MEV issue: gas price value capture issue
+        // HACK: Keep gas price as user op's gas price to solve MEV issue
+        // UT Paymaster 0xCde0227541e6585535c8cee8fb8e1349D3254D5f, 0x472edeFE5647cA44eDF8D0068a6ce1c844F6822d
+        if (
+            userOps.length > 0 &&
+            !userOps[0].paymasterAndData.startsWith('0xCde0227541e6585535c8cee8fb8e1349D3254D5f'.toLowerCase()) &&
+            !userOps[0].paymasterAndData.startsWith('0x472edeFE5647cA44eDF8D0068a6ce1c844F6822d'.toLowerCase())
+        ) {
+            if (chainId === EVM_CHAIN_ID.LINEA_MAINNET || chainId === EVM_CHAIN_ID.POLYGON_MAINNET) {
+                // increase 5%
+                feeData.maxFeePerGas = (BigInt(userOps[0].maxFeePerGas) * 105n) / 100n;
+                feeData.maxPriorityFeePerGas = (BigInt(userOps[0].maxPriorityFeePerGas) * 105n) / 100n;
+                feeData.gasPrice = (BigInt(userOps[0].maxFeePerGas) * 105n) / 100n;
+            }
+        }
+
         const finalizedTx = await entryPointContract.handleOps.populateTransaction(userOps, beneficiary, {
             nonce,
             ...createTxGasData(chainId, feeData),
