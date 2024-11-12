@@ -144,10 +144,10 @@ export class HandleLocalTransactionService {
             !userOps[0].paymasterAndData.startsWith('0x472edeFE5647cA44eDF8D0068a6ce1c844F6822d'.toLowerCase())
         ) {
             if (chainId === EVM_CHAIN_ID.LINEA_MAINNET || chainId === EVM_CHAIN_ID.POLYGON_MAINNET) {
-                // increase 5%
-                feeData.maxFeePerGas = (BigInt(userOps[0].maxFeePerGas) * 105n) / 100n;
-                feeData.maxPriorityFeePerGas = (BigInt(userOps[0].maxPriorityFeePerGas) * 105n) / 100n;
-                feeData.gasPrice = (BigInt(userOps[0].maxFeePerGas) * 105n) / 100n;
+                // increase 10%
+                feeData.maxFeePerGas = (BigInt(userOps[0].maxFeePerGas) * 110n) / 100n;
+                feeData.maxPriorityFeePerGas = (BigInt(userOps[0].maxPriorityFeePerGas) * 110n) / 100n;
+                feeData.gasPrice = (BigInt(userOps[0].maxFeePerGas) * 110n) / 100n;
             }
         }
 
