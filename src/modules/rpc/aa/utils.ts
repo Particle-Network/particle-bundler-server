@@ -1,7 +1,7 @@
 import { isEmpty, random } from 'lodash';
-import { AbiCoder, BigNumberish, BytesLike, getBytes, hexlify, keccak256, toBeHex, ZeroAddress, zeroPadValue } from 'ethers';
+import { AbiCoder, BigNumberish, BytesLike, getBytes, hexlify, keccak256, toBeHex, zeroPadValue } from 'ethers';
 import { IS_DEBUG, IS_DEVELOPMENT, PRODUCTION_HOSTNAME } from '../../../common/common-types';
-import { TransactionFactory, TypedTransaction } from '@ethereumjs/tx';
+import { FeeMarketEIP1559Transaction, LegacyTransaction, TransactionFactory, TypedTransaction } from '@ethereumjs/tx';
 import { AppException } from '../../../common/app-exception';
 import { EVM_CHAIN_ID, L2_GAS_ORACLE, SUPPORT_EIP_1559 } from '../../../common/chains';
 import * as Os from 'os';
@@ -389,4 +389,47 @@ export function getSupportSolanaChainIdCurrentProcess(): number[] {
 
 export function isSolanaChain(chainId: number) {
     return [EVM_CHAIN_ID.SOLANA_MAINNET, EVM_CHAIN_ID.SOLANA_DEVNET, EVM_CHAIN_ID.SOLANA_TESTNET].includes(chainId);
+}
+
+export async function addTxGasFee(chainId: number, rawTx: string, feeData: any, coefficient = 1.1): Promise<any> {
+    const tx = tryParseSignedTx(rawTx);
+    const txData: any = tx.toJSON();
+
+    if (tx instanceof FeeMarketEIP1559Transaction) {
+        if (BigInt(feeData.maxFeePerGas) > BigInt(tx.maxFeePerGas)) {
+            txData.maxFeePerGas = toBeHex(feeData.maxFeePerGas);
+        }
+        if (BigInt(feeData.maxPriorityFeePerGas) > BigInt(tx.maxPriorityFeePerGas)) {
+            txData.maxPriorityFeePerGas = toBeHex(feeData.maxPriorityFeePerGas);
+        }
+
+        let bnMaxPriorityFeePerGas = BigInt(txData.maxPriorityFeePerGas);
+        let bnMaxFeePerGas = BigInt(txData.maxFeePerGas);
+        if (bnMaxPriorityFeePerGas === 0n) {
+            bnMaxPriorityFeePerGas = BigInt(0.01 * 10 ** 9);
+            if (bnMaxPriorityFeePerGas >= bnMaxFeePerGas) {
+                bnMaxFeePerGas = bnMaxPriorityFeePerGas + 1n;
+            }
+        }
+
+        txData.maxPriorityFeePerGas = toBeHex((bnMaxPriorityFeePerGas * BigInt(coefficient * 10)) / 10n);
+        txData.maxFeePerGas = toBeHex((bnMaxFeePerGas * BigInt(coefficient * 10)) / 10n);
+    }
+
+    if (tx instanceof LegacyTransaction) {
+        if (BigInt(feeData.gasPrice) > BigInt(tx.gasPrice)) {
+            txData.gasPrice = toBeHex(feeData.gasPrice);
+        }
+
+        txData.gasPrice = (BigInt(tx.gasPrice) * BigInt(coefficient * 10)) / 10n;
+    }
+
+    return {
+        chainId: chainId,
+        to: txData.to,
+        data: txData.data,
+        nonce: txData.nonce,
+        gasLimit: txData.gasLimit,
+        ...createTxGasData(chainId, txData),
+    };
 }
