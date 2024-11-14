@@ -37,18 +37,26 @@ export async function sendTransaction(rpcService: RpcService, chainId: number, b
         throw new AppException(-32612);
     }
 
-    const transactionEntity = await rpcService.solanaTransactionService.createTransaction(chainId, userOpHash, transaction, expiredAt);
+    try {
+        const transactionEntity = await rpcService.solanaTransactionService.createTransaction(chainId, userOpHash, transaction, expiredAt);
 
-    Logger.debug(`[CreateSolanaTransaction] ${transactionEntity.chainId} | ${transactionEntity.id}`);
+        Logger.debug(`[CreateSolanaTransaction] ${transactionEntity.chainId} | ${transactionEntity.id}`);
 
-    return await sendTransactionAndUpdateStatus(
-        rpcService.chainService,
-        rpcService.solanaTransactionService,
-        rpcService.larkService,
-        rpcService.userOperationService,
-        transactionEntity,
-        options,
-    );
+        return await sendTransactionAndUpdateStatus(
+            rpcService.chainService,
+            rpcService.solanaTransactionService,
+            rpcService.larkService,
+            rpcService.userOperationService,
+            transactionEntity,
+            options,
+        );
+    } catch (error) {
+        if (error?.message?.includes('Duplicate entry')) {
+            throw new AppException(-32607);
+        }
+
+        throw error;
+    }
 }
 
 export async function sendTransactionAndUpdateStatus(
