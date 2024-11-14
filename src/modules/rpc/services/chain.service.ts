@@ -204,10 +204,10 @@ export class ChainService {
         return response.data?.result;
     }
 
-    public async getFeeDataIfCache(chainId: number) {
+    public async getFeeDataIfCache(chainId: number, useCache: boolean = true) {
         const cacheKey = this.keyCacheChainFeeData(chainId);
         let feeData = P2PCache.get(cacheKey);
-        if (!!feeData) {
+        if (!!feeData && useCache) {
             return feeData;
         }
 
