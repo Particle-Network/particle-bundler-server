@@ -391,7 +391,7 @@ export function isSolanaChain(chainId: number) {
     return [EVM_CHAIN_ID.SOLANA_MAINNET, EVM_CHAIN_ID.SOLANA_DEVNET, EVM_CHAIN_ID.SOLANA_TESTNET].includes(chainId);
 }
 
-export async function addTxGasFee(chainId: number, rawTx: string, feeData: any, coefficient = 1.1): Promise<any> {
+export async function createTxAndIncrGasFee(chainId: number, rawTx: string, feeData: any, coefficient = 1.1): Promise<any> {
     const tx = tryParseSignedTx(rawTx);
     const txData: any = tx.toJSON();
 

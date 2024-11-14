@@ -12,9 +12,14 @@ import { TransactionService } from '../rpc/services/transaction.service';
 import { UserOperationService } from '../rpc/services/user-operation.service';
 import { ALL_SUPPORTED_ENTRY_POINTS, getBundlerChainConfig, onEmitUserOpEvent } from '../../configs/bundler-common';
 import { Wallet, getAddress, toBeHex } from 'ethers';
-import { addTxGasFee, canRunCron, createTxGasData, deepHexlify, getSupportEvmChainIdCurrentProcess, tryParseSignedTx } from '../rpc/aa/utils';
+import {
+    createTxAndIncrGasFee,
+    canRunCron,
+    createTxGasData,
+    deepHexlify,
+    getSupportEvmChainIdCurrentProcess,
+} from '../rpc/aa/utils';
 import { Cron } from '@nestjs/schedule';
-import { FeeMarketEIP1559Transaction, LegacyTransaction } from '@ethereumjs/tx';
 import { SignerService } from '../rpc/services/signer.service';
 import { ChainService } from '../rpc/services/chain.service';
 import { NEED_TO_ESTIMATE_GAS_BEFORE_SEND } from '../../common/chains';
@@ -152,9 +157,9 @@ export class HandlePendingTransactionService {
                     const signedTx = await this.signEmptyTxWithNonce(transactionEntity.chainId, signer, transactionEntity.nonce);
                     await this.transactionService.replaceTransactionTxHash(transactionEntity, signedTx, TRANSACTION_STATUS.LOCAL);
                 } else if (error?.message?.toLowerCase()?.includes('max fee per gas less than block base fee')) {
-                    // add gas
-                    const feeData = await this.chainService.getFeeDataIfCache(transactionEntity.chainId);
-                    const newTxData = await addTxGasFee(transactionEntity.chainId, transactionEntity.signedTxs[txHash], feeData, 1.5);
+                    // add gas price and reset
+                    const feeData = await this.chainService.getFeeDataIfCache(transactionEntity.chainId, false);
+                    const newTxData = await createTxAndIncrGasFee(transactionEntity.chainId, transactionEntity.signedTxs[txHash], feeData);
                     const signers = this.signerService.getChainSigners(transactionEntity.chainId);
                     const signer = signers.find((x) => x.address === transactionEntity.from);
                     const signedTx = await signer.signTransaction(newTxData);
@@ -451,7 +456,7 @@ export class HandlePendingTransactionService {
         try {
             const currentSignedTx = transactionEntity.signedTxs[transactionEntity.txHashes[transactionEntity.txHashes.length - 1]];
             const feeData = await this.chainService.getFeeDataIfCache(transactionEntity.chainId);
-            const newTxData = await addTxGasFee(transactionEntity.chainId, currentSignedTx, feeData, coefficient);
+            const newTxData = await createTxAndIncrGasFee(transactionEntity.chainId, currentSignedTx, feeData, coefficient);
 
             const signedTx = await signer.signTransaction(newTxData);
 
