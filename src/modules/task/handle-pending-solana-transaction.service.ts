@@ -139,7 +139,7 @@ export class HandlePendingSolanaTransactionService {
         const isFailed = !!receipt.meta.err;
 
         const status = isFailed ? SOLANA_TRANSACTION_STATUS.FAILED : SOLANA_TRANSACTION_STATUS.SUCCESS;
-        await this.solanaTransactionService.updateTransactionAsDone(transactionEntity, receipt, status, receipt.meta.err ?? '');
+        await this.solanaTransactionService.updateTransactionAsDone(transactionEntity, receipt, status, Helper.converErrorToString(receipt.meta.err));
 
         Logger.debug(
             `[UpdateSolanaTransaction] ${transactionEntity.chainId} | ${transactionEntity.id} | ${transactionEntity.txSignature} | ${status}`,
