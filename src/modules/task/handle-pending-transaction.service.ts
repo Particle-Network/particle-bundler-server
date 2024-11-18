@@ -12,13 +12,7 @@ import { TransactionService } from '../rpc/services/transaction.service';
 import { UserOperationService } from '../rpc/services/user-operation.service';
 import { ALL_SUPPORTED_ENTRY_POINTS, getBundlerChainConfig, onEmitUserOpEvent } from '../../configs/bundler-common';
 import { Wallet, getAddress, toBeHex } from 'ethers';
-import {
-    createTxAndIncrGasFee,
-    canRunCron,
-    createTxGasData,
-    deepHexlify,
-    getSupportEvmChainIdCurrentProcess,
-} from '../rpc/aa/utils';
+import { createTxAndIncrGasFee, canRunCron, createTxGasData, deepHexlify, getSupportEvmChainIdCurrentProcess } from '../rpc/aa/utils';
 import { Cron } from '@nestjs/schedule';
 import { SignerService } from '../rpc/services/signer.service';
 import { ChainService } from '../rpc/services/chain.service';
@@ -250,7 +244,7 @@ export class HandlePendingTransactionService {
 
             this.afterDoneTransaction(transactionEntity);
         } catch (error) {
-            Logger.error('handlePendingTransaction error', error);
+            console.error('handlePendingTransaction error', error);
 
             const errorMessage = Helper.converErrorToString(error);
             this.larkService.sendMessage(
@@ -485,7 +479,7 @@ export class HandlePendingTransactionService {
 
     private handleUserOpEvents(chainId: number, receipt: any, userOpHashes: string[]) {
         // receipt may be self tx, so we should skip
-        if (!receipt || !ALL_SUPPORTED_ENTRY_POINTS.includes(getAddress(receipt.to))) {
+        if (!receipt || !receipt.to || !ALL_SUPPORTED_ENTRY_POINTS.includes(getAddress(receipt.to))) {
             return;
         }
 
