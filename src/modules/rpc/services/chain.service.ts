@@ -370,4 +370,25 @@ export class ChainService {
 
         return response.data?.result;
     }
+
+    public async solanaSendBundler(chainId: number, base58EncodedTransactions: string[]) {
+        const bundlerChainConfig = getBundlerChainConfig(chainId);
+
+        const response = await Axios.post(
+            bundlerChainConfig.rpcUrl,
+            {
+                jsonrpc: '2.0',
+                id: Date.now(),
+                method: 'sendBundle',
+                params: [base58EncodedTransactions],
+            },
+            { timeout: 12000 },
+        );
+
+        if (!response.data?.result && !!response.data?.error) {
+            throw new Error(`Failed solanaSendBundler: ${Helper.converErrorToString(response.data)}`);
+        }
+
+        return response.data;
+    }
 }
