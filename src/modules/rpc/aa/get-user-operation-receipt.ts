@@ -41,6 +41,9 @@ export async function getUserOperationReceipt(rpcService: RpcService, chainId: n
     // these chains may reorg, so the receipt cache my not the final version, so here re request
     if ([EVM_CHAIN_ID.BERACHAIN_TESTNET_BARTIO].includes(transaction.chainId) && !!receipt?.transactionHash) {
         receipt = await rpcService.chainService.getTransactionReceipt(transaction.chainId, receipt.transactionHash);
+        if (!receipt) {
+            return null;
+        }
     }
 
     return formatReceipt(rpcService, userOperationEntity, receipt);

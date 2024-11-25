@@ -12,9 +12,8 @@ import { TransactionService } from '../rpc/services/transaction.service';
 import { UserOperationService } from '../rpc/services/user-operation.service';
 import { ALL_SUPPORTED_ENTRY_POINTS, getBundlerChainConfig, onEmitUserOpEvent } from '../../configs/bundler-common';
 import { Wallet, getAddress, toBeHex } from 'ethers';
-import { canRunCron, createTxGasData, deepHexlify, getSupportEvmChainIdCurrentProcess, tryParseSignedTx } from '../rpc/aa/utils';
+import { createTxAndIncrGasFee, canRunCron, createTxGasData, deepHexlify, getSupportEvmChainIdCurrentProcess } from '../rpc/aa/utils';
 import { Cron } from '@nestjs/schedule';
-import { FeeMarketEIP1559Transaction, LegacyTransaction } from '@ethereumjs/tx';
 import { SignerService } from '../rpc/services/signer.service';
 import { ChainService } from '../rpc/services/chain.service';
 import { NEED_TO_ESTIMATE_GAS_BEFORE_SEND } from '../../common/chains';
@@ -151,6 +150,14 @@ export class HandlePendingTransactionService {
 
                     const signedTx = await this.signEmptyTxWithNonce(transactionEntity.chainId, signer, transactionEntity.nonce);
                     await this.transactionService.replaceTransactionTxHash(transactionEntity, signedTx, TRANSACTION_STATUS.LOCAL);
+                } else if (error?.message?.toLowerCase()?.includes('max fee per gas less than block base fee')) {
+                    // add gas price and reset
+                    const feeData = await this.chainService.getFeeDataIfCache(transactionEntity.chainId, false);
+                    const newTxData = await createTxAndIncrGasFee(transactionEntity.chainId, transactionEntity.signedTxs[txHash], feeData);
+                    const signers = this.signerService.getChainSigners(transactionEntity.chainId);
+                    const signer = signers.find((x) => x.address === transactionEntity.from);
+                    const signedTx = await signer.signTransaction(newTxData);
+                    await this.transactionService.replaceTransactionTxHash(transactionEntity, signedTx, TRANSACTION_STATUS.LOCAL);
                 }
 
                 Logger.error(`SendTransaction error: ${transactionEntity.id}`, error);
@@ -237,7 +244,7 @@ export class HandlePendingTransactionService {
 
             this.afterDoneTransaction(transactionEntity);
         } catch (error) {
-            Logger.error('handlePendingTransaction error', error);
+            console.error('handlePendingTransaction error', error);
 
             const errorMessage = Helper.converErrorToString(error);
             this.larkService.sendMessage(
@@ -442,47 +449,10 @@ export class HandlePendingTransactionService {
 
         try {
             const currentSignedTx = transactionEntity.signedTxs[transactionEntity.txHashes[transactionEntity.txHashes.length - 1]];
-            const tx = tryParseSignedTx(currentSignedTx);
-            const txData: any = tx.toJSON();
-
             const feeData = await this.chainService.getFeeDataIfCache(transactionEntity.chainId);
-            if (tx instanceof FeeMarketEIP1559Transaction) {
-                if (BigInt(feeData.maxFeePerGas) > BigInt(tx.maxFeePerGas)) {
-                    txData.maxFeePerGas = toBeHex(feeData.maxFeePerGas);
-                }
-                if (BigInt(feeData.maxPriorityFeePerGas) > BigInt(tx.maxPriorityFeePerGas)) {
-                    txData.maxPriorityFeePerGas = toBeHex(feeData.maxPriorityFeePerGas);
-                }
+            const newTxData = await createTxAndIncrGasFee(transactionEntity.chainId, currentSignedTx, feeData, coefficient);
 
-                let bnMaxPriorityFeePerGas = BigInt(txData.maxPriorityFeePerGas);
-                let bnMaxFeePerGas = BigInt(txData.maxFeePerGas);
-                if (bnMaxPriorityFeePerGas === 0n) {
-                    bnMaxPriorityFeePerGas = BigInt(0.01 * 10 ** 9);
-                    if (bnMaxPriorityFeePerGas >= bnMaxFeePerGas) {
-                        bnMaxFeePerGas = bnMaxPriorityFeePerGas + 1n;
-                    }
-                }
-
-                txData.maxPriorityFeePerGas = toBeHex((bnMaxPriorityFeePerGas * BigInt(coefficient * 10)) / 10n);
-                txData.maxFeePerGas = toBeHex((bnMaxFeePerGas * BigInt(coefficient * 10)) / 10n);
-            }
-
-            if (tx instanceof LegacyTransaction) {
-                if (BigInt(feeData.gasPrice) > BigInt(tx.gasPrice)) {
-                    txData.gasPrice = toBeHex(feeData.gasPrice);
-                }
-
-                txData.gasPrice = (BigInt(tx.gasPrice) * BigInt(coefficient * 10)) / 10n;
-            }
-
-            const signedTx = await signer.signTransaction({
-                chainId: transactionEntity.chainId,
-                to: txData.to,
-                data: txData.data,
-                nonce: txData.nonce,
-                gasLimit: txData.gasLimit,
-                ...createTxGasData(transactionEntity.chainId, txData),
-            });
+            const signedTx = await signer.signTransaction(newTxData);
 
             // if failed and it's ok, just generate a invalid tx hash
             await this.transactionService.replaceTransactionTxHash(transactionEntity, signedTx, TRANSACTION_STATUS.PENDING);
@@ -509,7 +479,7 @@ export class HandlePendingTransactionService {
 
     private handleUserOpEvents(chainId: number, receipt: any, userOpHashes: string[]) {
         // receipt may be self tx, so we should skip
-        if (!receipt || !ALL_SUPPORTED_ENTRY_POINTS.includes(getAddress(receipt.to))) {
+        if (!receipt || !receipt.to || !ALL_SUPPORTED_ENTRY_POINTS.includes(getAddress(receipt.to))) {
             return;
         }
 

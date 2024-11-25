@@ -61,10 +61,16 @@ export class SolanaTransactionService {
         await this.solanaTransactionRepository.update({ id: transactionEntity.id, status: SOLANA_TRANSACTION_STATUS.LOCAL }, updated);
     }
 
-    public async updateTransactionAsDone(transactionEntity: SolanaTransactionEntity, receipt: any, status: SOLANA_TRANSACTION_STATUS) {
+    public async updateTransactionAsDone(
+        transactionEntity: SolanaTransactionEntity,
+        receipt: any,
+        status: SOLANA_TRANSACTION_STATUS,
+        failedReason: string,
+    ) {
         const updated = {
             status,
             receipt,
+            failedReason,
             updatedAt: new Date(),
         };
 

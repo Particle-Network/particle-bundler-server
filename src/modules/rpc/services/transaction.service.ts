@@ -179,7 +179,9 @@ export class TransactionService {
             return;
         }
 
-        await this.dataSource.query(`UPDATE ${this.transactionRepository.metadata.tableName} SET confirmations = confirmations + 1 WHERE id IN (${ids.join(',')});`);
+        await this.dataSource.query(
+            `UPDATE ${this.transactionRepository.metadata.tableName} SET confirmations = confirmations + 1 WHERE id IN (${ids.join(',')});`,
+        );
     }
 
     public async updateTransaction(transactionEntity: TransactionEntity, updates: any) {
