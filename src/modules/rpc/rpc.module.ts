@@ -15,7 +15,10 @@ import { SolanaTransactionEntity } from './entities/solana-transaction.entity';
 import { SolanaTransactionService } from './services/solana-transaction.service';
 
 @Module({
-    imports: [TypeOrmModule.forFeature([UserOperationEntity, UserOperationEventEntity, TransactionEntity, SolanaTransactionEntity]), CommonModule],
+    imports: [
+        TypeOrmModule.forFeature([UserOperationEntity, UserOperationEventEntity, TransactionEntity, SolanaTransactionEntity]),
+        CommonModule,
+    ],
     controllers: [RpcController],
     providers: [RpcService, UserOperationService, TransactionService, SolanaTransactionService, LarkService, SignerService, ChainService],
 })
