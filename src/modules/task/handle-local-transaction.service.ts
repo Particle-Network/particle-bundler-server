@@ -180,7 +180,13 @@ export class HandleLocalTransactionService {
         if (chainId === EVM_CHAIN_ID.SEI_TESTNET) {
             multiplier = 11n;
         }
+
         let gasLimit = (bundleGasLimit * multiplier) / 10n;
+
+        if (chainId === EVM_CHAIN_ID.ARBITRUM_ONE_MAINNET) {
+            return gasLimit;
+        }
+
         if (NEED_TO_ESTIMATE_GAS_BEFORE_SEND.includes(chainId)) {
             gasLimit *= 5n;
             if (gasLimit < 10000000n) {
