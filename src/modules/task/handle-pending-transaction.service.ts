@@ -150,7 +150,10 @@ export class HandlePendingTransactionService {
 
                     const signedTx = await this.signEmptyTxWithNonce(transactionEntity.chainId, signer, transactionEntity.nonce);
                     await this.transactionService.replaceTransactionTxHash(transactionEntity, signedTx, TRANSACTION_STATUS.LOCAL);
-                } else if (error?.message?.toLowerCase()?.includes('max fee per gas less than block base fee')) {
+                } else if (
+                    error?.message?.toLowerCase()?.includes('max fee per gas less than block base fee') ||
+                    error?.message?.toLowerCase()?.includes('max fee per gas is less than the minimum base fee')
+                ) {
                     // add gas price and reset
                     const feeData = await this.chainService.getFeeDataIfCache(transactionEntity.chainId, false);
                     const newTxData = await createTxAndIncrGasFee(transactionEntity.chainId, transactionEntity.signedTxs[txHash], feeData);
