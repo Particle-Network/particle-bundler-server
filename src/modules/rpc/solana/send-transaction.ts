@@ -11,6 +11,8 @@ import { LarkService } from '../../common/services/lark.service';
 import { UserOperationEventEntity } from '../entities/user-operation-event.entity';
 import { onEmitUserOpEvent } from '../../../configs/bundler-common';
 import { UserOperationService } from '../services/user-operation.service';
+import * as bs58 from 'bs58';
+import { IS_PRODUCTION } from '../../../common/common-types';
 
 export async function sendTransaction(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
     Helper.assertTrue(body.isAuth, -32613);
@@ -31,8 +33,8 @@ export async function sendTransaction(rpcService: RpcService, chainId: number, b
 
     let transaction: VersionedTransaction;
     try {
-        const buffer = Buffer.from(serializedTransaction, 'base64');
-        transaction = VersionedTransaction.deserialize(buffer);
+        const transactionBuffer = Buffer.from(serializedTransaction, 'base64');
+        transaction = VersionedTransaction.deserialize(transactionBuffer);
     } catch (error) {
         throw new AppException(-32612);
     }
@@ -68,11 +70,21 @@ export async function sendTransactionAndUpdateStatus(
     options: any,
 ) {
     try {
-        const res = await chainService.solanaSendTransaction(transactionEntity.chainId, transactionEntity.serializedTransaction, options);
+        let res: any;
+        if (!!options?.mevProtected) {
+            const base58EncodedTransaction = bs58.encode(Buffer.from(transactionEntity.serializedTransaction, 'base64'));
+            res = await chainService.solanaSendBundler(transactionEntity.chainId, [base58EncodedTransaction]);
+        } else {
+            res = await chainService.solanaSendTransaction(transactionEntity.chainId, transactionEntity.serializedTransaction, options);
+        }
+
+        if (!IS_PRODUCTION) {
+            console.log('send solana transaction', options, res);
+        }
+
         if (!!res?.result) {
-            const txSignature = res.result;
-            await solanaTransactionService.updateTransactionAsPending(transactionEntity, txSignature);
-            return txSignature;
+            await solanaTransactionService.updateTransactionAsPending(transactionEntity);
+            return transactionEntity.txSignature;
         }
 
         if (!res || !res.result) {
