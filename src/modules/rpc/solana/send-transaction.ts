@@ -12,6 +12,7 @@ import { UserOperationEventEntity } from '../entities/user-operation-event.entit
 import { onEmitUserOpEvent } from '../../../configs/bundler-common';
 import { UserOperationService } from '../services/user-operation.service';
 import * as bs58 from 'bs58';
+import { IS_PRODUCTION } from '../../../common/common-types';
 
 export async function sendTransaction(rpcService: RpcService, chainId: number, body: JsonRPCRequestDto) {
     Helper.assertTrue(body.isAuth, -32613);
@@ -75,6 +76,10 @@ export async function sendTransactionAndUpdateStatus(
             res = await chainService.solanaSendBundler(transactionEntity.chainId, [base58EncodedTransaction]);
         } else {
             res = await chainService.solanaSendTransaction(transactionEntity.chainId, transactionEntity.serializedTransaction, options);
+        }
+
+        if (!IS_PRODUCTION) {
+            console.log('send solana transaction', options, res);
         }
 
         if (!!res?.result) {
