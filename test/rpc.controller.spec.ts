@@ -1,7 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { RpcController } from '../src/modules/rpc/rpc.controller';
 import { RpcService } from '../src/modules/rpc/services/rpc.service';
-import { Wallet, JsonRpcProvider, resolveProperties, toBeHex, Contract, Interface, solidityPacked } from 'ethers';
+import { Wallet, JsonRpcProvider, resolveProperties, toBeHex, Interface} from 'ethers';
 import {
     AA_METHODS,
     initializeBundlerConfig,
@@ -235,6 +235,25 @@ describe('RpcController', () => {
                 '0xb61d27f600000000000000000000000028ad6b7dfd79153659cb44c2155cf7c0e1ceeccc00000000000000000000000000000000000000000000000002dfc714caeaf00000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000084c3685f4900000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000022314c57665a4a3653756e784748376353625a6f51364a655477456776593241435a6100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
             );
             console.log('txs', txs);
+        }, 60000);
+
+        it('Get suggestedFeeData', async () => {
+            const customChainId = process.argv.find((arg) => arg.includes('--chainId='));
+            const chainId = Number(customChainId ? customChainId.split('=')[1] : EVM_CHAIN_ID.ETHEREUM_SEPOLIA_TESTNET);
+            console.log('Test chainId', chainId);
+            const body = {
+                method: AA_METHODS.SUGGESTED_FEE_DATA,
+                params: [],
+                id: 53,
+                jsonrpc: '2.0',
+            };
+
+            const r = await rpcController.handleRpc(chainId, body);
+            console.log('r', r);
+            expect(r.result.maxPriorityFeePerGas).toBeGreaterThan(0);
+            expect(r.result.maxFeePerGas).toBeGreaterThan(0);
+            expect(r.result.gasPrice).toBeGreaterThan(0);
+            expect(r.result.baseFee).toBeGreaterThan(0);
         }, 60000);
     });
 });
