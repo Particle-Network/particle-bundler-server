@@ -301,7 +301,7 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
             ratio = 3;
         }
         if ([EVM_CHAIN_ID.SEI_MAINNET, EVM_CHAIN_ID.SEI_TESTNET, EVM_CHAIN_ID.SEI_DEVNET].includes(chainId)) {
-            ratio = 2;
+            ratio = 3;
         }
         if ([EVM_CHAIN_ID.LORENZO_MAINNET, EVM_CHAIN_ID.LORENZO_TESTNET].includes(chainId)) {
             ratio = 2.5;
