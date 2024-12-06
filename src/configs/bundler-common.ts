@@ -78,4 +78,5 @@ export enum AA_METHODS {
     GET_USER_OPERATION_RECEIPT = 'eth_getUserOperationReceipt',
     SUPPORTED_ENTRYPOINTS = 'eth_supportedEntryPoints',
     PEINDING_COUND = 'bundler_pendingUserOpCount',
+    SUGGESTED_FEE_DATA = 'eth_suggestedFeeData',
 }

@@ -53,6 +53,8 @@ export interface IBundlerChainConfig {
     rpcUrl?: string;
     methodSendRawTransaction?: string;
     wsUrl?: string;
+    solanaReadRpcUrl?: string;
+    solanaSendRpcUrl?: string;
 }
 
 export enum BLOCK_SIGNER_REASON {

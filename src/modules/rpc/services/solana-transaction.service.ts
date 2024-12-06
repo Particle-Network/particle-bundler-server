@@ -37,10 +37,9 @@ export class SolanaTransactionService {
         return await this.solanaTransactionRepository.save(transactionEntity);
     }
 
-    public async updateTransactionAsPending(transactionEntity: SolanaTransactionEntity, txSignature: string) {
+    public async updateTransactionAsPending(transactionEntity: SolanaTransactionEntity) {
         const updated = {
             status: SOLANA_TRANSACTION_STATUS.PENDING,
-            txSignature,
             latestSentAt: new Date(),
             updatedAt: new Date(),
         };

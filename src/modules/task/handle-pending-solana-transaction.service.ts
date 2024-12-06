@@ -32,11 +32,14 @@ export class HandlePendingSolanaTransactionService {
             getSupportSolanaChainIdCurrentProcess(),
             SOLANA_TRANSACTION_STATUS.LOCAL,
             500,
-            ['id', 'chainId', 'serializedTransaction', 'txSignature', 'userOpHash'],
+            ['id', 'chainId', 'serializedTransaction', 'txSignature', 'userOpHash', 'createdAt'],
         );
 
         for (const localTransactionEntity of localTransactionEntities) {
-            this.handleLocalTransactionsAction(localTransactionEntity);
+            // manual delay to avoid concurrent update
+            if (Date.now() - 1000 > localTransactionEntity.createdAt.getTime()) {
+                this.handleLocalTransactionsAction(localTransactionEntity);
+            }
         }
     }
 

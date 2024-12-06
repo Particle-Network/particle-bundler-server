@@ -311,7 +311,8 @@ export class ChainService {
 
     public async solanaSendTransaction(chainId: number, serializedTransaction: string, options?: any) {
         const bundlerChainConfig = getBundlerChainConfig(chainId);
-        const rpcUrls = bundlerChainConfig.sendRawTransactionRpcUrls ?? [bundlerChainConfig.rpcUrl];
+        const rpcUrls = [bundlerChainConfig.solanaSendRpcUrl ?? bundlerChainConfig.rpcUrl];
+
         // Try to send raw transaction to multiple rpc urls
         const responses = await Promise.all(
             rpcUrls.map(async (rpcUrl) => {
@@ -353,8 +354,10 @@ export class ChainService {
     public async solanaGetTransaction(chainId: number, txSignature: string, options?: any) {
         const bundlerChainConfig = getBundlerChainConfig(chainId);
 
+        const rpcUrl = bundlerChainConfig.solanaReadRpcUrl ?? bundlerChainConfig.rpcUrl;
+
         const response = await Axios.post(
-            bundlerChainConfig.rpcUrl,
+            rpcUrl,
             {
                 jsonrpc: '2.0',
                 id: Date.now(),
@@ -369,5 +372,28 @@ export class ChainService {
         }
 
         return response.data?.result;
+    }
+
+    public async solanaSendBundler(chainId: number, base58EncodedTransactions: string[]) {
+        const bundlerChainConfig = getBundlerChainConfig(chainId);
+
+        const rpcUrl = bundlerChainConfig.rpcUrl;
+
+        const response = await Axios.post(
+            rpcUrl,
+            {
+                jsonrpc: '2.0',
+                id: Date.now(),
+                method: 'sendBundle',
+                params: [base58EncodedTransactions],
+            },
+            { timeout: 12000 },
+        );
+
+        if (!response.data?.result && !!response.data?.error) {
+            throw new Error(`Failed solanaSendBundler: ${Helper.converErrorToString(response.data)}`);
+        }
+
+        return response.data;
     }
 }

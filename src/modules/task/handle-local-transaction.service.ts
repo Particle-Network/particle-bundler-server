@@ -175,6 +175,10 @@ export class HandleLocalTransactionService {
     }
 
     public async calculateGasLimitByBundleGasLimit(chainId: number, bundleGasLimit: bigint, handleOpsTx: any): Promise<bigint> {
+        if ([EVM_CHAIN_ID.SEI_DEVNET, EVM_CHAIN_ID.SEI_MAINNET, EVM_CHAIN_ID.SEI_TESTNET].includes(chainId)) {
+            return BigInt(await this.chainService.estimateGas(chainId, deepHexlify(handleOpsTx)));
+        }
+
         let multiplier = 15n;
         // HACK
         if (chainId === EVM_CHAIN_ID.SEI_TESTNET) {
@@ -194,7 +198,7 @@ export class HandleLocalTransactionService {
             }
 
             try {
-                const gas = BigInt(await this.chainService.estimateGas(chainId, handleOpsTx));
+                const gas = BigInt(await this.chainService.estimateGas(chainId, deepHexlify(handleOpsTx)));
                 return gas > gasLimit ? gas : gasLimit;
             } catch (error) {
                 // ignore error
