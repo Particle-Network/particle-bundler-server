@@ -152,6 +152,13 @@ export class ChainService {
             }),
         );
 
+        const invalidResponse = responses.find((res) => !!res?.data?.error);
+        if (!!invalidResponse) {
+            this.larkService.sendMessage(
+                `Detect invalid sendRawTransaction response from chain ${chainId}: ${Helper.converErrorToString(invalidResponse)}`,
+            );
+        }
+
         const validResponse = responses.find((res) => !!res?.data?.result);
         if (!validResponse) {
             throw new Error(`Failed to send raw transaction: ${Helper.converErrorToString(responses[0])}`);
