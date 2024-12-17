@@ -309,6 +309,9 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
         if ([EVM_CHAIN_ID.LORENZO_MAINNET, EVM_CHAIN_ID.LORENZO_TESTNET].includes(chainId)) {
             ratio = 2.5;
         }
+        if ([EVM_CHAIN_ID.HASHKEY_CHAIN_MAINNET, EVM_CHAIN_ID.HASHKEY_CHAIN_TESTNET].includes(chainId)) {
+            ratio = 1.5;
+        }
 
         minGasPrice = (minGasPrice * BigInt(Math.round(ratio * 100))) / 100n;
     }
