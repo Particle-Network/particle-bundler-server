@@ -273,6 +273,9 @@ async function calculateGasPrice(rpcService: RpcService, chainId: number, userOp
             // Lorenzo
             EVM_CHAIN_ID.LORENZO_MAINNET,
             EVM_CHAIN_ID.LORENZO_TESTNET,
+            // HashKey Chain
+            EVM_CHAIN_ID.HASHKEY_CHAIN_MAINNET,
+            EVM_CHAIN_ID.HASHKEY_CHAIN_TESTNET,
         ].includes(chainId)
     ) {
         let ratio = 1.05;
