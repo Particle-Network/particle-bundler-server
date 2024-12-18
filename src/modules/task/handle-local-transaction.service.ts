@@ -99,7 +99,7 @@ export class HandleLocalTransactionService {
         } catch (error) {
             Logger.error(`Failed to handle local transaction: ${localTransactionEntity.id}`, error);
             this.larkService.sendMessage(
-                `Failed to handle local transaction: ${localTransactionEntity.id}: ${Helper.converErrorToString(error)}`,
+                `Failed to handle local transaction: ${localTransactionEntity.id} On Chain ${localTransactionEntity.chainId}: ${Helper.converErrorToString(error)}`,
             );
         }
 
