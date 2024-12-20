@@ -99,7 +99,9 @@ export class HandleLocalTransactionService {
         } catch (error) {
             Logger.error(`Failed to handle local transaction: ${localTransactionEntity.id}`, error);
             this.larkService.sendMessage(
-                `Failed to handle local transaction: ${localTransactionEntity.id} On Chain ${localTransactionEntity.chainId}: ${Helper.converErrorToString(error)}`,
+                `Failed to handle local transaction: ${localTransactionEntity.id} On Chain ${
+                    localTransactionEntity.chainId
+                }: ${Helper.converErrorToString(error)}`,
             );
         }
 
@@ -183,6 +185,9 @@ export class HandleLocalTransactionService {
         // HACK
         if (chainId === EVM_CHAIN_ID.SEI_TESTNET) {
             multiplier = 11n;
+        }
+        if ([EVM_CHAIN_ID.ETHEREUM_MAINNET, EVM_CHAIN_ID.POLYGON_MAINNET].includes(chainId)) {
+            multiplier = 10n;
         }
 
         let gasLimit = (bundleGasLimit * multiplier) / 10n;

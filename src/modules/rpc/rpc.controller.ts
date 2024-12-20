@@ -52,7 +52,6 @@ export class RpcController {
                 }
             }
 
-            Helper.assertTrue(chainId !== EVM_CHAIN_ID.PEQA_MAINNET, -32001, `Unsupported chainId: ${chainId}`);
             Helper.assertTrue($enum(EVM_CHAIN_ID).isValue(chainId), -32001, `Unsupported chainId: ${chainId}`);
 
             result = await this.handleRpc(chainId, body);
