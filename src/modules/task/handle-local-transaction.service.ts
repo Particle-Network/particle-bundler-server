@@ -189,6 +189,9 @@ export class HandleLocalTransactionService {
         if ([EVM_CHAIN_ID.ETHEREUM_MAINNET, EVM_CHAIN_ID.POLYGON_MAINNET].includes(chainId)) {
             multiplier = 10n;
         }
+        if (chainId === EVM_CHAIN_ID.ARBITRUM_ONE_MAINNET) {
+            multiplier = 20n;
+        }
 
         let gasLimit = (bundleGasLimit * multiplier) / 10n;
 
