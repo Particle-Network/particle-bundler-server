@@ -190,7 +190,7 @@ export class HandleLocalTransactionService {
             multiplier = 10n;
         }
         if (chainId === EVM_CHAIN_ID.ARBITRUM_ONE_MAINNET) {
-            multiplier = 20n;
+            multiplier = 25n;
         }
 
         let gasLimit = (bundleGasLimit * multiplier) / 10n;
