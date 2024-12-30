@@ -190,12 +190,19 @@ export class HandleLocalTransactionService {
             multiplier = 10n;
         }
         if (chainId === EVM_CHAIN_ID.ARBITRUM_ONE_MAINNET) {
-            multiplier = 25n;
+            multiplier = 20n;
         }
 
         let gasLimit = (bundleGasLimit * multiplier) / 10n;
 
         if (chainId === EVM_CHAIN_ID.ARBITRUM_ONE_MAINNET) {
+            try {
+                const gas = BigInt(await this.chainService.estimateGas(chainId, deepHexlify(handleOpsTx)));
+                return gas > gasLimit ? gas : gasLimit;
+            } catch (error) {
+                // ignore error
+            }
+
             return gasLimit;
         }
 
