@@ -154,6 +154,7 @@ export class HandleLocalTransactionService {
         }
 
         const finalizedTx = await entryPointContract.handleOps.populateTransaction(userOps, beneficiary, {
+            from: signer.address,
             nonce,
             ...createTxGasData(chainId, feeData),
         });
@@ -198,8 +199,9 @@ export class HandleLocalTransactionService {
         if (chainId === EVM_CHAIN_ID.ARBITRUM_ONE_MAINNET) {
             try {
                 const gas = BigInt(await this.chainService.estimateGas(chainId, deepHexlify(handleOpsTx)));
-                return gas > gasLimit ? gas : gasLimit;
+                return (gas > gasLimit ? gas : gasLimit) * 2n;
             } catch (error) {
+                console.error(error);
                 // ignore error
             }
 
