@@ -112,10 +112,7 @@ export class HandlePendingTransactionService {
                 `[SendRawTransaction] End | Chain ${transactionEntity.chainId} | ${transactionEntity.id} | Cost ${Date.now() - start} ms`,
             );
         } catch (error) {
-            if (
-                error?.message?.toLowerCase()?.includes('already known') ||
-                error?.message?.toLowerCase()?.includes('tx already exists')
-            ) {
+            if (error?.message?.toLowerCase()?.includes('already known') || error?.message?.toLowerCase()?.includes('tx already exists')) {
                 // already send ?? can skip
             } else {
                 // insufficient funds for intrinsic transaction cost
@@ -451,13 +448,15 @@ export class HandlePendingTransactionService {
         }
 
         try {
-            this.larkService.sendMessage(`TryIncrTransactionGasPrice On Chain ${transactionEntity.chainId} For ${transactionEntity.from} | transactionId: ${transactionEntity.id}`);
-            
+            this.larkService.sendMessage(
+                `TryIncrTransactionGasPrice On Chain ${transactionEntity.chainId} For ${transactionEntity.from} | transactionId: ${transactionEntity.id}`,
+            );
+
             const currentSignedTx = transactionEntity.signedTxs[transactionEntity.txHashes[transactionEntity.txHashes.length - 1]];
             const feeData = await this.chainService.getFeeDataIfCache(transactionEntity.chainId);
             const newTxData = await createTxAndIncrGasFee(transactionEntity.chainId, currentSignedTx, feeData, coefficient);
             const signedTx = await signer.signTransaction(newTxData);
-            
+
             // if failed and it's ok, just generate a invalid tx hash
             await this.transactionService.replaceTransactionTxHash(transactionEntity, signedTx, TRANSACTION_STATUS.PENDING);
             await this.chainService.sendRawTransaction(transactionEntity.chainId, signedTx);

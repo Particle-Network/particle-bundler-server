@@ -1,7 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { RpcController } from '../src/modules/rpc/rpc.controller';
 import { RpcService } from '../src/modules/rpc/services/rpc.service';
-import { Wallet, JsonRpcProvider, resolveProperties, toBeHex, Interface} from 'ethers';
+import { Wallet, JsonRpcProvider, resolveProperties, toBeHex, Interface } from 'ethers';
 import {
     AA_METHODS,
     initializeBundlerConfig,
