@@ -89,7 +89,7 @@ export class HandlePendingSolanaTransactionService {
             getSupportSolanaChainIdCurrentProcess(),
             SOLANA_TRANSACTION_STATUS.PENDING,
             500,
-            ['id', 'chainId', 'txSignature', 'userOpHash', 'expiredAt'],
+            ['id', 'chainId', 'serializedTransaction', 'txSignature', 'userOpHash', 'createdAt', 'expiredAt'],
         );
 
         // async execute, no need to wait
@@ -120,6 +120,13 @@ export class HandlePendingSolanaTransactionService {
             if (!receipt) {
                 if (pendingTransactionEntity.expiredAt < Math.floor(Date.now() / 1000)) {
                     await this.handleSolanaReceipt({ meta: { err: 'User op expired' } }, pendingTransactionEntity);
+                } else if (pendingTransactionEntity.createdAt.getTime() > Date.now() - 10000) {
+                    // 重发, 避免节点在初次发送的时候 堵塞而丢弃交易
+                    await this.chainService.solanaSendTransaction(
+                        pendingTransactionEntity.chainId,
+                        pendingTransactionEntity.serializedTransaction,
+                        { encoding: 'base64', preflightCommitment: 'confirmed', skipPreflight: false },
+                    );
                 }
 
                 return null;
