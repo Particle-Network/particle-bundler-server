@@ -8,6 +8,11 @@ export enum SOLANA_TRANSACTION_STATUS {
     SUCCESS,
 }
 
+export enum SOLANA_TRANSACTION_MEV_STATUS {
+    NOT_MEV_PROTECTED,
+    MEV_PROTECTED,
+}
+
 @Entity('solana_transactions_20240930')
 @Unique(['userOpHash'])
 @Index(['status', 'id'])
@@ -26,6 +31,9 @@ export class SolanaTransactionEntity extends BaseEntity<SolanaTransactionEntity>
 
     @Column({ name: 'status', type: 'tinyint' })
     public status: SOLANA_TRANSACTION_STATUS;
+
+    @Column({ name: 'is_mev_protected', type: 'tinyint' })
+    public isMevProtected: SOLANA_TRANSACTION_MEV_STATUS;
 
     @Column({ name: 'tx_signature', type: 'varchar' })
     public txSignature: string;

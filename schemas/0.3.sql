@@ -1,0 +1,1 @@
+ALTER TABLE `solana_transactions_20240930` ADD COLUMN `is_mev_protected` TINYINT NULL DEFAULT 0 AFTER `status`;

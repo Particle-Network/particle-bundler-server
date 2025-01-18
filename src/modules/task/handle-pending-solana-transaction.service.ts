@@ -10,6 +10,7 @@ import { UserOperationEventEntity } from '../rpc/entities/user-operation-event.e
 import { SolanaTransactionService } from '../rpc/services/solana-transaction.service';
 import { SOLANA_TRANSACTION_STATUS, SolanaTransactionEntity } from '../rpc/entities/solana-transaction.entity';
 import { sendTransactionAndUpdateStatus } from '../rpc/solana';
+import * as bs58 from 'bs58';
 
 @Injectable()
 export class HandlePendingSolanaTransactionService {
@@ -32,7 +33,7 @@ export class HandlePendingSolanaTransactionService {
             getSupportSolanaChainIdCurrentProcess(),
             SOLANA_TRANSACTION_STATUS.LOCAL,
             500,
-            ['id', 'chainId', 'serializedTransaction', 'txSignature', 'userOpHash', 'createdAt'],
+            ['id', 'chainId', 'serializedTransaction', 'txSignature', 'userOpHash', 'createdAt', 'isMevProtected'],
         );
 
         for (const localTransactionEntity of localTransactionEntities) {
@@ -89,7 +90,7 @@ export class HandlePendingSolanaTransactionService {
             getSupportSolanaChainIdCurrentProcess(),
             SOLANA_TRANSACTION_STATUS.PENDING,
             500,
-            ['id', 'chainId', 'serializedTransaction', 'txSignature', 'userOpHash', 'createdAt', 'expiredAt'],
+            ['id', 'chainId', 'serializedTransaction', 'txSignature', 'userOpHash', 'createdAt', 'expiredAt', 'isMevProtected'],
         );
 
         // async execute, no need to wait
@@ -122,11 +123,16 @@ export class HandlePendingSolanaTransactionService {
                     await this.handleSolanaReceipt({ meta: { err: 'User op expired' } }, pendingTransactionEntity);
                 } else if (pendingTransactionEntity.createdAt.getTime() > Date.now() - 10000) {
                     // 重发, 避免节点在初次发送的时候 堵塞而丢弃交易
-                    await this.chainService.solanaSendTransaction(
-                        pendingTransactionEntity.chainId,
-                        pendingTransactionEntity.serializedTransaction,
-                        { encoding: 'base64', preflightCommitment: 'confirmed', skipPreflight: false },
-                    );
+                    if (pendingTransactionEntity.isMevProtected) {
+                        const base58EncodedTransaction = bs58.encode(Buffer.from(pendingTransactionEntity.serializedTransaction, 'base64'));
+                        await this.chainService.solanaSendBundler(pendingTransactionEntity.chainId, [base58EncodedTransaction]);
+                    } else {
+                        await this.chainService.solanaSendTransaction(
+                            pendingTransactionEntity.chainId,
+                            pendingTransactionEntity.serializedTransaction,
+                            { encoding: 'base64', preflightCommitment: 'confirmed', skipPreflight: false },
+                        );
+                    }
                 }
 
                 return null;
