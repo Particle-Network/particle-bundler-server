@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
-import { SOLANA_TRANSACTION_STATUS, SolanaTransactionEntity } from '../entities/solana-transaction.entity';
+import { SOLANA_TRANSACTION_MEV_STATUS, SOLANA_TRANSACTION_STATUS, SolanaTransactionEntity } from '../entities/solana-transaction.entity';
 import { VersionedTransaction } from '@solana/web3.js';
 import * as bs58 from 'bs58';
 
@@ -17,6 +17,7 @@ export class SolanaTransactionService {
         userOpHash: string,
         transaction: VersionedTransaction,
         expiredAt: number,
+        isMevProtected: boolean,
     ): Promise<SolanaTransactionEntity> {
         const txSignature = bs58.encode(transaction.signatures[0]);
         const serializedTransaction = Buffer.from(transaction.serialize()).toString('base64');
@@ -27,6 +28,7 @@ export class SolanaTransactionService {
             blockHash: transaction.message.recentBlockhash,
             serializedTransaction,
             status: SOLANA_TRANSACTION_STATUS.LOCAL,
+            isMevProtected: isMevProtected ? SOLANA_TRANSACTION_MEV_STATUS.MEV_PROTECTED : SOLANA_TRANSACTION_MEV_STATUS.NOT_MEV_PROTECTED,
             txSignature,
             confirmations: 0,
             failedReason: '',

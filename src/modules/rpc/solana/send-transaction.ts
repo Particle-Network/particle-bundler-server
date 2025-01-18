@@ -40,7 +40,13 @@ export async function sendTransaction(rpcService: RpcService, chainId: number, b
     }
 
     try {
-        const transactionEntity = await rpcService.solanaTransactionService.createTransaction(chainId, userOpHash, transaction, expiredAt);
+        const transactionEntity = await rpcService.solanaTransactionService.createTransaction(
+            chainId,
+            userOpHash,
+            transaction,
+            expiredAt,
+            !!options?.mevProtected,
+        );
 
         Logger.debug(`[CreateSolanaTransaction] ${transactionEntity.chainId} | ${transactionEntity.id}`);
 
@@ -71,7 +77,7 @@ export async function sendTransactionAndUpdateStatus(
 ) {
     try {
         let res: any;
-        if (!!options?.mevProtected) {
+        if (transactionEntity.isMevProtected) {
             const base58EncodedTransaction = bs58.encode(Buffer.from(transactionEntity.serializedTransaction, 'base64'));
             res = await chainService.solanaSendBundler(transactionEntity.chainId, [base58EncodedTransaction]);
         } else {
