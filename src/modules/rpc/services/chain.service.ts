@@ -16,6 +16,7 @@ import { PARTICLE_PUBLIC_RPC_URL, getBundlerChainConfig } from '../../../configs
 import { EVM_CHAIN_ID } from '../../../common/chains';
 import Axios, { AxiosError } from 'axios';
 import { Helper } from '../../../common/helper';
+import { uniq } from 'lodash';
 
 export enum TRANSACTION_EXTRA_STATUS {
     NONE,
@@ -318,7 +319,7 @@ export class ChainService {
 
     public async solanaSendTransaction(chainId: number, serializedTransaction: string, options?: any) {
         const bundlerChainConfig = getBundlerChainConfig(chainId);
-        const rpcUrls = [bundlerChainConfig.solanaSendRpcUrl ?? bundlerChainConfig.rpcUrl];
+        const rpcUrls = uniq([bundlerChainConfig.solanaSendRpcUrl, bundlerChainConfig.rpcUrl]);
 
         // Try to send raw transaction to multiple rpc urls
         const responses = await Promise.all(
