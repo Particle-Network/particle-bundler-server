@@ -407,9 +407,7 @@ export class ChainService {
                 return response.data;
             } catch (error) {
                 if (error instanceof AxiosError) {
-                    this.larkService.sendMessage(
-                        `SolanaSendBundler Error: ${Helper.converErrorToString(error)}\nUrl:${error?.request?._currentUrl}}`,
-                    );
+                    this.larkService.sendMessage(`SolanaSendBundler Error: ${Helper.converErrorToString(error)}\nUrl:${error?.config?.url}}`);
                 } else {
                     this.larkService.sendMessage(`SolanaSendBundler Error: ${Helper.converErrorToString(error)}`);
                 }
