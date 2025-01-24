@@ -55,6 +55,7 @@ export interface IBundlerChainConfig {
     wsUrl?: string;
     solanaReadRpcUrl?: string;
     solanaSendRpcUrl?: string;
+    solanaBundleRpcUrls?: string[];
 }
 
 export enum BLOCK_SIGNER_REASON {

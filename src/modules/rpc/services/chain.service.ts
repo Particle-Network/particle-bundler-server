@@ -385,23 +385,37 @@ export class ChainService {
     public async solanaSendBundler(chainId: number, base58EncodedTransactions: string[]) {
         const bundlerChainConfig = getBundlerChainConfig(chainId);
 
-        const rpcUrl = bundlerChainConfig.rpcUrl;
+        const rpcUrls = bundlerChainConfig.solanaBundleRpcUrls;
 
-        const response = await Axios.post(
-            rpcUrl,
-            {
-                jsonrpc: '2.0',
-                id: Date.now(),
-                method: 'sendBundle',
-                params: [base58EncodedTransactions],
-            },
-            { timeout: 12000 },
-        );
+        for (const rpcUrl of rpcUrls) {
+            try {
+                const response = await Axios.post(
+                    rpcUrl,
+                    {
+                        jsonrpc: '2.0',
+                        id: Date.now(),
+                        method: 'sendBundle',
+                        params: [base58EncodedTransactions],
+                    },
+                    { timeout: 12000 },
+                );
 
-        if (!response.data?.result && !!response.data?.error) {
-            throw new Error(`Failed solanaSendBundler: ${Helper.converErrorToString(response.data)}`);
+                if (!response.data?.result && !!response.data?.error) {
+                    throw new Error(`Failed solanaSendBundler: ${Helper.converErrorToString(response.data)}`);
+                }
+
+                return response.data;
+            } catch (error) {
+                if (error instanceof AxiosError) {
+                    this.larkService.sendMessage(
+                        `SolanaSendBundler Error: ${Helper.converErrorToString(error)}\nUrl:${error?.request?._currentUrl}}`,
+                    );
+                } else {
+                    this.larkService.sendMessage(`SolanaSendBundler Error: ${Helper.converErrorToString(error)}`);
+                }
+            }
         }
 
-        return response.data;
+        return null;
     }
 }
