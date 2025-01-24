@@ -400,8 +400,6 @@ export class ChainService {
                     { timeout: 12000 },
                 );
 
-                console.log('solanaSendBundler', response.data);
-
                 if (!response.data?.result && !!response.data?.error) {
                     throw new Error(`Failed solanaSendBundler: ${Helper.converErrorToString(response.data)}`);
                 }
