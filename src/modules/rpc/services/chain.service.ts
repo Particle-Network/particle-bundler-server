@@ -125,7 +125,7 @@ export class ChainService {
     public async sendRawTransaction(chainId: number, rawTransaction: string) {
         const bundlerChainConfig = getBundlerChainConfig(chainId);
         const rpcUrls = bundlerChainConfig.sendRawTransactionRpcUrls ?? [bundlerChainConfig.rpcUrl];
-        // Try to send raw transaction to multiple rpc urls
+        // Try to send raw transactions to multiple rpc urls
         const responses = await Promise.all(
             rpcUrls.map(async (rpcUrl) => {
                 try {
@@ -321,7 +321,7 @@ export class ChainService {
         const bundlerChainConfig = getBundlerChainConfig(chainId);
         const rpcUrls = uniq([bundlerChainConfig.solanaSendRpcUrl, bundlerChainConfig.rpcUrl]);
 
-        // Try to send raw transaction to multiple rpc urls
+        // Try to send raw transactions to multiple rpc urls
         const responses = await Promise.all(
             rpcUrls.map(async (rpcUrl) => {
                 try {
