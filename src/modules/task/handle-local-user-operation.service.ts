@@ -158,7 +158,7 @@ export class HandleLocalUserOperationService {
             bundlesMap[userOperationEntity.entryPoint].push(userOperationEntity);
         }
 
-        // chunk user operations into bundles by calc it's gas limit
+        // chunk user operations into bundles by calc its gas limit
         const bundles: IBundle[] = [];
         const userOperationEntitiesToDelete: UserOperationEntity[] = [];
         for (const entryPoint in bundlesMap) {
