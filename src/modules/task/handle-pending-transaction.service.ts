@@ -173,7 +173,7 @@ export class HandlePendingTransactionService {
         }
 
         try {
-            // not in transaction db, may error is send succss and here is panic, There is a high probability that it will not appear
+            // not in transaction db, may error is send success and here is panic, There is a high probability that it will not appear
             let start = Date.now();
             await this.transactionService.updateTransaction(transactionEntity, { status: TRANSACTION_STATUS.PENDING });
             Logger.debug(`[UpdateTransactionAsPending] ${transactionEntity.id}, Cost: ${Date.now() - start} ms`);
